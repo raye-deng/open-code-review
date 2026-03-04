@@ -1,6 +1,7 @@
 node_modules/
 dist/
 !packages/github-action/dist/
+!/dist/
 .next/
 out/
 .env
