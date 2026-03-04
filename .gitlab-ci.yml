@@ -1,0 +1,66 @@
+stages:
+  - test
+  - build
+  - validate
+
+variables:
+  NODE_IMAGE: node:20-slim
+
+# ─── Test ───
+
+test:
+  stage: test
+  image: $NODE_IMAGE
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@10.23.0 --activate
+    - pnpm install --frozen-lockfile
+  script:
+    - pnpm test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# ─── Build ───
+
+build:
+  stage: build
+  image: $NODE_IMAGE
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@10.23.0 --activate
+    - pnpm install --frozen-lockfile
+  script:
+    - pnpm build
+  artifacts:
+    paths:
+      - packages/*/dist/
+    expire_in: 1 hour
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# ─── Validate (dogfood) ───
+
+validate:
+  stage: validate
+  image: $NODE_IMAGE
+  needs:
+    - build
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@10.23.0 --activate
+    - pnpm install --frozen-lockfile
+  script:
+    - node packages/cli/dist/index.js scan "packages/core/src/**/*.ts"
+        --threshold 60
+        --format gitlab-report
+        --output ai-validator-report.json
+  artifacts:
+    reports:
+      codequality: ai-validator-report.json
+    when: always
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

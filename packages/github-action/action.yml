@@ -1,0 +1,35 @@
+name: 'AI Code Validator'
+description: 'Quality gate for AI-generated code - detect hallucinations, logic gaps, and architectural inconsistencies'
+author: 'ai-code-validator'
+
+branding:
+  icon: 'shield'
+  color: 'purple'
+
+inputs:
+  threshold:
+    description: 'Minimum quality score (0-100) to pass'
+    required: false
+    default: '70'
+  paths:
+    description: 'Paths to scan (glob patterns, comma-separated)'
+    required: false
+    default: 'src/**/*.ts,src/**/*.js'
+  fail-on-low-score:
+    description: 'Fail the workflow if score is below threshold'
+    required: false
+    default: 'true'
+  github-token:
+    description: 'GitHub token for PR comments'
+    required: false
+    default: '${{ github.token }}'
+
+outputs:
+  score:
+    description: 'Overall quality score (0-100)'
+  report:
+    description: 'Path to the JSON report file'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'

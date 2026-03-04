@@ -1,0 +1,33 @@
+{
+  "name": "@ai-code-validator/core",
+  "version": "0.1.0",
+  "description": "Core detection engine for AI-generated code validation",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src/"
+  },
+  "keywords": [
+    "ai",
+    "code-quality",
+    "hallucination-detection",
+    "ci-cd",
+    "quality-gate"
+  ],
+  "author": "Raye Deng <fengsen.deng@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "dependencies": {
+    "glob": "^10.3.0",
+    "acorn": "^8.11.0",
+    "acorn-walk": "^8.3.0"
+  }
+}

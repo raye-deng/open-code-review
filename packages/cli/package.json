@@ -1,0 +1,31 @@
+{
+  "name": "ai-code-validator",
+  "version": "0.1.0",
+  "description": "CLI tool for validating AI-generated code quality",
+  "type": "module",
+  "bin": {
+    "ai-code-validator": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "lint": "eslint src/"
+  },
+  "keywords": [
+    "ai",
+    "code-quality",
+    "cli",
+    "ci-cd"
+  ],
+  "author": "Raye Deng <fengsen.deng@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@ai-code-validator/core": "workspace:*",
+    "glob": "^10.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "tsx": "^4.7.0"
+  }
+}

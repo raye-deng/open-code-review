@@ -1,0 +1,26 @@
+{
+  "name": "ai-code-validator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The first CI/CD quality gate built specifically for AI-generated code",
+  "author": "Raye Deng <fengsen.deng@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "dev": "pnpm --filter @ai-code-validator/web dev",
+    "clean": "pnpm -r exec rm -rf dist node_modules"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0",
+    "prettier": "^3.2.0",
+    "eslint": "^9.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@10.23.0"
+}

@@ -1,0 +1,30 @@
+spec:
+  inputs:
+    threshold:
+      default: 70
+      description: 'Minimum quality score (0-100) to pass'
+    paths:
+      default: 'src'
+      description: 'Paths to scan'
+    node-image:
+      default: 'node:20-slim'
+      description: 'Docker image to use'
+
+---
+
+ai-code-validate:
+  stage: test
+  image: $[[ inputs.node-image ]]
+  script:
+    - npm install -g ai-code-validator
+    - ai-code-validator scan "$[[ inputs.paths ]]/**/*.ts" "$[[ inputs.paths ]]/**/*.js"
+        --threshold $[[ inputs.threshold ]]
+        --format gitlab-report
+        --output ai-validator-report.json
+  artifacts:
+    reports:
+      codequality: ai-validator-report.json
+    when: always
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
