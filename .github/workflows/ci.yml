@@ -44,6 +44,35 @@ jobs:
       - name: Verify CLI works
         run: node packages/cli/dist/index.js scan packages/core/src --threshold 60
 
+  # Dogfood: use our own GitHub Action to validate our code
+  dogfood:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build core (needed by action)
+        run: pnpm --filter @ai-code-validator/core build
+
+      - name: AI Code Validator (dogfood)
+        uses: ./
+        with:
+          threshold: '60'
+          paths: 'packages/core/src/**/*.ts,packages/cli/src/**/*.ts'
+          fail-on-low-score: 'true'
+
   sync-gitlab:
     runs-on: ubuntu-latest
     needs: test

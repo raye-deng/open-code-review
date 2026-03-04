@@ -39926,6 +39926,25 @@ function resolveValidPackages(projectRoot, extra = []) {
                 for (const name of Object.keys(deps)) {
                     packages.add(name);
                 }
+                // In monorepo: also read root workspace package.json (one or two levels up)
+                const isWorkspacePkg = pkg.name && (dir.includes('/packages/') || dir.includes('/apps/'));
+                if (isWorkspacePkg) {
+                    for (let up = (0,external_node_path_namespaceObject.dirname)(dir); up !== (0,external_node_path_namespaceObject.dirname)(up); up = (0,external_node_path_namespaceObject.dirname)(up)) {
+                        const rootPkg = (0,external_node_path_namespaceObject.join)(up, 'package.json');
+                        if ((0,external_node_fs_namespaceObject.existsSync)(rootPkg)) {
+                            try {
+                                const root = JSON.parse((0,external_node_fs_namespaceObject.readFileSync)(rootPkg, 'utf-8'));
+                                if (root.workspaces) {
+                                    const rootDeps = { ...root.dependencies, ...root.devDependencies, ...root.peerDependencies };
+                                    for (const n of Object.keys(rootDeps))
+                                        packages.add(n);
+                                    break;
+                                }
+                            }
+                            catch { /* ignore */ }
+                        }
+                    }
+                }
             }
             catch {
                 // Ignore malformed package.json
@@ -40011,6 +40030,16 @@ function detectPhantomReferences(source, filePath) {
         'performance', 'queueMicrotask', 'atob', 'btoa',
         'describe', 'it', 'test', 'expect', 'beforeAll', 'afterAll', 'beforeEach', 'afterEach',
         'vi', 'jest',
+        // Class keywords that appear as identifiers
+        'constructor', 'super', 'this',
+        // Common logging / utility patterns
+        'log', 'warn', 'error', 'info', 'debug', 'trace',
+        // SQL aggregate functions (appear in TypeORM/raw queries)
+        'COUNT', 'SUM', 'AVG', 'MAX', 'MIN', 'COALESCE', 'NULLIF', 'CAST',
+        'count', 'sum', 'avg', 'max', 'min', 'coalesce', 'nullif', 'cast',
+        // Node.js / common runtime
+        'next', 'resolve', 'reject', 'emit', 'on', 'off', 'once',
+        'toString', 'valueOf', 'hasOwnProperty', 'isPrototypeOf',
     ]);
     for (const line of lines) {
         // Variable declarations
@@ -40052,6 +40081,10 @@ function detectPhantomReferences(source, filePath) {
     // Look for function calls to undeclared identifiers (very conservative)
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+        const trimmedLine = line.trim();
+        // Skip decorator lines entirely (@Decorator(...))
+        if (trimmedLine.startsWith('@'))
+            continue;
         // Match standalone function calls: identifier(...)
         const callMatches = line.matchAll(/\b([a-z]\w*)\s*\(/gi);
         for (const m of callMatches) {
@@ -40063,8 +40096,23 @@ function detectPhantomReferences(source, filePath) {
             const idx = m.index;
             if (idx > 0 && line[idx - 1] === '.')
                 continue;
+            // Skip if preceded by @ (decorator call within a line)
+            if (idx > 0 && line[idx - 1] === '@')
+                continue;
             // Skip control flow keywords
-            if (['if', 'for', 'while', 'switch', 'catch', 'return', 'throw', 'new', 'typeof', 'instanceof', 'void', 'delete', 'await'].includes(name))
+            if (['if', 'for', 'while', 'switch', 'catch', 'return', 'throw', 'new', 'typeof', 'instanceof', 'void', 'delete', 'await', 'yield', 'case', 'in', 'of', 'as', 'from', 'import', 'export', 'default', 'extends', 'implements', 'interface', 'type', 'enum', 'namespace', 'abstract', 'declare', 'readonly', 'static', 'public', 'private', 'protected', 'override', 'get', 'set', 'async', 'function', 'class', 'const', 'let', 'var'].includes(name))
+                continue;
+            // Skip all-uppercase identifiers (likely enum values, constants, SQL)
+            if (/^[A-Z][A-Z0-9_]+$/.test(name))
+                continue;
+            // Skip single-char identifiers (loop variables: i, j, k, etc.)
+            if (name.length === 1)
+                continue;
+            // Skip lines that are inside SQL template literals or comments
+            if (trimmedLine.startsWith('//') || trimmedLine.startsWith('*') || trimmedLine.startsWith('/*'))
+                continue;
+            // Skip class method definitions (name followed by ( inside class body)
+            if (/^\s*(public|private|protected|static|async|override|abstract)?\s*\w+\s*\(/.test(line) && !line.includes('='))
                 continue;
             issues.push({
                 type: 'phantom-function',
@@ -40079,13 +40127,46 @@ function detectPhantomReferences(source, filePath) {
     return issues;
 }
 /**
+ * Known framework decorators that should not be flagged as phantom functions.
+ * Covers NestJS, TypeORM, class-validator, class-transformer, Swagger/OpenAPI, etc.
+ */
+const FRAMEWORK_DECORATORS = new Set([
+    // NestJS core
+    'Controller', 'Get', 'Post', 'Put', 'Delete', 'Patch', 'Options', 'Head', 'All',
+    'Injectable', 'Module', 'Component', 'Pipe', 'Guard', 'Interceptor', 'Middleware',
+    'UseGuards', 'UseInterceptors', 'UsePipes', 'UseFilters', 'Catch',
+    // NestJS parameter decorators
+    'Body', 'Param', 'Query', 'Headers', 'Req', 'Res', 'Next', 'Session', 'UploadedFile',
+    // NestJS DI
+    'Inject', 'InjectRepository', 'InjectQueue',
+    // Swagger / OpenAPI
+    'ApiProperty', 'ApiTags', 'ApiOperation', 'ApiResponse', 'ApiBody', 'ApiBearerAuth',
+    // TypeORM
+    'Column', 'Entity', 'PrimaryGeneratedColumn', 'CreateDateColumn', 'UpdateDateColumn',
+    'ManyToOne', 'OneToMany', 'ManyToMany', 'JoinColumn', 'JoinTable', 'OneToOne',
+    'BeforeInsert', 'AfterInsert', 'BeforeUpdate', 'AfterUpdate', 'BeforeRemove',
+    // class-validator
+    'IsString', 'IsNumber', 'IsBoolean', 'IsEmail', 'IsOptional', 'IsArray', 'IsEnum',
+    'IsNotEmpty', 'MinLength', 'MaxLength', 'Min', 'Max', 'ValidateNested',
+    // class-transformer
+    'Type', 'Expose', 'Exclude', 'Transform',
+    // Express / Fastify
+    'Router',
+    // Angular
+    'Component', 'Directive', 'NgModule', 'Input', 'Output', 'HostListener',
+    // TypeScript / JS builtins used as decorators
+    'Reflect',
+]);
+/**
  * Main hallucination detector
  */
 class HallucinationDetector {
     validPackages;
     options;
+    ignoreDecorators;
     constructor(options) {
         this.options = options;
+        this.ignoreDecorators = options.ignoreDecorators ?? true;
         this.validPackages = resolveValidPackages(options.projectRoot, options.knownPackages);
     }
     /**
@@ -40114,15 +40195,31 @@ class HallucinationDetector {
         }
         // 2. Check for phantom function references
         const phantomRefs = detectPhantomReferences(content, filePath);
-        issues.push(...phantomRefs);
+        for (const ref of phantomRefs) {
+            // Skip known framework decorators if ignoreDecorators is enabled
+            if (this.ignoreDecorators) {
+                const fnName = ref.message.match(/Possible phantom function call: '(\w+)'/)?.[1];
+                if (fnName && FRAMEWORK_DECORATORS.has(fnName))
+                    continue;
+            }
+            issues.push(ref);
+        }
+        // Filter out issues suppressed by // ai-validator-ignore or // ai-validator-disable
+        const lines = content.split('\n');
+        const filteredIssues = issues.filter(issue => {
+            if (issue.line <= 0)
+                return true;
+            const prevLine = lines[issue.line - 2] || '';
+            return !prevLine.includes('// ai-validator-ignore') && !prevLine.includes('// ai-validator-disable');
+        });
         // Calculate score: start at 100, deduct for issues
-        const errorCount = issues.filter(i => i.severity === 'error').length;
-        const warningCount = issues.filter(i => i.severity === 'warning').length;
+        const errorCount = filteredIssues.filter(i => i.severity === 'error').length;
+        const warningCount = filteredIssues.filter(i => i.severity === 'warning').length;
         const deductions = (errorCount * 15) + (warningCount * 5);
         const score = Math.max(0, 100 - deductions);
         return {
             file: filePath,
-            issues,
+            issues: filteredIssues,
             score,
         };
     }
@@ -40346,12 +40443,19 @@ class LogicGapDetector {
      */
     analyze(filePath, source) {
         const lines = source.split('\n');
-        const issues = [
+        const rawIssues = [
             ...detectEmptyCatch(lines, filePath),
             ...detectIncompleteImpl(lines, filePath),
             ...detectUnreachableCode(lines, filePath),
             ...detectMissingErrorHandling(lines, filePath),
         ];
+        // Filter out issues suppressed by // ai-validator-ignore or // ai-validator-disable
+        const issues = rawIssues.filter(issue => {
+            if (issue.line <= 0)
+                return true;
+            const prevLine = lines[issue.line - 2] || '';
+            return !prevLine.includes('// ai-validator-ignore') && !prevLine.includes('// ai-validator-disable');
+        });
         const errorCount = issues.filter(i => i.severity === 'error').length;
         const warningCount = issues.filter(i => i.severity === 'warning').length;
         const deductions = (errorCount * 15) + (warningCount * 5);
@@ -40383,9 +40487,13 @@ function extractFunctionBlocks(lines) {
     const blocks = [];
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        const funcMatch = line.match(/(?:(?:export\s+)?(?:async\s+)?function\s+(\w+)|(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\(?)/);
+        // Match function declarations, arrow functions, and class methods
+        // Exclude: destructuring (const { x } = ...), object literals (const x = {...}), imports
+        const isDestructuring = /(?:const|let|var)\s*\{/.test(line) || /(?:const|let|var)\s*\[/.test(line);
+        const isSimpleAssignment = /(?:const|let|var)\s+\w+\s*=\s*[^(=>]/.test(line) && !/(?:async\s*)?\(/.test(line.split('=').slice(1).join('='));
+        const funcMatch = !isDestructuring && !isSimpleAssignment ? line.match(/(?:(?:export\s+)?(?:async\s+)?function\s+(\w+)|(?:(?:public|private|protected|static|async|override)\s+)+(\w+)\s*\(|(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?\()/) : null;
         if (funcMatch) {
-            const name = funcMatch[1] || funcMatch[2];
+            const name = funcMatch[1] || funcMatch[2] || funcMatch[3];
             const bodyLines = [];
             let braceDepth = 0;
             let started = false;
@@ -40460,16 +40568,16 @@ class DuplicationDetector {
     /** Analyze a single file for duplication issues */
     analyze(filePath, source) {
         const lines = source.split('\n');
-        const issues = [];
+        const rawIssues = [];
         // 1. Detect duplicate imports
-        issues.push(...detectDuplicateImports(lines, filePath));
+        rawIssues.push(...detectDuplicateImports(lines, filePath));
         // 2. Detect near-duplicate functions within the same file
         const blocks = extractFunctionBlocks(lines);
         for (let i = 0; i < blocks.length; i++) {
             for (let j = i + 1; j < blocks.length; j++) {
                 const similarity = computeSimilarity(blocks[i].body, blocks[j].body);
                 if (similarity >= this.similarityThreshold) {
-                    issues.push({
+                    rawIssues.push({
                         type: 'duplicate-function',
                         severity: 'warning',
                         file: filePath,
@@ -40481,6 +40589,13 @@ class DuplicationDetector {
                 }
             }
         }
+        // Filter out issues suppressed by // ai-validator-ignore or // ai-validator-disable
+        const issues = rawIssues.filter(issue => {
+            if (issue.line <= 0)
+                return true;
+            const prevLine = lines[issue.line - 2] || '';
+            return !prevLine.includes('// ai-validator-ignore') && !prevLine.includes('// ai-validator-disable');
+        });
         const errorCount = issues.filter(i => i.severity === 'error').length;
         const warningCount = issues.filter(i => i.severity === 'warning').length;
         const deductions = (errorCount * 15) + (warningCount * 5);
@@ -40611,11 +40726,18 @@ class ContextBreakDetector {
     /** Analyze a single file */
     analyze(filePath, source) {
         const lines = source.split('\n');
-        const issues = [
+        const rawIssues = [
             ...detectNamingInconsistency(lines, filePath),
             ...detectModuleSystemMix(lines, filePath),
             ...detectAsyncPatternMix(lines, filePath),
         ];
+        // Filter out issues suppressed by // ai-validator-ignore or // ai-validator-disable
+        const issues = rawIssues.filter(issue => {
+            if (issue.line <= 0)
+                return true;
+            const prevLine = lines[issue.line - 2] || '';
+            return !prevLine.includes('// ai-validator-ignore') && !prevLine.includes('// ai-validator-disable');
+        });
         const errorCount = issues.filter(i => i.severity === 'error').length;
         const warningCount = issues.filter(i => i.severity === 'warning').length;
         const deductions = (errorCount * 15) + (warningCount * 5);

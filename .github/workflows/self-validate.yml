@@ -1,0 +1,37 @@
+name: Self Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  self-validate:
+    runs-on: ubuntu-latest
+    name: Validate AI Code Quality
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build core
+        run: pnpm --filter @ai-code-validator/core build
+
+      - name: AI Code Validator
+        uses: ./
+        with:
+          threshold: '60'
+          paths: 'packages/core/src/**/*.ts,packages/cli/src/**/*.ts,packages/github-action/src/**/*.ts'
+          fail-on-low-score: 'true'
