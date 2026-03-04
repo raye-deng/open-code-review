@@ -1,0 +1,3 @@
+# 以下目录只推 GitLab，不推 GitHub
+apps/
+packages/worker/

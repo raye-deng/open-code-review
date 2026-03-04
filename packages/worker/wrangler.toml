@@ -1,0 +1,17 @@
+name = "aicv-payment"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+account_id = "b8d84addbb5cadd86f50fe23cb84f559"
+
+[vars]
+PAYPAL_ENV = "live"
+PUBLIC_URL = "https://codes.evallab.ai"
+
+# Secrets (set via wrangler secret put):
+# PAYPAL_CLIENT_ID
+# PAYPAL_SECRET
+# TELEGRAM_BOT_TOKEN
+# TELEGRAM_CHAT_ID
+# DIRECTUS_URL
+# DIRECTUS_TOKEN
+# RESEND_API_KEY
