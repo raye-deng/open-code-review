@@ -295,9 +295,8 @@ async function sendTelegramNotification(
   body: CaptureBody,
   planDef: PlanDef
 ): Promise<void> {
-  // Fallback to hardcoded values if secrets not set
-  const botToken = env.TELEGRAM_BOT_TOKEN || 'REDACTED_BOT_TOKEN';
-  const chatId = env.TELEGRAM_CHAT_ID || 'REDACTED_CHAT_ID';
+  const botToken = env.TELEGRAM_BOT_TOKEN;
+  const chatId = env.TELEGRAM_CHAT_ID;
   if (!botToken || !chatId) {
     console.log('Telegram not configured, skipping notification');
     return;
