@@ -179,6 +179,31 @@ export default function EarlyAccess() {
   // -------------------------------------------------------------------------
   // Success state
   // -------------------------------------------------------------------------
+  if (state === 'waitlist_success') {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-6">
+        <div className="max-w-lg text-center">
+          <span className="text-6xl mb-6 block">📋</span>
+          <h1 className="text-4xl font-bold mb-4">You&apos;re on the list!</h1>
+          <p className="text-xl text-gray-400 mb-4">
+            We&apos;ll notify <strong className="text-gray-300">{formData.email}</strong> when AI Code Validator launches.
+          </p>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-8 text-left">
+            <h3 className="text-white font-semibold mb-3">While you wait:</h3>
+            <ul className="text-gray-400 space-y-2">
+              <li>⚡ Try the free CLI: <code className="text-green-400">npx ai-code-validator scan ./src</code></li>
+              <li>⭐ Star us on <a href="https://github.com/raye-deng/ai-code-validator" className="text-primary-400 hover:underline">GitHub</a></li>
+              <li>🔔 Waitlist members get first access + best pricing</li>
+            </ul>
+          </div>
+          <a href="/" className="inline-block px-6 py-3 bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-xl transition">
+            &larr; Back to Home
+          </a>
+        </div>
+      </main>
+    );
+  }
+
   if (state === 'success') {
     return (
       <main className="min-h-screen flex items-center justify-center px-6">
@@ -209,31 +234,6 @@ export default function EarlyAccess() {
             href="/"
             className="inline-block px-6 py-3 bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-xl transition"
           >
-            &larr; Back to Home
-          </a>
-        </div>
-      </main>
-    );
-  }
-
-  // -------------------------------------------------------------------------
-  // Waitlist success state
-  // -------------------------------------------------------------------------
-  if (state === 'waitlist_success') {
-    return (
-      <main className="min-h-screen flex items-center justify-center px-6">
-        <div className="max-w-lg text-center">
-          <span className="text-6xl mb-6 block">📋</span>
-          <h1 className="text-4xl font-bold mb-4">You&apos;re on the list!</h1>
-          <p className="text-xl text-gray-400 mb-4">
-            We&apos;ll notify <strong className="text-gray-300">{formData.email}</strong> when AI Code Validator launches.
-          </p>
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-8 text-left">
-            <h3 className="text-white font-semibold mb-3">While you wait:</h3>
-            <p className="text-gray-400 text-sm mb-3">Try the free CLI right now:</p>
-            <pre className="bg-gray-950 text-green-400 text-sm p-4 rounded-lg font-mono">npx ai-code-validator scan ./src</pre>
-          </div>
-          <a href="/" className="inline-block px-6 py-3 bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-xl transition">
             &larr; Back to Home
           </a>
         </div>
