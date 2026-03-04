@@ -7,6 +7,8 @@
     "ai-code-validator": "./dist/index.js"
   },
   "main": "./dist/index.js",
+  "files": ["dist"],
+  "publishConfig": { "access": "public" },
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",

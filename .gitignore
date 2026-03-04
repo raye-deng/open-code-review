@@ -1,6 +1,8 @@
 node_modules/
 dist/
+!packages/github-action/dist/
 .next/
+out/
 .env
 .env.local
 *.log

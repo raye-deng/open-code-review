@@ -6,38 +6,44 @@
 
 ## MVP Phases
 
-### M1 (2 weeks): Core Engine + CLI
+### M1 (2 weeks): Core Engine + CLI — 🟡 进行中
 
 **Goal**: Working detection engine with CLI interface.
 
 **Deliverables**:
-- [ ] 3 detectors implemented:
+- [x] 4 detectors implemented (2026-03-04):
   - **Hallucination Detector**: Phantom packages, undefined functions, non-existent APIs
   - **Logic Gap Detector**: Empty catch blocks, TODO markers, unreachable code, missing error handling
   - **Duplication Detector**: Near-identical functions, duplicate imports
-- [ ] **CLI tool**: `npx ai-code-validator scan ./src`
-- [ ] **Output formats**: JSON report + terminal summary
-- [ ] **Scoring engine**: 0-100 composite score, 4 dimensions
-- [ ] **Tests**: 10 real-world AI code defect test cases
-- [ ] **Documentation**: README with quick start
+  - **Context Break Detector**: Architecture inconsistencies, style breaks
+- [x] **Scoring engine**: 0-100 composite score, 4 dimensions (2026-03-04)
+- [x] **AI Healer**: Prompt builder for Copilot/Cursor/Claude (2026-03-04)
+- [x] **Tests**: 13 unit tests passing (2026-03-04)
+- [ ] **CLI tool**: `npx ai-code-validator scan ./src` — 骨架完成，需构建+发布
+- [ ] **CLI build**: pnpm build + 可执行文件打包
+- [ ] **npm 发布**: `@ai-code-validator/core` + `ai-code-validator` CLI
+- [ ] **Output formats**: JSON / terminal / markdown 完整实现验证
+- [ ] **Dogfood**: 在 airline-ticket-booking 本地跑一次验证
 
 **Success Criteria**:
-- CLI runs on any Node.js 20+ project
-- Correctly identifies ≥80% of planted AI code defects
+- CLI runs on any Node.js 20+ project ← 进行中
+- Correctly identifies ≥80% of planted AI code defects ✅ 13/13 tests
 - <3s scan time for 100-file project
 
 ---
 
-### M2 (2 weeks): GitHub Action
+### M2 (2 weeks): GitHub Action — 🟡 进行中
 
 **Goal**: Automated validation in GitHub CI/CD pipelines.
 
 **Deliverables**:
-- [ ] Published to **GitHub Marketplace**
-- [ ] **PR comments**: Auto-post validation report on pull requests
-- [ ] **Quality Gate**: Score <70 blocks merge (configurable threshold)
-- [ ] **Status checks**: GitHub check run with score summary
-- [ ] **Dogfood**: Tested on `airline-ticket-booking` and `geo-boost` repos
+- [x] `action.yml` 完成（2026-03-04）
+- [x] `packages/github-action/src/index.ts` 完整实现（2026-03-04）
+- [ ] **Build**: `packages/github-action` dist 打包
+- [ ] **Published to GitHub Marketplace**
+- [ ] **PR comments**: Auto-post validation report on pull requests ← 代码已实现，待真实测试
+- [ ] **Quality Gate**: Score <70 blocks merge ← 代码已实现，待真实测试
+- [ ] **Dogfood**: 在 `ai-code-validator` 自身 GitHub repo 接入验证
 
 **Success Criteria**:
 - Works on any TypeScript/JavaScript GitHub repo
@@ -55,15 +61,15 @@
 
 ---
 
-### M3 (2 weeks): GitLab CI Component
+### M3 (2 weeks): GitLab CI Component — 🟡 进行中
 
 **Goal**: GitLab CI/CD integration via CI Catalog component.
 
 **Deliverables**:
-- [ ] Published to **GitLab CI Catalog** (INTERNAL_REGISTRY)
-- [ ] **Code Quality report**: Integrated with GitLab MR widget
-- [ ] **Component syntax**: `include: component` support
-- [ ] **Dogfood**: Integrated in `airline-ticket-booking` GitLab CI
+- [x] `packages/gitlab-component/templates/validate.yml` 完成（2026-03-04）
+- [ ] **Published to GitLab CI Catalog** (INTERNAL_REGISTRY)
+- [ ] **Code Quality report**: 生成 GitLab codequality artifact
+- [ ] **Dogfood**: 在 `airline-ticket-booking` GitLab CI 接入验证
 
 **Success Criteria**:
 - Works with `include: component` syntax
@@ -81,17 +87,19 @@ include:
 
 ---
 
-### M4 (2 weeks): Portal Website
+### M4 (2 weeks): Portal Website — 🟡 进行中
 
 **Goal**: Marketing site + early access funnel.
 
 **Deliverables**:
-- [ ] **Next.js static site** deployed to Cloudflare Pages
-- [ ] **Landing page**: Hero, features, comparison, pricing
-- [ ] **Early Access form**: Name, email, company, CI platform
-  - Submissions → Notion database or Telegram notification
-- [ ] **Pricing page**: Free / Pro ($19/mo) / Enterprise
-- [ ] **SEO**: Meta tags, Open Graph, structured data
+- [x] Next.js 项目骨架（2026-03-04）
+- [x] 首页 `apps/web/src/app/page.tsx`（2026-03-04）
+- [x] 定价页 `apps/web/src/app/pricing/page.tsx`（2026-03-04）
+- [x] Early Access 页 `apps/web/src/app/early-access/page.tsx`（2026-03-04）
+- [ ] **部署到 Cloudflare Pages**（域名：ai-code-validator.makesall.cn）
+- [ ] **Early Access 表单 API**：POST → Telegram Bot 通知
+- [ ] **SEO**：Meta tags, Open Graph
+- [ ] **域名配置**：CF Pages 自定义域名
 
 **Success Criteria**:
 - <2s load time (static export)

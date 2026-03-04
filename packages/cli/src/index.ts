@@ -9,7 +9,7 @@
  *   npx ai-code-validator scan ./src --format markdown --output report.md
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { resolve, relative } from 'node:path';
 import { glob } from 'glob';
 import {
@@ -65,7 +65,26 @@ function parseArgs(argv: string[]): {
     paths.push('src/**/*.ts', 'src/**/*.js', 'src/**/*.tsx', 'src/**/*.jsx');
   }
 
-  return { command, paths, threshold, format, output, healPrompt };
+  // Convert directory paths to glob patterns
+  const expandedPaths: string[] = [];
+  for (const p of paths) {
+    try {
+      if (existsSync(p) && statSync(p).isDirectory()) {
+        expandedPaths.push(
+          `${p}/**/*.ts`,
+          `${p}/**/*.js`,
+          `${p}/**/*.tsx`,
+          `${p}/**/*.jsx`,
+        );
+      } else {
+        expandedPaths.push(p);
+      }
+    } catch {
+      expandedPaths.push(p);
+    }
+  }
+
+  return { command, paths: expandedPaths, threshold, format, output, healPrompt };
 }
 
 /** Resolve glob patterns to file paths */
