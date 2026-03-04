@@ -148,7 +148,7 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for more.
 
 Lock in **50% off forever** — $9.50/month instead of $19/month.
 
-👉 [**Join Early Access**](https://ai-code-validator.makesall.cn/early-access)
+👉 [**Join Early Access**](https://codes.evallab.ai/early-access)
 
 No credit card required. We'll email you access details within 24 hours.
 

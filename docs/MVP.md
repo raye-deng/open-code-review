@@ -19,11 +19,11 @@
 - [x] **Scoring engine**: 0-100 composite score, 4 dimensions (2026-03-04)
 - [x] **AI Healer**: Prompt builder for Copilot/Cursor/Claude (2026-03-04)
 - [x] **Tests**: 13 unit tests passing (2026-03-04)
-- [ ] **CLI tool**: `npx ai-code-validator scan ./src` — 骨架完成，需构建+发布
-- [ ] **CLI build**: pnpm build + 可执行文件打包
-- [ ] **npm 发布**: `@ai-code-validator/core` + `ai-code-validator` CLI
-- [ ] **Output formats**: JSON / terminal / markdown 完整实现验证
-- [ ] **Dogfood**: 在 airline-ticket-booking 本地跑一次验证
+- [x] **CLI tool**: `npx ai-code-validator scan ./src` ✅ 可用
+- [x] **CLI build**: pnpm build + 可执行文件打包 ✅
+- [x] **npm 发布**: `@ai-code-validator/core@0.1.0` + `ai-code-validator@0.1.0` ✅
+- [x] **Output formats**: JSON / terminal / markdown ✅
+- [x] **Dogfood**: airline-ticket-booking 评分 87/100（Grade B）✅
 
 **Success Criteria**:
 - CLI runs on any Node.js 20+ project ← 进行中
@@ -39,7 +39,7 @@
 **Deliverables**:
 - [x] `action.yml` 完成（2026-03-04）
 - [x] `packages/github-action/src/index.ts` 完整实现（2026-03-04）
-- [ ] **Build**: `packages/github-action` dist 打包
+- [x] **Build**: `packages/github-action` ncc 打包 dist/index.js 1.4MB ✅
 - [ ] **Published to GitHub Marketplace**
 - [ ] **PR comments**: Auto-post validation report on pull requests ← 代码已实现，待真实测试
 - [ ] **Quality Gate**: Score <70 blocks merge ← 代码已实现，待真实测试
@@ -96,10 +96,10 @@ include:
 - [x] 首页 `apps/web/src/app/page.tsx`（2026-03-04）
 - [x] 定价页 `apps/web/src/app/pricing/page.tsx`（2026-03-04）
 - [x] Early Access 页 `apps/web/src/app/early-access/page.tsx`（2026-03-04）
-- [ ] **部署到 Cloudflare Pages**（域名：ai-code-validator.makesall.cn）
+- [x] **部署到 Cloudflare Pages** ✅ https://codes.evallab.ai
 - [ ] **Early Access 表单 API**：POST → Telegram Bot 通知
-- [ ] **SEO**：Meta tags, Open Graph
-- [ ] **域名配置**：CF Pages 自定义域名
+- [x] **SEO**：Meta tags, Open Graph, Twitter Card ✅
+- [x] **域名配置**：codes.evallab.ai ✅ active
 
 **Success Criteria**:
 - <2s load time (static export)
@@ -113,7 +113,7 @@ include:
 **Goal**: Close the feedback loop — validation results → AI assistant → fixed code.
 
 **Deliverables**:
-- [ ] **Prompt Builder**: Converts validation report to structured fix prompt
+- [x] **Prompt Builder**: Converts validation report to structured fix prompt ✅
 - [ ] **Copilot integration**: `.github/copilot-instructions.md` template
 - [ ] **Cursor integration**: `.cursorrules` template with validation context
 - [ ] **Claude integration**: Structured prompt format for Claude Code
