@@ -1,6 +1,41 @@
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'AI Code Validator',
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'Any',
+  url: 'https://codes.evallab.ai',
+  description:
+    'The first CI/CD quality gate built specifically for AI-generated code. Detect hallucinations, logic gaps, and architectural inconsistencies before they reach production.',
+  offers: [
+    {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'USD',
+      name: 'Free',
+    },
+    {
+      '@type': 'Offer',
+      price: '19',
+      priceCurrency: 'USD',
+      name: 'Pro',
+      billingIncrement: 'P1M',
+    },
+  ],
+  author: {
+    '@type': 'Organization',
+    name: 'EvalLab',
+    url: 'https://codes.evallab.ai',
+  },
+};
+
 export default function Home() {
   return (
     <main className="min-h-screen">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-50 bg-gray-950/80 backdrop-blur-xl border-b border-gray-800">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
