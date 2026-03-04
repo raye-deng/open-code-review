@@ -1,450 +1,579 @@
 /**
- * aicv-payment — Cloudflare Worker for AI Code Validator payments
+ * AI Code Validator — Telegram Bot (Cloudflare Worker)
  *
- * Routes:
- *   POST /api/payment/create   → Create PayPal order
- *   POST /api/payment/capture  → Capture PayPal payment + notifications
- *   GET  /api/health           → Health check
- *   OPTIONS *                  → CORS preflight
+ * Webhook handler for Telegram bot that scans public GitHub repos
+ * for AI-generated code quality issues.
+ *
+ * Commands:
+ *   /scan <github-repo-url>  — Scan a public repo
+ *   /start                   — Welcome message
+ *   /help                    — Usage instructions
  */
 
 export interface Env {
-  PAYPAL_ENV: string;
-  PAYPAL_CLIENT_ID: string;
-  PAYPAL_SECRET: string;
-  PUBLIC_URL: string;
-  TELEGRAM_BOT_TOKEN?: string;
-  TELEGRAM_CHAT_ID?: string;
-  DIRECTUS_URL?: string;
-  DIRECTUS_TOKEN?: string;
-  RESEND_API_KEY?: string;
+  TELEGRAM_BOT_TOKEN: string;
+  TELEGRAM_WEBHOOK_SECRET?: string;
 }
 
 // ---------------------------------------------------------------------------
-// Plan definitions
+// Telegram types (minimal subset)
 // ---------------------------------------------------------------------------
 
-interface PlanDef {
-  name: string;
-  price: string; // PayPal expects string
-  description: string;
-}
-
-const PLANS: Record<string, PlanDef> = {
-  early_access: {
-    name: 'Early Access',
-    price: '9.50',
-    description: 'AI Code Validator Early Access (50% off forever)',
-  },
-  pro: {
-    name: 'Pro',
-    price: '19.00',
-    description: 'AI Code Validator Pro Plan',
-  },
-};
-
-// ---------------------------------------------------------------------------
-// CORS
-// ---------------------------------------------------------------------------
-
-const ALLOWED_ORIGINS = [
-  'https://codes.evallab.ai',
-  'http://localhost:3000',
-  'http://localhost:3001',
-];
-
-function corsHeaders(origin: string | null): Record<string, string> {
-  const allowedOrigin =
-    origin && ALLOWED_ORIGINS.some((o) => origin.startsWith(o))
-      ? origin
-      : ALLOWED_ORIGINS[0];
-
-  return {
-    'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Max-Age': '86400',
+interface TelegramUpdate {
+  message?: {
+    chat: { id: number };
+    text?: string;
+    from?: { first_name?: string };
   };
 }
 
-function withCors(response: Response, origin: string | null): Response {
-  const headers = new Headers(response.headers);
-  for (const [key, value] of Object.entries(corsHeaders(origin))) {
-    headers.set(key, value);
-  }
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
-}
-
-function jsonResponse(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
-
-function jsonError(msg: string, status: number): Response {
-  return jsonResponse({ error: msg }, status);
-}
-
 // ---------------------------------------------------------------------------
-// PayPal helpers
+// Detectors — lightweight, string-based (no fs access in CF Workers)
 // ---------------------------------------------------------------------------
 
-function getPayPalApi(env: Env): string {
-  return env.PAYPAL_ENV === 'live'
-    ? 'https://api-m.paypal.com'
-    : 'https://api-m.sandbox.paypal.com';
+interface Issue {
+  file: string;
+  line: number;
+  message: string;
+  severity: 'error' | 'warning' | 'info';
 }
 
-async function getPayPalToken(env: Env): Promise<string> {
-  const api = getPayPalApi(env);
-  const resp = await fetch(`${api}/v1/oauth2/token`, {
-    method: 'POST',
-    headers: {
-      Authorization: 'Basic ' + btoa(`${env.PAYPAL_CLIENT_ID}:${env.PAYPAL_SECRET}`),
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: 'grant_type=client_credentials',
-  });
+/**
+ * Hallucination Detector
+ * Checks for imports of known non-existent or commonly hallucinated packages.
+ */
+function detectHallucinations(file: string, source: string): Issue[] {
+  const issues: Issue[] = [];
+  const lines = source.split('\n');
 
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`PayPal auth failed (${resp.status}): ${text}`);
-  }
+  // Known hallucinated / non-existent npm packages AI models often generate
+  const suspiciousPackages = [
+    'react-native-vector-icons/Ionicons',
+    '@google/generative-ai-node',
+    'openai-edge',
+    'langchain/core',
+    'firebase-admin/firestore',
+    '@tensorflow/tfjs-node-gpu',
+    'mongoose-auto-increment',
+    'express-async-handler',
+  ];
 
-  const data = (await resp.json()) as { access_token: string };
-  return data.access_token;
-}
+  // Patterns indicating hallucinated APIs
+  const suspiciousAPIs = [
+    /\bfs\.readFileAsync\b/,
+    /\bPromise\.allResolved\b/,
+    /\bArray\.flatDeep\b/,
+    /\bObject\.deepClone\b/,
+    /\bString\.prototype\.replaceAll\b.*polyfill/i,
+    /\bconsole\.log\.bind\b/,
+    /\bprocess\.env\.NODE_ENV\s*===\s*['"]test['"]\s*\?\s*require/,
+  ];
 
-// ---------------------------------------------------------------------------
-// POST /api/payment/create
-// ---------------------------------------------------------------------------
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
 
-interface CreateBody {
-  name: string;
-  email: string;
-  company?: string;
-  github_url?: string;
-  ci_platform?: string;
-  plan: string;
-}
-
-async function handleCreate(request: Request, env: Env): Promise<Response> {
-  let body: CreateBody;
-  try {
-    body = (await request.json()) as CreateBody;
-  } catch {
-    return jsonError('Invalid JSON', 400);
-  }
-
-  const { name, email, plan } = body;
-  if (!name || !email || !plan) {
-    return jsonError('Missing required fields: name, email, plan', 400);
-  }
-
-  const planDef = PLANS[plan];
-  if (!planDef) {
-    return jsonError(`Invalid plan: ${plan}. Use "early_access" or "pro"`, 400);
-  }
-
-  try {
-    const token = await getPayPalToken(env);
-    const api = getPayPalApi(env);
-
-    const orderRes = await fetch(`${api}/v2/checkout/orders`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        intent: 'CAPTURE',
-        purchase_units: [
-          {
-            amount: {
-              currency_code: 'USD',
-              value: planDef.price,
-            },
-            description: planDef.description,
-          },
-        ],
-        application_context: {
-          brand_name: 'AI Code Validator',
-          landing_page: 'NO_PREFERENCE',
-          user_action: 'PAY_NOW',
-          return_url: `${env.PUBLIC_URL}/early-access/?status=success`,
-          cancel_url: `${env.PUBLIC_URL}/early-access/?status=cancel`,
-        },
-      }),
-    });
-
-    if (!orderRes.ok) {
-      const errText = await orderRes.text();
-      console.error('PayPal create order error:', errText);
-      return jsonError(`PayPal error: ${orderRes.status}`, 502);
-    }
-
-    const order = (await orderRes.json()) as {
-      id: string;
-      links: Array<{ rel: string; href: string }>;
-    };
-
-    const approveUrl =
-      order.links.find((l) => l.rel === 'approve')?.href || '';
-
-    return jsonResponse({ orderID: order.id, approveUrl });
-  } catch (err: any) {
-    console.error('Create order failed:', err);
-    return jsonError(`Payment creation failed: ${err?.message || err}`, 500);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// POST /api/payment/capture
-// ---------------------------------------------------------------------------
-
-interface CaptureBody {
-  orderID: string;
-  name: string;
-  email: string;
-  company?: string;
-  github_url?: string;
-  ci_platform?: string;
-  plan: string;
-}
-
-async function handleCapture(request: Request, env: Env): Promise<Response> {
-  let body: CaptureBody;
-  try {
-    body = (await request.json()) as CaptureBody;
-  } catch {
-    return jsonError('Invalid JSON', 400);
-  }
-
-  const { orderID, name, email, plan } = body;
-  if (!orderID || !name || !email || !plan) {
-    return jsonError('Missing required fields: orderID, name, email, plan', 400);
-  }
-
-  const planDef = PLANS[plan];
-  if (!planDef) {
-    return jsonError(`Invalid plan: ${plan}`, 400);
-  }
-
-  try {
-    // 1. Capture PayPal payment
-    const token = await getPayPalToken(env);
-    const api = getPayPalApi(env);
-
-    const captureRes = await fetch(`${api}/v2/checkout/orders/${orderID}/capture`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!captureRes.ok) {
-      const errText = await captureRes.text();
-      console.error('PayPal capture error:', errText);
-      return jsonError(`Payment capture failed: ${captureRes.status}`, 502);
-    }
-
-    const captureData = (await captureRes.json()) as { status: string };
-
-    if (captureData.status !== 'COMPLETED') {
-      return jsonError(`Payment not completed. Status: ${captureData.status}`, 400);
-    }
-
-    // 2. Post-payment actions (fire-and-forget, don't block response)
-    const postActions = Promise.allSettled([
-      sendTelegramNotification(env, body, planDef),
-      sendConfirmationEmail(env, body, planDef),
-      writeToDirectus(env, body, planDef, orderID),
-    ]);
-
-    // Wait briefly for notifications but don't block for too long
-    await Promise.race([
-      postActions,
-      new Promise((r) => setTimeout(r, 5000)),
-    ]);
-
-    return jsonResponse({
-      success: true,
-      message: 'Payment captured successfully',
-      orderID,
-      plan: planDef.name,
-      amount: planDef.price,
-    });
-  } catch (err: any) {
-    console.error('Capture failed:', err);
-    return jsonError(`Capture failed: ${err?.message || err}`, 500);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Telegram notification
-// ---------------------------------------------------------------------------
-
-async function sendTelegramNotification(
-  env: Env,
-  body: CaptureBody,
-  planDef: PlanDef
-): Promise<void> {
-  const botToken = env.TELEGRAM_BOT_TOKEN;
-  const chatId = env.TELEGRAM_CHAT_ID;
-  if (!botToken || !chatId) {
-    console.log('Telegram not configured, skipping notification');
-    return;
-  }
-
-  const text = `💰 新付款！ai-code-validator
-
-👤 姓名：${body.name}
-📧 邮箱：${body.email}
-🏢 公司：${body.company || 'N/A'}
-💵 金额：$${planDef.price}
-📦 套餐：${planDef.name}
-🔗 GitHub：${body.github_url || 'N/A'}
-🛠️ CI：${body.ci_platform || 'N/A'}
-🆔 PayPal: ${body.orderID}`;
-
-  try {
-    await fetch(
-      `https://api.telegram.org/bot${botToken}/sendMessage`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text,
-          parse_mode: 'HTML',
-        }),
+    // Check suspicious imports
+    for (const pkg of suspiciousPackages) {
+      if (line.includes(`'${pkg}'`) || line.includes(`"${pkg}"`)) {
+        issues.push({
+          file,
+          line: i + 1,
+          message: `Potentially hallucinated package: "${pkg}"`,
+          severity: 'warning',
+        });
       }
-    );
-  } catch (err) {
-    console.error('Telegram notification failed:', err);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Resend confirmation email
-// ---------------------------------------------------------------------------
-
-async function sendConfirmationEmail(
-  env: Env,
-  body: CaptureBody,
-  planDef: PlanDef
-): Promise<void> {
-  if (!env.RESEND_API_KEY) {
-    console.log('Resend not configured, skipping email');
-    return;
-  }
-
-  const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;margin:0;padding:24px">
-  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
-    <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:32px;text-align:center">
-      <h1 style="color:#fff;margin:0;font-size:24px">🎉 Welcome to AI Code Validator</h1>
-      <p style="color:rgba(255,255,255,.8);margin:8px 0 0">Early Access Program</p>
-    </div>
-    <div style="padding:32px">
-      <p style="color:#111;font-size:16px;line-height:1.6;margin:0 0 16px">Hi ${body.name},</p>
-      <p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 16px">
-        Thank you for joining AI Code Validator Early Access! Your payment has been confirmed.
-      </p>
-      <div style="background:#f3f4f6;border-radius:8px;padding:20px;margin:16px 0">
-        <p style="color:#111;font-weight:600;margin:0 0 8px">Here's what happens next:</p>
-        <ol style="color:#4b5563;font-size:14px;line-height:1.8;margin:0;padding-left:20px">
-          <li>We'll set up your account within 24 hours</li>
-          <li>You'll receive your API key and setup instructions via email</li>
-          <li>Early access members get priority support and feature requests</li>
-        </ol>
-      </div>
-      <div style="background:#f0f0ff;border-radius:8px;padding:16px;margin:16px 0;border-left:4px solid #6366f1">
-        <p style="color:#4a1fb8;font-size:14px;margin:0">
-          <strong>Your plan:</strong> ${planDef.name} ($${planDef.price}/month${planDef.name === 'Early Access' ? ', 50% off forever' : ''})<br>
-          <strong>Payment ID:</strong> ${body.orderID}
-        </p>
-      </div>
-      <p style="color:#4b5563;font-size:14px;line-height:1.6;margin:16px 0 0">
-        If you have any questions, reply to this email.
-      </p>
-    </div>
-    <div style="padding:20px 32px;text-align:center;border-top:1px solid #f0f0f0;background:#f9fafb">
-      <p style="color:#9ca3af;font-size:12px;margin:0">
-        The AI Code Validator Team · <a href="https://codes.evallab.ai" style="color:#6366f1">codes.evallab.ai</a>
-      </p>
-    </div>
-  </div>
-</body></html>`;
-
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'AI Code Validator <report@geo-boost.makesall.cn>',
-        to: [body.email],
-        subject: 'Welcome to AI Code Validator Early Access 🎉',
-        html,
-      }),
-    });
-
-    if (!res.ok) {
-      const errData = await res.text();
-      console.error('Resend error:', errData);
     }
-  } catch (err) {
-    console.error('Email send failed:', err);
+
+    // Check suspicious API patterns
+    for (const pattern of suspiciousAPIs) {
+      if (pattern.test(line)) {
+        issues.push({
+          file,
+          line: i + 1,
+          message: `Suspicious API call that may not exist: ${line.trim().slice(0, 60)}`,
+          severity: 'warning',
+        });
+      }
+    }
+
+    // Detect imports from paths that look fabricated (e.g. deeply nested non-standard paths)
+    const importMatch = line.match(
+      /(?:import|require)\s*\(?\s*['"](@[a-z0-9-]+\/[a-z0-9-]+\/[a-z0-9-]+\/[a-z0-9-]+\/[a-z0-9-]+)['"]/
+    );
+    if (importMatch) {
+      issues.push({
+        file,
+        line: i + 1,
+        message: `Deeply nested import path may be hallucinated: "${importMatch[1]}"`,
+        severity: 'info',
+      });
+    }
   }
+
+  return issues;
+}
+
+/**
+ * Logic Gap Detector
+ * Finds empty catch blocks, TODO/FIXME markers, console.log, and unreachable patterns.
+ */
+function detectLogicGaps(file: string, source: string): Issue[] {
+  const issues: Issue[] = [];
+  const lines = source.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Empty catch blocks
+    if (/catch\s*\([^)]*\)\s*\{\s*\}/.test(line)) {
+      issues.push({
+        file,
+        line: i + 1,
+        message: 'Empty catch block — errors are silently swallowed',
+        severity: 'error',
+      });
+    }
+
+    // Also detect catch with only a comment
+    if (/catch\s*\([^)]*\)\s*\{/.test(line)) {
+      const nextLine = lines[i + 1]?.trim();
+      if (nextLine === '}' || nextLine?.startsWith('//')) {
+        const afterNext = lines[i + 2]?.trim();
+        if (nextLine.startsWith('//') && afterNext === '}') {
+          issues.push({
+            file,
+            line: i + 1,
+            message: 'Catch block only contains a comment — error not handled',
+            severity: 'warning',
+          });
+        }
+      }
+    }
+
+    // TODO / FIXME / HACK markers
+    if (/\b(TODO|FIXME|HACK|XXX)\b/.test(trimmed) && trimmed.startsWith('//')) {
+      issues.push({
+        file,
+        line: i + 1,
+        message: `Unresolved marker: ${trimmed.slice(0, 80)}`,
+        severity: 'warning',
+      });
+    }
+
+    // console.log left in production code
+    if (/\bconsole\.(log|debug|info)\s*\(/.test(line) && !file.includes('test')) {
+      issues.push({
+        file,
+        line: i + 1,
+        message: 'console.log/debug/info left in code',
+        severity: 'info',
+      });
+    }
+
+    // Return after return (simple unreachable code)
+    if (/^\s*return\b/.test(line) && i + 1 < lines.length) {
+      const next = lines[i + 1]?.trim();
+      if (next && !next.startsWith('}') && !next.startsWith('//') && !next.startsWith('/*') && next !== '') {
+        issues.push({
+          file,
+          line: i + 2,
+          message: 'Potentially unreachable code after return statement',
+          severity: 'warning',
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * Duplication Detector
+ * Finds near-identical code blocks by comparing normalized line sequences.
+ */
+function detectDuplication(file: string, source: string): Issue[] {
+  const issues: Issue[] = [];
+  const lines = source.split('\n');
+  const BLOCK_SIZE = 4;
+  const MIN_LINE_LENGTH = 10;
+
+  const seen = new Map<string, number>();
+
+  for (let i = 0; i <= lines.length - BLOCK_SIZE; i++) {
+    const block = lines
+      .slice(i, i + BLOCK_SIZE)
+      .map((l) => l.trim().replace(/\s+/g, ' '))
+      .filter((l) => l.length >= MIN_LINE_LENGTH);
+
+    if (block.length < BLOCK_SIZE - 1) continue;
+
+    const key = block.join('\n');
+    const prev = seen.get(key);
+
+    if (prev !== undefined && Math.abs(i - prev) >= BLOCK_SIZE) {
+      issues.push({
+        file,
+        line: i + 1,
+        message: `Duplicated code block (${BLOCK_SIZE} lines, same as line ${prev + 1})`,
+        severity: 'warning',
+      });
+    } else if (prev === undefined) {
+      seen.set(key, i);
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * Style Break Detector
+ * Checks for mixed naming conventions, inconsistent quotes, mixed module systems.
+ */
+function detectStyleBreaks(file: string, source: string): Issue[] {
+  const issues: Issue[] = [];
+  const lines = source.split('\n');
+
+  let camelCount = 0;
+  let snakeCount = 0;
+  let hasRequire = false;
+  let hasImport = false;
+  let singleQuoteCount = 0;
+  let doubleQuoteCount = 0;
+
+  for (const line of lines) {
+    // Count naming conventions (variable declarations)
+    const varMatch = line.match(/(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/);
+    if (varMatch) {
+      const name = varMatch[1];
+      if (/_[a-z]/.test(name)) snakeCount++;
+      else if (/[a-z][A-Z]/.test(name)) camelCount++;
+    }
+
+    // Module system
+    if (/\brequire\s*\(/.test(line)) hasRequire = true;
+    if (/\bimport\s+/.test(line) || /\bimport\s*\{/.test(line)) hasImport = true;
+
+    // Quote style (in import/require strings)
+    const stringMatches = line.match(/['"][^'"]*['"]/g);
+    if (stringMatches) {
+      for (const s of stringMatches) {
+        if (s.startsWith("'")) singleQuoteCount++;
+        else doubleQuoteCount++;
+      }
+    }
+  }
+
+  // Mixed naming conventions
+  if (camelCount > 2 && snakeCount > 2) {
+    issues.push({
+      file,
+      line: 1,
+      message: `Mixed naming: ${camelCount} camelCase vs ${snakeCount} snake_case variables`,
+      severity: 'warning',
+    });
+  }
+
+  // Mixed module systems
+  if (hasRequire && hasImport) {
+    issues.push({
+      file,
+      line: 1,
+      message: 'Mixed module systems: both require() and import used',
+      severity: 'warning',
+    });
+  }
+
+  // Inconsistent quote style (only flag if heavily mixed)
+  const total = singleQuoteCount + doubleQuoteCount;
+  if (total > 5) {
+    const ratio = Math.min(singleQuoteCount, doubleQuoteCount) / total;
+    if (ratio > 0.3) {
+      issues.push({
+        file,
+        line: 1,
+        message: `Inconsistent quotes: ${singleQuoteCount} single vs ${doubleQuoteCount} double`,
+        severity: 'info',
+      });
+    }
+  }
+
+  return issues;
 }
 
 // ---------------------------------------------------------------------------
-// Directus write
+// Scoring
 // ---------------------------------------------------------------------------
 
-async function writeToDirectus(
-  env: Env,
-  body: CaptureBody,
-  planDef: PlanDef,
-  orderID: string
+interface ScanResult {
+  files: number;
+  totalIssues: number;
+  score: number;
+  grade: string;
+  issues: Issue[];
+}
+
+function calculateScore(issues: Issue[]): { score: number; grade: string } {
+  let penalty = 0;
+  for (const issue of issues) {
+    if (issue.severity === 'error') penalty += 15;
+    else if (issue.severity === 'warning') penalty += 5;
+    else penalty += 1;
+  }
+  const score = Math.max(0, Math.min(100, 100 - penalty));
+  const grade =
+    score >= 90 ? 'A' : score >= 80 ? 'B' : score >= 70 ? 'C' : score >= 60 ? 'D' : 'F';
+  return { score, grade };
+}
+
+// ---------------------------------------------------------------------------
+// GitHub API — fetch repo files
+// ---------------------------------------------------------------------------
+
+interface GitHubTreeItem {
+  path: string;
+  type: string;
+  url: string;
+  size?: number;
+}
+
+async function fetchRepoFiles(
+  owner: string,
+  repo: string
+): Promise<Map<string, string>> {
+  const files = new Map<string, string>();
+  const EXTENSIONS = ['.ts', '.js', '.tsx', '.jsx', '.py', '.go', '.rs'];
+  const MAX_FILES = 30;
+  const MAX_FILE_SIZE = 50_000; // 50KB
+
+  // Fetch the tree recursively
+  const treeRes = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`,
+    { headers: { 'User-Agent': 'ai-code-validator-bot', Accept: 'application/vnd.github.v3+json' } }
+  );
+
+  if (!treeRes.ok) {
+    throw new Error(
+      treeRes.status === 404
+        ? `Repository not found: ${owner}/${repo}`
+        : `GitHub API error: ${treeRes.status}`
+    );
+  }
+
+  const tree = (await treeRes.json()) as { tree: GitHubTreeItem[] };
+
+  // Filter to source files
+  const sourceFiles = tree.tree.filter(
+    (item) =>
+      item.type === 'blob' &&
+      EXTENSIONS.some((ext) => item.path.endsWith(ext)) &&
+      !item.path.includes('node_modules') &&
+      !item.path.includes('dist/') &&
+      !item.path.includes('.min.') &&
+      !item.path.includes('vendor/') &&
+      (item.size ?? 0) < MAX_FILE_SIZE
+  );
+
+  // Limit file count
+  const filesToFetch = sourceFiles.slice(0, MAX_FILES);
+
+  // Fetch file contents in parallel (batched)
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < filesToFetch.length; i += BATCH_SIZE) {
+    const batch = filesToFetch.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map(async (item) => {
+        const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/HEAD/${item.path}`;
+        const res = await fetch(rawUrl, { headers: { 'User-Agent': 'ai-code-validator-bot' } });
+        if (res.ok) {
+          files.set(item.path, await res.text());
+        }
+      })
+    );
+    // Ignore individual failures
+    void results;
+  }
+
+  return files;
+}
+
+// ---------------------------------------------------------------------------
+// Scan orchestrator
+// ---------------------------------------------------------------------------
+
+function scanFiles(files: Map<string, string>): ScanResult {
+  const allIssues: Issue[] = [];
+
+  for (const [path, source] of files) {
+    allIssues.push(
+      ...detectHallucinations(path, source),
+      ...detectLogicGaps(path, source),
+      ...detectDuplication(path, source),
+      ...detectStyleBreaks(path, source)
+    );
+  }
+
+  const { score, grade } = calculateScore(allIssues);
+
+  return {
+    files: files.size,
+    totalIssues: allIssues.length,
+    score,
+    grade,
+    issues: allIssues,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Telegram message formatting
+// ---------------------------------------------------------------------------
+
+function formatResult(owner: string, repo: string, result: ScanResult): string {
+  const emoji = result.score >= 80 ? '✅' : result.score >= 60 ? '⚠️' : '❌';
+  const gradeEmoji: Record<string, string> = {
+    A: '🏆',
+    B: '👍',
+    C: '🤔',
+    D: '😬',
+    F: '💀',
+  };
+
+  let msg = `${emoji} <b>AI Code Validator Report</b>\n`;
+  msg += `📦 <code>${owner}/${repo}</code>\n\n`;
+  msg += `${gradeEmoji[result.grade] || ''} Score: <b>${result.score}/100</b> (Grade: ${result.grade})\n`;
+  msg += `📄 Files scanned: ${result.files}\n`;
+  msg += `🔍 Issues found: ${result.totalIssues}\n`;
+
+  if (result.issues.length > 0) {
+    // Group by severity
+    const errors = result.issues.filter((i) => i.severity === 'error');
+    const warnings = result.issues.filter((i) => i.severity === 'warning');
+    const infos = result.issues.filter((i) => i.severity === 'info');
+
+    msg += '\n<b>Issues breakdown:</b>\n';
+    if (errors.length > 0) msg += `🔴 Errors: ${errors.length}\n`;
+    if (warnings.length > 0) msg += `🟡 Warnings: ${warnings.length}\n`;
+    if (infos.length > 0) msg += `🔵 Info: ${infos.length}\n`;
+
+    // Show top 10 issues
+    msg += '\n<b>Top issues:</b>\n';
+    const topIssues = result.issues.slice(0, 10);
+    for (const issue of topIssues) {
+      const icon = issue.severity === 'error' ? '🔴' : issue.severity === 'warning' ? '🟡' : '🔵';
+      msg += `${icon} <code>${issue.file}:${issue.line}</code>\n   ${issue.message}\n`;
+    }
+
+    if (result.issues.length > 10) {
+      msg += `\n... and ${result.issues.length - 10} more issues`;
+    }
+  } else {
+    msg += '\n✨ No issues found — clean code!';
+  }
+
+  return msg;
+}
+
+// ---------------------------------------------------------------------------
+// Telegram API helpers
+// ---------------------------------------------------------------------------
+
+async function sendMessage(
+  token: string,
+  chatId: number,
+  text: string,
+  parseMode = 'HTML'
 ): Promise<void> {
-  if (!env.DIRECTUS_URL || !env.DIRECTUS_TOKEN) {
-    console.log('Directus not configured, skipping write');
+  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: parseMode }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Command handlers
+// ---------------------------------------------------------------------------
+
+async function handleScan(
+  token: string,
+  chatId: number,
+  args: string
+): Promise<void> {
+  if (!args) {
+    await sendMessage(token, chatId, '❌ Usage: <code>/scan owner/repo</code> or <code>/scan https://github.com/owner/repo</code>');
     return;
   }
 
-  try {
-    await fetch(`${env.DIRECTUS_URL}/items/early_access`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${env.DIRECTUS_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        name: body.name,
-        email: body.email,
-        company: body.company || '',
-        github_url: body.github_url || '',
-        ci_platform: body.ci_platform || '',
-        plan: planDef.name,
-        amount: planDef.price,
-        paypal_order_id: orderID,
-        status: 'paid',
-      }),
-    });
-  } catch (err) {
-    console.error('Directus write failed:', err);
+  // Parse GitHub URL or owner/repo
+  let owner: string;
+  let repo: string;
+
+  const urlMatch = args.match(/github\.com\/([^/\s]+)\/([^/\s]+)/);
+  const shortMatch = args.match(/^([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)$/);
+
+  if (urlMatch) {
+    owner = urlMatch[1];
+    repo = urlMatch[2].replace(/\.git$/, '');
+  } else if (shortMatch) {
+    owner = shortMatch[1];
+    repo = shortMatch[2];
+  } else {
+    await sendMessage(
+      token,
+      chatId,
+      '❌ Invalid format. Use:\n<code>/scan owner/repo</code>\n<code>/scan https://github.com/owner/repo</code>'
+    );
+    return;
   }
+
+  await sendMessage(token, chatId, `🔍 Scanning <code>${owner}/${repo}</code>...\nThis may take a moment.`);
+
+  try {
+    const files = await fetchRepoFiles(owner, repo);
+
+    if (files.size === 0) {
+      await sendMessage(token, chatId, `⚠️ No source files found in <code>${owner}/${repo}</code>.`);
+      return;
+    }
+
+    const result = scanFiles(files);
+    await sendMessage(token, chatId, formatResult(owner, repo, result));
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    await sendMessage(token, chatId, `❌ Scan failed: ${message}`);
+  }
+}
+
+async function handleStart(token: string, chatId: number, firstName?: string): Promise<void> {
+  const name = firstName ? ` ${firstName}` : '';
+  const msg =
+    `👋 Hi${name}! I'm the <b>AI Code Validator</b> bot.\n\n` +
+    `I scan public GitHub repositories for common AI-generated code issues:\n` +
+    `🔍 Hallucinated packages/APIs\n` +
+    `🧩 Logic gaps (empty catch, TODOs)\n` +
+    `📋 Code duplication\n` +
+    `🎨 Style inconsistencies\n\n` +
+    `<b>Try it:</b>\n<code>/scan owner/repo</code>\n\n` +
+    `Example:\n<code>/scan facebook/react</code>`;
+  await sendMessage(token, chatId, msg);
+}
+
+async function handleHelp(token: string, chatId: number): Promise<void> {
+  const msg =
+    `<b>Commands:</b>\n\n` +
+    `<code>/scan &lt;repo&gt;</code> — Scan a public GitHub repo\n` +
+    `  Examples:\n` +
+    `  <code>/scan owner/repo</code>\n` +
+    `  <code>/scan https://github.com/owner/repo</code>\n\n` +
+    `<code>/start</code> — Welcome message\n` +
+    `<code>/help</code> — This help text\n\n` +
+    `<b>What I detect:</b>\n` +
+    `• Hallucinated imports & APIs\n` +
+    `• Empty catch blocks, TODOs, console.log\n` +
+    `• Duplicated code blocks\n` +
+    `• Mixed naming/module conventions\n\n` +
+    `🌐 <a href="https://codes.evallab.ai">codes.evallab.ai</a>`;
+  await sendMessage(token, chatId, msg);
 }
 
 // ---------------------------------------------------------------------------
@@ -455,50 +584,62 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const method = request.method.toUpperCase();
-    const origin = request.headers.get('Origin');
-
-    // CORS preflight
-    if (method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: corsHeaders(origin) });
-    }
 
     // Health check
-    if (url.pathname === '/api/health' && method === 'GET') {
-      return withCors(
-        jsonResponse({
-          status: 'ok',
-          service: 'aicv-payment',
-          version: '0.1.0',
-          timestamp: new Date().toISOString(),
-        }),
-        origin
+    if (url.pathname === '/health' && method === 'GET') {
+      return new Response(
+        JSON.stringify({ status: 'ok', service: 'aicv-telegram-bot' }),
+        { headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // POST /api/payment/create
-    if (url.pathname === '/api/payment/create' && method === 'POST') {
-      return withCors(await handleCreate(request, env), origin);
+    // Webhook endpoint for Telegram
+    if (url.pathname === `/webhook/${env.TELEGRAM_BOT_TOKEN}` && method === 'POST') {
+      try {
+        const update = (await request.json()) as TelegramUpdate;
+        const message = update.message;
+
+        if (!message?.text) {
+          return new Response('ok');
+        }
+
+        const chatId = message.chat.id;
+        const text = message.text.trim();
+        const token = env.TELEGRAM_BOT_TOKEN;
+
+        if (text.startsWith('/scan')) {
+          await handleScan(token, chatId, text.slice(5).trim());
+        } else if (text === '/start') {
+          await handleStart(token, chatId, message.from?.first_name);
+        } else if (text === '/help') {
+          await handleHelp(token, chatId);
+        }
+        // Ignore unknown messages silently
+
+        return new Response('ok');
+      } catch (err) {
+        console.error('Webhook error:', err);
+        return new Response('error', { status: 500 });
+      }
     }
 
-    // POST /api/payment/capture
-    if (url.pathname === '/api/payment/capture' && method === 'POST') {
-      return withCors(await handleCapture(request, env), origin);
-    }
-
-    // 404
-    return withCors(
-      jsonResponse(
+    // Setup endpoint — call once to register webhook
+    if (url.pathname === '/setup' && method === 'GET') {
+      const webhookUrl = `${url.origin}/webhook/${env.TELEGRAM_BOT_TOKEN}`;
+      const res = await fetch(
+        `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/setWebhook`,
         {
-          error: 'Not found',
-          endpoints: [
-            'GET /api/health',
-            'POST /api/payment/create',
-            'POST /api/payment/capture',
-          ],
-        },
-        404
-      ),
-      origin
-    );
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: webhookUrl }),
+        }
+      );
+      const data = await res.json();
+      return new Response(JSON.stringify(data, null, 2), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response('AI Code Validator Telegram Bot', { status: 200 });
   },
 };
