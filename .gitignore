@@ -7,5 +7,3 @@ out/
 .env.local
 *.log
 .DS_Store
-apps/
-packages/worker/
