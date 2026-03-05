@@ -1,35 +1,39 @@
 name: 'AI Code Validator'
-description: 'Quality gate for AI-generated code - detect hallucinations, logic gaps, and architectural inconsistencies'
-author: 'ai-code-validator'
-
+description: 'CI/CD quality gate for AI-generated code'
+author: 'raye-deng'
 branding:
   icon: 'shield'
-  color: 'purple'
+  color: 'pink'
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
 
 inputs:
   threshold:
-    description: 'Minimum quality score (0-100) to pass'
-    required: false
+    description: 'Minimum quality score to pass (0-100)'
+    required: true
     default: '70'
   paths:
-    description: 'Paths to scan (glob patterns, comma-separated)'
+    description: 'Glob pattern for files to scan'
+    required: true
+    default: 'src/**/*.{ts,js,tsx,jsx}'
+  model:
+    description: 'AI model to use (openai, anthropic, glm)'
     required: false
-    default: 'src/**/*.ts,src/**/*.js'
-  fail-on-low-score:
-    description: 'Fail the workflow if score is below threshold'
+    default: 'openai'
+  fail-on-issues:
+    description: 'Fail the workflow if issues are found'
     required: false
     default: 'true'
-  github-token:
-    description: 'GitHub token for PR comments'
+  format:
+    description: 'Output format (text, json, sarif)'
     required: false
-    default: '${{ github.token }}'
+    default: 'sarif'
 
 outputs:
   score:
     description: 'Overall quality score (0-100)'
-  report:
-    description: 'Path to the JSON report file'
-
-runs:
-  using: 'node20'
-  main: 'dist/index.js'
+  issues-count:
+    description: 'Number of issues found'
+  report-path:
+    description: 'Path to report file'

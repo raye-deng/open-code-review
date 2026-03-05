@@ -5,6 +5,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/ai-code-validator.svg)](https://www.npmjs.com/package/ai-code-validator)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
+[![Sponsor](https://img.shields.io/badge/Sponsor-ai--code--validator-pink.svg)](https://github.com/sponsors/raye-deng)
 
 **The first CI/CD quality gate built specifically for AI-generated code.**
 
@@ -157,3 +158,13 @@ No credit card required. We'll email you access details within 24 hours.
 ## 📄 License
 
 MIT © [Raye Deng](https://github.com/raye-deng)
+
+---
+
+## ❤️ Sponsors
+
+Thank you to our sponsors for supporting ai-code-validator development!
+
+<!-- SPONSORS: Add new sponsors here -->
+
+[💫 Become a sponsor](https://github.com/sponsors/raye-deng)
