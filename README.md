@@ -144,6 +144,22 @@ ai:
   strategy: local-first
 ```
 
+## Project Structure
+
+This repository contains the CLI tool, Core library, and CI/CD integrations:
+
+```
+packages/
+├── cli/              # open-code-review CLI
+├── core/             # Core scanning engine
+├── github-action/    # GitHub Action
+├── gitlab-component/ # GitLab CI component
+├── worker/           # Cloudflare Worker (API)
+└── deprecated-redirect/
+```
+
+> **Note:** The Web Portal (codes.evallab.ai) is maintained in a separate private repository.
+
 ## Philosophy
 
 - **Don't reinvent the wheel.** ESLint handles formatting. SonarQube handles complexity. We handle what AI breaks.

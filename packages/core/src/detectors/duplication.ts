@@ -49,6 +49,22 @@ function normalizeLine(line: string): string {
     .trim();
 }
 
+/** Extract the brace-delimited body starting at `startIdx`, returning normalized lines. */
+function extractBracedBody(lines: string[], startIdx: number): string[] {
+  const bodyLines: string[] = [];
+  let braceDepth = 0;
+  let started = false;
+  for (let j = startIdx; j < lines.length; j++) {
+    for (const ch of lines[j]) {
+      if (ch === '{') { braceDepth++; started = true; }
+      if (ch === '}') braceDepth--;
+    }
+    bodyLines.push(normalizeLine(lines[j]));
+    if (started && braceDepth === 0) break;
+  }
+  return bodyLines;
+}
+
 function extractFunctionBlocks(
   lines: string[],
 ): Array<{ name: string; startLine: number; body: string[] }> {
@@ -64,19 +80,7 @@ function extractFunctionBlocks(
 
     if (funcMatch) {
       const name = funcMatch[1] || funcMatch[2] || funcMatch[3];
-      const bodyLines: string[] = [];
-      let braceDepth = 0;
-      let started = false;
-
-      for (let j = i; j < lines.length; j++) {
-        for (const ch of lines[j]) {
-          if (ch === '{') { braceDepth++; started = true; }
-          if (ch === '}') braceDepth--;
-        }
-        bodyLines.push(normalizeLine(lines[j]));
-        if (started && braceDepth === 0) break;
-      }
-
+      const bodyLines = extractBracedBody(lines, i);
       if (bodyLines.length > 2) {
         blocks.push({ name, startLine: i + 1, body: bodyLines });
       }

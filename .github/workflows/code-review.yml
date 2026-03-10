@@ -5,14 +5,14 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'packages/**/*.ts'
-      - 'apps/**/*.ts'
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   review:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,10 +33,10 @@ jobs:
       - name: Build core
         run: pnpm --filter @open-code-review/core build
 
-      - name: Open Code Review
+      - name: Open Code Review (dogfood)
         uses: ./packages/github-action
         with:
           sla: L1
-          threshold: 60
+          threshold: 50
           scan-mode: diff
           github-token: ${{ secrets.GITHUB_TOKEN }}

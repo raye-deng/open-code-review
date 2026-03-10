@@ -9,7 +9,5 @@
     "type": "git",
     "url": "https://github.com/raye-deng/open-code-review.git"
   },
-  "dependencies": {
-    "open-code-review": "*"
-  }
+  "dependencies": {}
 }

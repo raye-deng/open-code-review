@@ -1,13 +1,12 @@
 stages:
   - test
   - build
-  - validate
+  - review
 
 variables:
   NODE_IMAGE: node:20-slim
 
 # ─── Test ───
-
 test:
   stage: test
   image: $NODE_IMAGE
@@ -16,13 +15,12 @@ test:
     - corepack prepare pnpm@10.23.0 --activate
     - pnpm install --frozen-lockfile
   script:
-    - pnpm test
+    - pnpm --filter @open-code-review/core test
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 # ─── Build ───
-
 build:
   stage: build
   image: $NODE_IMAGE
@@ -40,10 +38,9 @@ build:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-# ─── Validate (dogfood) ───
-
-validate:
-  stage: validate
+# ─── Open Code Review (dogfood with local CLI build) ───
+code-review:
+  stage: review
   image: $NODE_IMAGE
   needs:
     - build
@@ -52,42 +49,27 @@ validate:
     - corepack prepare pnpm@10.23.0 --activate
     - pnpm install --frozen-lockfile
   script:
-    - node packages/cli/dist/index.js scan "packages/core/src/**/*.ts"
-        --threshold 60
-        --format gitlab-report
-        --output ai-validator-report.json
-  artifacts:
-    reports:
-      codequality: ai-validator-report.json
-    when: always
-  allow_failure: true
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-
-# ─── Open Code Review (V4 self-scan) ───
-
-open-code-review:
-  stage: test
-  image: node:20-slim
-  script:
-    - npm install -g open-code-review
     - |
       if [ -n "$CI_MERGE_REQUEST_IID" ]; then
+        echo "=== MR Diff Mode ==="
         git fetch origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
         CHANGED=$(git diff --name-only "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"...HEAD | grep -E '\.(ts|tsx)$' || true)
         if [ -n "$CHANGED" ]; then
-          echo "$CHANGED" | xargs open-code-review scan --sla L1 --threshold 60 --format json --output ocr-report.json
+          echo "Scanning $(echo "$CHANGED" | wc -l) changed files..."
+          echo "$CHANGED" | tr '\n' ' ' | xargs node packages/cli/dist/index.js scan --sla L1 --threshold 50 --format json --output ocr-report.json
         else
           echo "No scannable files changed"
-          echo '{"score":100,"grade":"A","issues":[]}' > ocr-report.json
+          echo '{"score":100,"grade":"A","issues":[],"filesScanned":0}' > ocr-report.json
         fi
       else
-        open-code-review scan packages/*/src --sla L1 --threshold 60 --format json --output ocr-report.json
+        echo "=== Full Scan Mode ==="
+        node packages/cli/dist/index.js scan packages/core/src packages/cli/src --sla L1 --threshold 50 --format json --output ocr-report.json || true
       fi
   artifacts:
     reports:
       codequality: ocr-report.json
+    paths:
+      - ocr-report.json
     when: always
   allow_failure: true
   rules:

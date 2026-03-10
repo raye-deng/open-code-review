@@ -58,7 +58,8 @@ describe('V4 Configuration Parser', () => {
 
   describe('loadV4Config', () => {
     it('should return default config when no file exists', async () => {
-      const emptyDir = join(FIXTURES_DIR, 'empty');
+      // Use /tmp to avoid upward traversal finding .ocrrc.yml in project root
+      const emptyDir = join('/tmp', 'ocr-test-empty-' + Date.now());
       await mkdir(emptyDir, { recursive: true });
 
       const config = loadV4Config({ projectRoot: emptyDir });

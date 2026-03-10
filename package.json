@@ -9,7 +9,6 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
-    "dev": "pnpm --filter @open-code-review/web dev",
     "clean": "pnpm -r exec rm -rf dist node_modules"
   },
   "devDependencies": {
