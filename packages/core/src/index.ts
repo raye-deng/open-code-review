@@ -147,6 +147,31 @@ export { AIDetector } from './detectors/ai-detector.js';
 export { PromptBuilder } from './ai-healer/prompt-builder.js';
 export type { FixPrompt } from './ai-healer/prompt-builder.js';
 
+// ─── Registry (V4) ───
+
+export {
+  RegistryCache,
+  NpmRegistry,
+  PyPIRegistry,
+  MavenRegistry,
+  GoProxyRegistry,
+  RegistryManager,
+  NODE_BUILTINS,
+  PYTHON_BUILTINS,
+  JAVA_BUILTINS,
+  GO_BUILTINS,
+  KOTLIN_BUILTINS,
+} from './registry/index.js';
+
+export type {
+  PackageRegistry,
+  PackageVerifyResult as RegistryVerifyResult,
+  DeprecationInfo,
+  RegistryConfig,
+  RegistryOptions,
+  CacheEntry,
+} from './registry/index.js';
+
 // ─── License ───
 
 export { generateLicenseKey, isValidLicenseFormat, LicenseValidator } from './license/index.js';
@@ -157,3 +182,26 @@ export type {
   LicenseResolveOptions,
   LicenseValidatorOptions,
 } from './license/index.js';
+
+// ─── V4: Unified IR ───
+
+export type {
+  CodeUnit,
+  CodeUnitKind,
+  SupportedLanguageV4,
+  SourceLocation,
+  ImportInfoV4,
+  CallInfoV4,
+  ComplexityMetricsV4,
+  SymbolDef,
+  SymbolRef,
+} from './ir/index.js';
+
+export { createCodeUnit, emptyComplexity } from './ir/index.js';
+
+// ─── V4: Parser ───
+
+export { ParserManager } from './parser/index.js';
+export type { LanguageExtractor } from './parser/index.js';
+export { TypeScriptExtractor } from './parser/index.js';
+export { PythonExtractor } from './parser/index.js';
