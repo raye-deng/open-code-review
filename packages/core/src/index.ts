@@ -3,102 +3,118 @@
  *
  * Core detection engine for AI-generated code quality validation.
  *
- * V3: Multi-dimensional scoring, SLA framework, unified types.
+ * V3: Unified type system, multi-language support, all detectors implement
+ * the Detector interface with standardized UnifiedIssue output.
  *
  * @example
  * ```ts
- * import { ScoringEngine, ReportGenerator, SLATracker, SLALevel } from '@ai-code-validator/core';
+ * import {
+ *   HallucinationDetector,
+ *   LogicGapDetector,
+ *   DuplicationDetector,
+ *   ContextBreakDetector,
+ *   ScoringEngine,
+ *   LanguageRegistry,
+ *   TypeScriptAdapter,
+ *   type UnifiedIssue,
+ *   type Detector,
+ *   type FileAnalysis,
+ *   AIDefectCategory,
+ * } from '@ai-code-validator/core';
  *
- * // V3 API
+ * // Register language adapter
+ * const registry = LanguageRegistry.getInstance();
+ * registry.register(new TypeScriptAdapter());
+ *
+ * // Create detectors (all implement Detector interface)
+ * const detectors: Detector[] = [
+ *   new HallucinationDetector({ projectRoot: '.' }),
+ *   new LogicGapDetector(),
+ *   new DuplicationDetector(),
+ *   new ContextBreakDetector(),
+ * ];
+ *
+ * // Prepare files
+ * const files: FileAnalysis[] = [{
+ *   path: './src/app.ts',
+ *   content: source,
+ *   language: 'typescript',
+ * }];
+ *
+ * // Run all detectors
+ * const allIssues: UnifiedIssue[] = [];
+ * for (const detector of detectors) {
+ *   allIssues.push(...await detector.detect(files));
+ * }
+ *
+ * // Score
  * const engine = new ScoringEngine(70);
- * const result = engine.aggregateV3(unifiedIssues);
- *
- * const tracker = new SLATracker(SLALevel.L2_STANDARD, 47);
- * tracker.start();
- * // ... run detectors ...
- * const slaMetrics = tracker.finalize(issues, 9, 9);
- *
- * const reporter = new ReportGenerator();
- * console.log(reporter.generateV3(result, 'terminal', slaMetrics));
+ * const score = engine.scoreFile('./src/app.ts', null, null, null, null);
  * ```
  */
 
-// ─── Unified Types ─────────────────────────────────────────────────
+// ─── V3 Unified Types ───
 
-export { AIDefectCategory } from './types.js';
+export {
+  AIDefectCategory,
+  SEVERITY_DEDUCTIONS,
+  SCORING_WEIGHTS,
+  CATEGORY_DIMENSION_MAP,
+} from './types.js';
+
 export type {
   Severity,
   UnifiedIssue,
-  DetectorResult,
-  AnalysisContext,
   Detector,
+  FileAnalysis,
+  SupportedLanguage,
   Grade,
-  ScoringDimensionId,
-  ScoringDimensionConfig,
+  ScoringDimension,
 } from './types.js';
 
-// ─── Detectors (legacy — will be updated by Worker A) ──────────────
+// ─── Multi-Language Support ───
+
+export { LanguageRegistry } from './languages/index.js';
+export { TypeScriptAdapter } from './languages/index.js';
+export type {
+  LanguageAdapter,
+  ASTNode,
+  ImportInfo,
+  CallInfo,
+  PackageVerifyResult,
+  DeprecatedInfo,
+  ComplexityMetrics,
+} from './languages/index.js';
+
+// ─── Detectors ───
 
 export { HallucinationDetector } from './detectors/hallucination.js';
+/** @deprecated Use UnifiedIssue instead */
 export type { HallucinationIssue, HallucinationResult, HallucinationDetectorOptions } from './detectors/hallucination.js';
 
 export { LogicGapDetector } from './detectors/logic-gap.js';
+/** @deprecated Use UnifiedIssue instead */
 export type { LogicGapIssue, LogicGapResult } from './detectors/logic-gap.js';
 
 export { DuplicationDetector } from './detectors/duplication.js';
+/** @deprecated Use UnifiedIssue instead */
 export type { DuplicationIssue, DuplicationResult } from './detectors/duplication.js';
 
 export { ContextBreakDetector } from './detectors/context-break.js';
+/** @deprecated Use UnifiedIssue instead */
 export type { ContextBreakIssue, ContextBreakResult } from './detectors/context-break.js';
 
-// ─── Scorer V3 ─────────────────────────────────────────────────────
+// ─── Scorer ───
 
-export { ScoringEngine, DIMENSIONS, SEVERITY_DEDUCTIONS, CATEGORY_DIMENSION_MAP, computeGrade } from './scorer/scoring-engine.js';
-export type {
-  // V3 types
-  DimensionScoreV3,
-  ScoreResult,
-  FileScoreV3,
-  AggregateScoreV3,
-  // Legacy types (deprecated)
-  FileScore,
-  AggregateScore,
-  DimensionScore,
-} from './scorer/scoring-engine.js';
+export { ScoringEngine } from './scorer/scoring-engine.js';
+export type { FileScore, AggregateScore, DimensionScore } from './scorer/scoring-engine.js';
 
-// ─── Report ────────────────────────────────────────────────────────
+// ─── Report ───
 
 export { ReportGenerator } from './scorer/report.js';
 export type { ReportFormat } from './scorer/report.js';
 
-// ─── SLA Framework ─────────────────────────────────────────────────
-
-export {
-  SLALevel,
-  SLA_TARGET_DURATIONS,
-  SLA_AI_ANALYSIS,
-  SLA_ACCURACY_TARGETS,
-} from './sla/index.js';
-export type { SLAMetrics, SLATimeoutCheck } from './sla/index.js';
-export { SLATracker, parseSLALevel } from './sla/index.js';
-
-// ─── Config ────────────────────────────────────────────────────────
-
-export { DEFAULT_CONFIG, mergeWithDefaults, loadConfig } from './config/index.js';
-export type {
-  AICVConfig,
-  ScanConfig,
-  ScoringConfig,
-  AIConfig,
-  AILocalConfig,
-  AIRemoteConfig,
-  ReportConfig,
-  ReportFormatType,
-  CLIConfigOverrides,
-  LoadConfigOptions,
-} from './config/index.js';
-
-// ─── AI Healer ─────────────────────────────────────────────────────
+// ─── AI Healer ───
 
 export { PromptBuilder } from './ai-healer/prompt-builder.js';
 export type { FixPrompt } from './ai-healer/prompt-builder.js';
