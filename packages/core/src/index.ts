@@ -118,3 +118,14 @@ export type { ReportFormat } from './scorer/report.js';
 
 export { PromptBuilder } from './ai-healer/prompt-builder.js';
 export type { FixPrompt } from './ai-healer/prompt-builder.js';
+
+// ─── License ───
+
+export { generateLicenseKey, isValidLicenseFormat, LicenseValidator } from './license/index.js';
+export type {
+  LicenseInfo,
+  LicenseValidationResult,
+  LicenseCacheEntry,
+  LicenseResolveOptions,
+  LicenseValidatorOptions,
+} from './license/index.js';
