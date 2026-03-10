@@ -205,3 +205,24 @@ export { ParserManager } from './parser/index.js';
 export type { LanguageExtractor } from './parser/index.js';
 export { TypeScriptExtractor } from './parser/index.js';
 export { PythonExtractor } from './parser/index.js';
+export { JavaExtractor } from './parser/index.js';
+export { GoExtractor } from './parser/index.js';
+export { KotlinExtractor } from './parser/index.js';
+
+// ─── V4: Detectors ───
+
+export {
+  HallucinatedImportDetector,
+  StaleAPIDetector,
+  ContextCoherenceDetector,
+  OverEngineeringDetector,
+  SecurityPatternDetector,
+  createV4Detectors,
+} from './detectors/v4/index.js';
+
+export type {
+  V4Detector,
+  V4DetectorResult,
+  DetectorCategory,
+  DetectorContext,
+} from './detectors/v4/index.js';
