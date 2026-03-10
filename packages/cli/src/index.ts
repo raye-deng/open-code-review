@@ -1,16 +1,23 @@
 #!/usr/bin/env node
 
 /**
- * AI Code Validator CLI
+ * AI Code Validator CLI — V3
  *
  * Usage:
  *   npx ai-code-validator scan ./src
  *   npx ai-code-validator scan ./src --threshold 80 --format json
- *   npx ai-code-validator scan ./src --format markdown --output report.md
+ *   npx ai-code-validator scan ./src --license AICV-XXXX-XXXX-XXXX-XXXX
+ *   npx ai-code-validator login
+ *   npx ai-code-validator config show
+ *   npx ai-code-validator config set license AICV-XXXX
+ *
+ * @since 0.3.0
  */
 
 import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
-import { resolve, relative } from 'node:path';
+import { resolve, relative, join } from 'node:path';
+import { homedir } from 'node:os';
+import { createInterface } from 'node:readline';
 import { glob } from 'glob';
 import {
   HallucinationDetector,
@@ -20,18 +27,27 @@ import {
   ScoringEngine,
   ReportGenerator,
   PromptBuilder,
+  LicenseValidator,
+  isValidLicenseFormat,
 } from '@ai-code-validator/core';
 import type { ReportFormat, FileScore } from '@ai-code-validator/core';
 
-/** CLI argument parsing (minimal, no dependency) */
-function parseArgs(argv: string[]): {
+// ─── CLI Argument Parsing ──────────────────────────────────────────
+
+interface ParsedArgs {
   command: string;
+  subcommand?: string;
   paths: string[];
   threshold: number;
   format: ReportFormat;
   output?: string;
   healPrompt: boolean;
-} {
+  license?: string;
+  configKey?: string;
+  configValue?: string;
+}
+
+function parseArgs(argv: string[]): ParsedArgs {
   const args = argv.slice(2);
   const command = args[0] || 'help';
   const paths: string[] = [];
@@ -39,6 +55,20 @@ function parseArgs(argv: string[]): {
   let format: ReportFormat = 'terminal';
   let output: string | undefined;
   let healPrompt = false;
+  let license: string | undefined;
+  let subcommand: string | undefined;
+  let configKey: string | undefined;
+  let configValue: string | undefined;
+
+  // Handle config subcommand
+  if (command === 'config') {
+    subcommand = args[1]; // 'show' or 'set'
+    if (subcommand === 'set') {
+      configKey = args[2];
+      configValue = args[3];
+    }
+    return { command, subcommand, paths, threshold, format, output, healPrompt, license, configKey, configValue };
+  }
 
   for (let i = 1; i < args.length; i++) {
     switch (args[i]) {
@@ -54,6 +84,9 @@ function parseArgs(argv: string[]): {
       case '--heal':
         healPrompt = true;
         break;
+      case '--license':
+        license = args[++i];
+        break;
       default:
         if (!args[i].startsWith('--')) {
           paths.push(args[i]);
@@ -61,7 +94,7 @@ function parseArgs(argv: string[]): {
     }
   }
 
-  if (paths.length === 0) {
+  if (command === 'scan' && paths.length === 0) {
     paths.push('src/**/*.ts', 'src/**/*.js', 'src/**/*.tsx', 'src/**/*.jsx');
   }
 
@@ -84,10 +117,22 @@ function parseArgs(argv: string[]): {
     }
   }
 
-  return { command, paths: expandedPaths, threshold, format, output, healPrompt };
+  return {
+    command,
+    subcommand,
+    paths: expandedPaths,
+    threshold,
+    format,
+    output,
+    healPrompt,
+    license,
+    configKey,
+    configValue,
+  };
 }
 
-/** Resolve glob patterns to file paths */
+// ─── File Discovery ────────────────────────────────────────────────
+
 async function resolveFiles(patterns: string[]): Promise<string[]> {
   const files: string[] = [];
   for (const pattern of patterns) {
@@ -99,15 +144,61 @@ async function resolveFiles(patterns: string[]): Promise<string[]> {
   return [...new Set(files)];
 }
 
+// ─── License Validation ────────────────────────────────────────────
+
+async function validateLicense(cliLicense?: string): Promise<{ key: string | null; status: string }> {
+  // Resolve license key from all sources
+  const licenseKey = LicenseValidator.resolveLicenseKey({
+    cli: cliLicense,
+  });
+
+  if (!licenseKey) {
+    return {
+      key: null,
+      status: '⚠ No license key found. Run `ai-code-validator login` to get one.',
+    };
+  }
+
+  // Validate the license
+  const validator = new LicenseValidator();
+  const result = await validator.validate(licenseKey);
+
+  if (result.valid) {
+    const maskedKey = licenseKey.replace(/^(AICV-.{4}).+(.{4})$/, '$1-****-****-$2');
+    if (result.degraded) {
+      return { key: licenseKey, status: `⚠ License: ${maskedKey} (offline mode)` };
+    }
+    if (result.cached) {
+      return { key: licenseKey, status: `✓ License: ${maskedKey} (cached)` };
+    }
+    return { key: licenseKey, status: `✓ License: ${maskedKey} (verified)` };
+  }
+
+  return {
+    key: licenseKey,
+    status: `⚠ License invalid: ${result.error ?? 'unknown error'}. Continuing anyway (free product).`,
+  };
+}
+
+// ─── Commands ──────────────────────────────────────────────────────
+
 /** Main scan command */
-async function scan(
+async function commandScan(
   paths: string[],
   threshold: number,
   format: ReportFormat,
   output?: string,
   healPrompt?: boolean,
+  cliLicense?: string,
 ): Promise<boolean> {
   const projectRoot = resolve('.');
+
+  // Step 1: Validate license
+  const { status: licenseStatus } = await validateLicense(cliLicense);
+  console.error(licenseStatus);
+  console.error('');
+
+  // Step 2: Resolve files
   const files = await resolveFiles(paths);
 
   if (files.length === 0) {
@@ -117,14 +208,14 @@ async function scan(
 
   console.error(`Scanning ${files.length} file(s)...`);
 
-  // Initialize detectors
+  // Step 3: Initialize detectors
   const hallucinationDetector = new HallucinationDetector({ projectRoot });
   const logicGapDetector = new LogicGapDetector();
   const duplicationDetector = new DuplicationDetector();
   const contextBreakDetector = new ContextBreakDetector();
   const scoringEngine = new ScoringEngine(threshold);
 
-  // Analyze each file
+  // Step 4: Analyze each file
   const fileScores: FileScore[] = [];
 
   for (const file of files) {
@@ -140,12 +231,12 @@ async function scan(
     fileScores.push(score);
   }
 
-  // Generate aggregate report
+  // Step 5: Generate aggregate report
   const aggregate = scoringEngine.aggregate(fileScores);
   const reporter = new ReportGenerator();
   const report = reporter.generate(aggregate, format);
 
-  // Output
+  // Step 6: Output
   if (output) {
     writeFileSync(output, report, 'utf-8');
     console.error(`Report written to: ${output}`);
@@ -153,7 +244,7 @@ async function scan(
     console.log(report);
   }
 
-  // AI heal prompt
+  // Step 7: AI heal prompt
   if (healPrompt) {
     const builder = new PromptBuilder();
     const prompt = builder.buildCombinedPrompt(aggregate);
@@ -165,46 +256,286 @@ async function scan(
   return aggregate.passed;
 }
 
-/** Print help */
+/** Login command — get a license key */
+async function commandLogin(): Promise<void> {
+  console.log('');
+  console.log('  ┌──────────────────────────────────────────┐');
+  console.log('  │   AI Code Validator — License Setup       │');
+  console.log('  └──────────────────────────────────────────┘');
+  console.log('');
+
+  // Check if already logged in
+  const existingKey = LicenseValidator.resolveLicenseKey();
+  if (existingKey && isValidLicenseFormat(existingKey)) {
+    const maskedKey = existingKey.replace(/^(AICV-.{4}).+(.{4})$/, '$1-****-****-$2');
+    console.log(`  You already have a license key: ${maskedKey}`);
+    console.log('');
+
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const answer = await new Promise<string>((resolve) => {
+      rl.question('  Replace with a new key? (y/N): ', resolve);
+    });
+    rl.close();
+
+    if (answer.toLowerCase() !== 'y') {
+      console.log('  Keeping existing license key.');
+      return;
+    }
+    console.log('');
+  }
+
+  // Portal registration URL
+  const portalUrl = 'https://codes.evallab.ai/register';
+  console.log('  To get a license key:');
+  console.log('');
+  console.log(`  1. Visit: ${portalUrl}`);
+  console.log('  2. Sign up with GitHub or email');
+  console.log('  3. Copy your license key from the dashboard');
+  console.log('');
+
+  // Try to open browser
+  try {
+    const { exec: execCb } = await import('node:child_process');
+    const openCmd = process.platform === 'darwin' ? 'open' :
+                    process.platform === 'win32' ? 'start' : 'xdg-open';
+    execCb(`${openCmd} ${portalUrl}`, () => {});
+    console.log('  (Opening browser...)');
+    console.log('');
+  } catch {
+    // Browser opening failed — that's fine
+  }
+
+  // Prompt for license key
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const licenseKey = await new Promise<string>((resolve) => {
+    rl.question('  Paste your license key: ', resolve);
+  });
+  rl.close();
+
+  const trimmedKey = licenseKey.trim().toUpperCase();
+
+  if (!trimmedKey) {
+    console.log('');
+    console.log('  No key entered. You can set it later with:');
+    console.log('    ai-code-validator config set license YOUR-KEY');
+    console.log('    # or set AICV_LICENSE environment variable');
+    return;
+  }
+
+  if (!isValidLicenseFormat(trimmedKey)) {
+    console.error('');
+    console.error(`  ✗ Invalid license key format: ${trimmedKey}`);
+    console.error('    Expected format: AICV-XXXX-XXXX-XXXX-XXXX');
+    process.exit(1);
+  }
+
+  // Validate the key
+  console.log('');
+  console.log('  Validating...');
+  const validator = new LicenseValidator();
+  const result = await validator.validate(trimmedKey);
+
+  if (result.valid) {
+    // Save the key
+    LicenseValidator.saveLicenseKey(trimmedKey);
+    console.log(`  ✓ License key saved to ~/.aicv/license`);
+    console.log('');
+    console.log('  You\'re all set! Run `ai-code-validator scan .` to get started.');
+  } else {
+    console.error(`  ⚠ Validation warning: ${result.error ?? 'could not verify'}`);
+    console.log('  Saving anyway (free product — you can use the tool without verification).');
+    LicenseValidator.saveLicenseKey(trimmedKey);
+    console.log(`  ✓ License key saved to ~/.aicv/license`);
+  }
+}
+
+/** Config command */
+async function commandConfig(subcommand?: string, key?: string, value?: string): Promise<void> {
+  const aicvDir = join(homedir(), '.aicv');
+
+  switch (subcommand) {
+    case 'show': {
+      console.log('');
+      console.log('  AI Code Validator — Configuration');
+      console.log('  ─────────────────────────────────');
+
+      // License
+      const licenseKey = LicenseValidator.resolveLicenseKey();
+      if (licenseKey) {
+        const maskedKey = licenseKey.replace(/^(AICV-.{4}).+(.{4})$/, '$1-****-****-$2');
+        console.log(`  License:     ${maskedKey}`);
+      } else {
+        console.log('  License:     (not set)');
+      }
+
+      // Config file
+      const configFiles = ['.aicv.yml', '.aicv.yaml'];
+      let foundConfig = false;
+      for (const cf of configFiles) {
+        if (existsSync(cf)) {
+          console.log(`  Config file: ${resolve(cf)}`);
+          foundConfig = true;
+          break;
+        }
+      }
+      if (!foundConfig) {
+        console.log('  Config file: (none found in current directory)');
+      }
+
+      // Global config
+      const globalConfig = join(aicvDir, 'config.yml');
+      if (existsSync(globalConfig)) {
+        console.log(`  Global:      ${globalConfig}`);
+      } else {
+        console.log(`  Global:      (not set)`);
+      }
+
+      // Cache
+      const cachePath = join(aicvDir, 'license-cache.json');
+      if (existsSync(cachePath)) {
+        try {
+          const cache = JSON.parse(readFileSync(cachePath, 'utf-8'));
+          const age = Date.now() - cache.timestamp;
+          const hoursAgo = Math.round(age / (60 * 60 * 1000));
+          console.log(`  Cache:       valid (${hoursAgo}h old)`);
+        } catch {
+          console.log('  Cache:       (corrupt)');
+        }
+      } else {
+        console.log('  Cache:       (empty)');
+      }
+
+      console.log('');
+      break;
+    }
+
+    case 'set': {
+      if (!key) {
+        console.error('Usage: ai-code-validator config set <key> <value>');
+        console.error('');
+        console.error('Available keys:');
+        console.error('  license   Set the license key');
+        process.exit(1);
+      }
+
+      switch (key) {
+        case 'license': {
+          if (!value) {
+            console.error('Usage: ai-code-validator config set license AICV-XXXX-XXXX-XXXX-XXXX');
+            process.exit(1);
+          }
+          const trimmed = value.trim().toUpperCase();
+          if (!isValidLicenseFormat(trimmed)) {
+            console.error(`Invalid license key format: ${trimmed}`);
+            console.error('Expected format: AICV-XXXX-XXXX-XXXX-XXXX');
+            process.exit(1);
+          }
+          LicenseValidator.saveLicenseKey(trimmed);
+          console.log(`✓ License key saved to ~/.aicv/license`);
+          break;
+        }
+        default:
+          console.error(`Unknown config key: ${key}`);
+          console.error('Available keys: license');
+          process.exit(1);
+      }
+      break;
+    }
+
+    default: {
+      // Default to 'show' if no subcommand
+      await commandConfig('show');
+      break;
+    }
+  }
+}
+
+// ─── Help ──────────────────────────────────────────────────────────
+
 function printHelp(): void {
   console.log(`
 AI Code Validator — Quality gate for AI-generated code
 
 USAGE:
-  ai-code-validator scan [paths...] [options]
+  ai-code-validator <command> [options]
 
 COMMANDS:
-  scan          Scan files for AI code quality issues
-  help          Show this help message
+  scan [paths...]       Scan files for AI code quality issues
+  login                 Set up license key (opens Portal)
+  config [show|set]     View or update configuration
+  help                  Show this help message
 
-OPTIONS:
-  --threshold <n>     Minimum score to pass (default: 70)
-  --format <fmt>      Output format: terminal, json, markdown, gitlab-report
-  --output <path>     Write report to file instead of stdout
-  --heal              Generate AI self-heal prompt file
+SCAN OPTIONS:
+  --threshold <n>       Minimum score to pass (default: 70)
+  --format <fmt>        Output format: terminal, json, markdown, gitlab-report
+  --output <path>       Write report to file instead of stdout
+  --license <key>       License key (AICV-XXXX-XXXX-XXXX-XXXX)
+  --heal                Generate AI self-heal prompt file
+
+CONFIG COMMANDS:
+  config show           Show current configuration
+  config set license <key>  Set license key
 
 EXAMPLES:
   ai-code-validator scan ./src
   ai-code-validator scan "src/**/*.ts" --threshold 80
+  ai-code-validator scan ./src --license AICV-8F3A-K9D2-P7XN-Q4M6
   ai-code-validator scan ./src --format json --output report.json
-  ai-code-validator scan ./src --heal
+  ai-code-validator login
+  ai-code-validator config show
+  ai-code-validator config set license AICV-8F3A-K9D2-P7XN-Q4M6
 `);
 }
 
-/** Entry point */
-async function main(): Promise<void> {
-  const { command, paths, threshold, format, output, healPrompt } = parseArgs(process.argv);
+// ─── Entry Point ───────────────────────────────────────────────────
 
-  switch (command) {
+async function main(): Promise<void> {
+  const parsed = parseArgs(process.argv);
+
+  switch (parsed.command) {
     case 'scan': {
-      const passed = await scan(paths, threshold, format, output, healPrompt);
+      const passed = await commandScan(
+        parsed.paths,
+        parsed.threshold,
+        parsed.format,
+        parsed.output,
+        parsed.healPrompt,
+        parsed.license,
+      );
       process.exit(passed ? 0 : 1);
       break;
     }
+
+    case 'login': {
+      await commandLogin();
+      process.exit(0);
+      break;
+    }
+
+    case 'config': {
+      await commandConfig(parsed.subcommand, parsed.configKey, parsed.configValue);
+      process.exit(0);
+      break;
+    }
+
     case 'help':
-    default:
+    case '--help':
+    case '-h':
       printHelp();
       process.exit(0);
+      break;
+
+    case '--version':
+    case '-v': {
+      console.log('0.3.0');
+      process.exit(0);
+      break;
+    }
+
+    default:
+      console.error(`Unknown command: ${parsed.command}`);
+      console.error('Run `ai-code-validator help` for usage.');
+      process.exit(1);
   }
 }
 
