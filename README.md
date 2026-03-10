@@ -62,6 +62,17 @@ OCR scans itself. Here's what it found:
 
 Also available as HTML: `ocr scan src/ --format html -o report.html`
 
+### 📊 L2 HTML Report Sample
+
+![L2 HTML Report Screenshot](https://via.placeholder.com/800x450/1e293b/f1f5f9?text=HTML+Report+Screenshot+Coming+Soon)
+> **TODO**: Replace with actual screenshot from `docs/demo-reports/v4-l2/self-scan.html`
+
+**Features of HTML Report:**
+- Interactive issue browser with severity filters
+- Detailed code snippets with context
+- Scoring breakdown by dimension
+- Export to JSON/SARIF
+
 📄 [View full HTML report](docs/demo-reports/v4-l2/self-scan.html)
 
 ## How It Compares
