@@ -114,6 +114,28 @@ export type { FileScore, AggregateScore, DimensionScore } from './scorer/scoring
 export { ReportGenerator } from './scorer/report.js';
 export type { ReportFormat } from './scorer/report.js';
 
+// ─── AI Analysis (Tier 3) ───
+
+export {
+  AIOrchestrator,
+  OllamaProvider,
+  OpenAIProvider,
+  AnthropicProvider,
+  buildAnalysisPrompt,
+  mapRawCategory,
+  mapRawSeverity,
+} from './ai/index.js';
+
+export type {
+  AIProvider,
+  AIAnalysisRequest,
+  AIAnalysisResponse,
+  AIStrategy,
+  AIRawIssue,
+} from './ai/index.js';
+
+export { AIDetector } from './detectors/ai-detector.js';
+
 // ─── AI Healer ───
 
 export { PromptBuilder } from './ai-healer/prompt-builder.js';

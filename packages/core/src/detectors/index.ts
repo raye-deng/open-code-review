@@ -44,3 +44,7 @@ export { OverEngineeringDetector } from './over-engineering.js';
 export { DeepHallucinationDetector } from './deep-hallucination.js';
 
 export { TypeSafetyDetector } from './type-safety.js';
+
+// ─── AI Detector (Tier 3, v0.3.0) ───
+
+export { AIDetector } from './ai-detector.js';
