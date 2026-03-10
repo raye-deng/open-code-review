@@ -1,0 +1,98 @@
+[
+  {
+    "api": "io/ioutil",
+    "pattern": "io/ioutil|ioutil\\.",
+    "replacement": "io and os packages (io.ReadAll, os.ReadFile, os.WriteFile, etc.)",
+    "deprecated_since": "Go 1.16",
+    "severity": "high",
+    "reason": "Package io/ioutil is deprecated since Go 1.16; functions moved to io and os packages"
+  },
+  {
+    "api": "strings.Title",
+    "pattern": "strings\\.Title\\(",
+    "replacement": "golang.org/x/text/cases",
+    "deprecated_since": "Go 1.18",
+    "severity": "medium",
+    "reason": "strings.Title is deprecated; use golang.org/x/text/cases for proper Unicode title casing"
+  },
+  {
+    "api": "net/http/httputil.NewClientConn",
+    "pattern": "httputil\\.NewClientConn\\(",
+    "replacement": "net/http.Client or net/http.Transport",
+    "deprecated_since": "Go 1.0",
+    "severity": "high",
+    "reason": "httputil.NewClientConn is deprecated; use http.Client with http.Transport"
+  },
+  {
+    "api": "crypto/dsa",
+    "pattern": "crypto/dsa|dsa\\.",
+    "replacement": "crypto/ecdsa or crypto/ed25519",
+    "deprecated_since": "Go 1.16",
+    "severity": "high",
+    "reason": "Package crypto/dsa is deprecated; DSA is weak and should not be used; use ECDSA or Ed25519"
+  },
+  {
+    "api": "syscall (direct use)",
+    "pattern": "\"syscall\"|syscall\\.",
+    "replacement": "golang.org/x/sys/unix or golang.org/x/sys/windows",
+    "deprecated_since": "Go 1.4",
+    "severity": "medium",
+    "reason": "Direct use of syscall package is frozen; use golang.org/x/sys for new syscall wrappers"
+  },
+  {
+    "api": "go/ast.Object",
+    "pattern": "ast\\.Object|ast\\.NewObj\\(",
+    "replacement": "go/types package",
+    "deprecated_since": "Go 1.0",
+    "severity": "medium",
+    "reason": "ast.Object is deprecated; use the go/types package for proper type information"
+  },
+  {
+    "api": "math/rand.Seed",
+    "pattern": "rand\\.Seed\\(",
+    "replacement": "(automatic seeding since Go 1.20, or use rand.New(rand.NewSource(seed)))",
+    "deprecated_since": "Go 1.20",
+    "severity": "medium",
+    "reason": "math/rand.Seed is deprecated since Go 1.20; the global random source is automatically seeded"
+  },
+  {
+    "api": "os.IsPermission",
+    "pattern": "os\\.IsPermission\\(|os\\.IsExist\\(|os\\.IsNotExist\\(",
+    "replacement": "errors.Is(err, fs.ErrPermission) / errors.Is(err, fs.ErrExist) / errors.Is(err, fs.ErrNotExist)",
+    "deprecated_since": "Go 1.13+",
+    "severity": "low",
+    "reason": "os.IsPermission/IsExist/IsNotExist don't unwrap errors; use errors.Is with fs sentinel errors"
+  },
+  {
+    "api": "math/rand.Read",
+    "pattern": "rand\\.Read\\(",
+    "replacement": "crypto/rand.Read()",
+    "deprecated_since": "Go 1.20",
+    "severity": "high",
+    "reason": "math/rand.Read is deprecated since Go 1.20; use crypto/rand.Read for security-sensitive random bytes"
+  },
+  {
+    "api": "net/http/httputil.ErrPersistEOF",
+    "pattern": "httputil\\.ErrPersistEOF|httputil\\.ErrClosed|httputil\\.ErrPipeline",
+    "replacement": "(no direct replacement; these error vars are deprecated)",
+    "deprecated_since": "Go 1.0",
+    "severity": "low",
+    "reason": "These error variables in httputil are deprecated along with the persistent connection API"
+  },
+  {
+    "api": "io/ioutil.ReadAll",
+    "pattern": "ioutil\\.ReadAll\\(",
+    "replacement": "io.ReadAll()",
+    "deprecated_since": "Go 1.16",
+    "severity": "high",
+    "reason": "ioutil.ReadAll is deprecated; use io.ReadAll instead"
+  },
+  {
+    "api": "io/ioutil.ReadFile",
+    "pattern": "ioutil\\.ReadFile\\(",
+    "replacement": "os.ReadFile()",
+    "deprecated_since": "Go 1.16",
+    "severity": "high",
+    "reason": "ioutil.ReadFile is deprecated; use os.ReadFile instead"
+  }
+]
