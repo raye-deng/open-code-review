@@ -28,10 +28,7 @@ jobs:
         run: cd packages/core && npx vitest run --config vitest.ci.config.ts
 
       - name: Build
-        run: |
-          pnpm --filter @open-code-review/core build
-          pnpm --filter @open-code-review/cli build
-          pnpm --filter @open-code-review/github-action build
+        run: pnpm -r build
 
       - name: Verify CLI
         run: |
