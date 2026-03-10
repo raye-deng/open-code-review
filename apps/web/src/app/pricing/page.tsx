@@ -203,7 +203,7 @@ export default function Pricing() {
           </div>
           <div className="flex items-center gap-6 text-sm text-gray-500">
             <a
-              href="https://github.com/raye-deng/ai-code-validator"
+              href="https://github.com/raye-deng/open-code-review"
               className="hover:text-gray-300 transition"
             >
               GitHub

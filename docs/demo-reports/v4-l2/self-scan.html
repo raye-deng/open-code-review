@@ -1,0 +1,1751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Code Review — src</title>
+  <style>
+    :root {
+      --bg: #0f172a; --bg2: #1e293b; --bg3: #334155;
+      --text: #f1f5f9; --text2: #94a3b8; --text3: #64748b;
+      --border: #334155; --accent: #3b82f6;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+      line-height: 1.6; padding: 0;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+
+    /* Header */
+    .hdr { text-align: center; padding: 40px 0 32px; border-bottom: 1px solid var(--border); margin-bottom: 40px; }
+    .hdr .logo { font-size: 14px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: 8px; }
+    .hdr h1 { font-size: 28px; font-weight: 800; margin-bottom: 6px; }
+    .hdr .sub { color: var(--text2); font-size: 14px; }
+
+    /* Score Hero */
+    .hero { display: flex; align-items: center; justify-content: center; gap: 48px; margin-bottom: 40px; flex-wrap: wrap; }
+    .gauge { width: 180px; height: 180px; }
+    .gauge circle { transition: stroke-dashoffset 1s ease; }
+    .info .grade { font-size: 48px; font-weight: 900; margin-bottom: 2px; }
+    .info .status { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+    .info .meta { color: var(--text2); font-size: 14px; line-height: 1.9; }
+
+    /* Cards */
+    .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+    .card h2 { font-size: 17px; font-weight: 700; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+
+    /* Dimension grid */
+    .dims { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    @media (max-width: 640px) { .dims { grid-template-columns: 1fr; } }
+    .dim { background: var(--bg); border-radius: 8px; padding: 16px; }
+    .dim .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .dim .name { font-weight: 600; font-size: 14px; }
+    .dim .val { font-weight: 700; font-size: 14px; }
+    .bar-t { width: 100%; height: 8px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
+    .bar-f { height: 100%; border-radius: 4px; transition: width 0.8s ease; }
+    .dim .cnt { color: var(--text3); font-size: 12px; margin-top: 6px; }
+
+    /* Category chart */
+    .cat-chart { display: flex; flex-direction: column; gap: 12px; }
+    .cat-row { display: flex; align-items: center; gap: 12px; }
+    .cat-label { width: 180px; font-size: 13px; text-align: right; flex-shrink: 0; }
+    .cat-bar-wrap { flex: 1; height: 28px; background: var(--bg); border-radius: 6px; overflow: hidden; position: relative; }
+    .cat-bar { height: 100%; border-radius: 6px; display: flex; align-items: center; padding-left: 8px; font-size: 12px; font-weight: 600; color: #fff; min-width: 32px; transition: width 0.8s ease; }
+
+    /* Severity badges */
+    .sev-grid { display: flex; gap: 12px; flex-wrap: wrap; }
+    .sev-badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px; border-radius: 20px; font-weight: 600; font-size: 14px; }
+    .sev-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* Issue list */
+    .iss-list { list-style: none; }
+    .iss-item { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+    .iss-hdr { display: flex; align-items: center; padding: 10px 16px; cursor: pointer; gap: 10px; background: var(--bg); user-select: none; }
+    .iss-hdr:hover { opacity: 0.9; }
+    .iss-sev { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #fff; flex-shrink: 0; }
+    .iss-file { color: var(--text2); font-family: monospace; font-size: 12px; flex-shrink: 0; }
+    .iss-msg { flex: 1; font-size: 13px; }
+    .iss-tog { color: var(--text3); font-size: 12px; flex-shrink: 0; }
+    .iss-body { display: none; padding: 16px; border-top: 1px solid var(--border); font-size: 13px; }
+    .iss-body.open { display: block; }
+    .iss-det { margin-bottom: 6px; }
+    .iss-det strong { display: inline-block; min-width: 90px; color: var(--text3); }
+
+    /* Stages */
+    .stages { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+    .stage { background: var(--bg); border-radius: 6px; padding: 8px 16px; font-size: 13px; }
+    .stage .sname { color: var(--text3); font-size: 11px; display: block; }
+    .stage .sval { font-weight: 700; }
+
+    /* Footer */
+    .foot { text-align: center; color: var(--text3); font-size: 13px; padding: 24px 0; border-top: 1px solid var(--border); margin-top: 32px; }
+    .foot a { color: var(--accent); text-decoration: none; }
+
+    /* File groups */
+    .file-group { margin-bottom: 16px; }
+    .file-group-hdr { font-family: monospace; font-size: 13px; color: var(--text2); padding: 8px 0; border-bottom: 1px solid var(--border); margin-bottom: 8px; cursor: pointer; }
+    .file-group-hdr:hover { color: var(--text); }
+    .file-group-hdr .cnt { color: var(--text3); font-size: 12px; margin-left: 8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hdr">
+    <div class="logo">Open Code Review</div>
+    <h1>V4 Scan Report</h1>
+    <div class="sub">src · SLA L2 · 2026-03-10</div>
+  </div>
+    <div class="hero">
+    <svg class="gauge" viewBox="0 0 130 130">
+    <circle cx="65" cy="65" r="54" fill="none" stroke="var(--bg3)" stroke-width="10"/>
+    <circle cx="65" cy="65" r="54" fill="none" stroke="#f97316" stroke-width="10"
+      stroke-dasharray="339.3" stroke-dashoffset="112.0"
+      stroke-linecap="round" transform="rotate(-90 65 65)"/>
+    <text x="65" y="58" text-anchor="middle" font-size="32" font-weight="800" fill="var(--text)">67</text>
+    <text x="65" y="78" text-anchor="middle" font-size="14" fill="var(--text2)">/ 100</text>
+  </svg>
+    <div class="info">
+      <div class="grade" style="color:#f97316">Grade D</div>
+      <div class="status">❌ FAILED (threshold: 70)</div>
+      <div class="meta">
+        📁 110 files scanned<br>
+        🌐 typescript<br>
+        ⚠️ 112 issues found<br>
+        ⏱️ 7.6s
+      </div>
+    </div>
+  </div>
+    <div class="card">
+    <h2>📊 Scoring Dimensions</h2>
+    <div class="dims"><div class="dim">
+      <div class="top">
+        <span class="name">🤖 AI Faithfulness</span>
+        <span class="val" style="color:#22c55e">35/35</span>
+      </div>
+      <div class="bar-t"><div class="bar-f" style="width:100%;background:#22c55e"></div></div>
+      <div class="cnt">0 issues · 100%</div>
+    </div><div class="dim">
+      <div class="top">
+        <span class="name">📅 Code Freshness</span>
+        <span class="val" style="color:#eab308">15/25</span>
+      </div>
+      <div class="bar-t"><div class="bar-f" style="width:60%;background:#eab308"></div></div>
+      <div class="cnt">8 issues · 60%</div>
+    </div><div class="dim">
+      <div class="top">
+        <span class="name">🔗 Context Coherence</span>
+        <span class="val" style="color:#3b82f6">17/20</span>
+      </div>
+      <div class="bar-t"><div class="bar-f" style="width:85%;background:#3b82f6"></div></div>
+      <div class="cnt">15 issues · 85%</div>
+    </div><div class="dim">
+      <div class="top">
+        <span class="name">⚙️ Implementation Quality</span>
+        <span class="val" style="color:#ef4444">0/20</span>
+      </div>
+      <div class="bar-t"><div class="bar-f" style="width:0%;background:#ef4444"></div></div>
+      <div class="cnt">89 issues · 0%</div>
+    </div></div>
+  </div>
+    <div class="card">
+    <h2>📋 Issues by Category</h2>
+    <div class="cat-chart"><div class="cat-row">
+      <div class="cat-label">🤖 AI Faithfulness</div>
+      <div class="cat-bar-wrap"><div class="cat-bar" style="width:3%;background:#8b5cf6">0</div></div>
+    </div><div class="cat-row">
+      <div class="cat-label">📅 Code Freshness</div>
+      <div class="cat-bar-wrap"><div class="cat-bar" style="width:8.98876404494382%;background:#06b6d4">8</div></div>
+    </div><div class="cat-row">
+      <div class="cat-label">🔗 Context Coherence</div>
+      <div class="cat-bar-wrap"><div class="cat-bar" style="width:16.853932584269664%;background:#f59e0b">15</div></div>
+    </div><div class="cat-row">
+      <div class="cat-label">⚙️ Implementation Quality</div>
+      <div class="cat-bar-wrap"><div class="cat-bar" style="width:100%;background:#10b981">89</div></div>
+    </div></div>
+  </div>
+    <div class="card">
+    <h2>⚠️ Issue Summary</h2>
+    <div class="sev-grid"><div class="sev-badge" style="background:#ef444422">
+        <span class="sev-dot" style="background:#ef4444"></span>
+        🔴 Error: 10
+      </div><div class="sev-badge" style="background:#f59e0b22">
+        <span class="sev-dot" style="background:#f59e0b"></span>
+        🟡 Warning: 90
+      </div><div class="sev-badge" style="background:#3b82f622">
+        <span class="sev-dot" style="background:#3b82f6"></span>
+        🔵 Info: 12
+      </div></div>
+  </div>
+    <div class="card">
+    <h2>🔍 Issues by File (112 total across 32 files)</h2>
+    <div class="file-group">
+      <div class="file-group-hdr">📄 detectors/security-pattern.ts <span class="cnt">(12 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(0)">
+          <span class="iss-sev" style="background:#ef4444">error</span>
+          <span class="iss-file">:73</span>
+          <span class="iss-msg">eval() usage detected. This enables code injection attacks. Use safer alternatives like JSON.parse() or a sandboxed evaluator.</span>
+          <span class="iss-tog" id="t0">▶</span>
+        </div>
+        <div class="iss-body" id="b0">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 73</div>
+          <div class="iss-det"><strong>Confidence:</strong> 90%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(1)">
+          <span class="iss-sev" style="background:#ef4444">error</span>
+          <span class="iss-file">:74</span>
+          <span class="iss-msg">eval() usage detected. This enables code injection attacks. Use safer alternatives like JSON.parse() or a sandboxed evaluator.</span>
+          <span class="iss-tog" id="t1">▶</span>
+        </div>
+        <div class="iss-body" id="b1">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 74</div>
+          <div class="iss-det"><strong>Confidence:</strong> 90%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(2)">
+          <span class="iss-sev" style="background:#ef4444">error</span>
+          <span class="iss-file">:151</span>
+          <span class="iss-msg">TLS certificate verification is disabled. This enables man-in-the-middle attacks.</span>
+          <span class="iss-tog" id="t2">▶</span>
+        </div>
+        <div class="iss-body" id="b2">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 151</div>
+          <div class="iss-det"><strong>Confidence:</strong> 90%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(3)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:198</span>
+          <span class="iss-msg">Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t3">▶</span>
+        </div>
+        <div class="iss-body" id="b3">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 198–277</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(4)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:198</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 28 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t4">▶</span>
+        </div>
+        <div class="iss-body" id="b4">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 198–277</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(5)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:81</span>
+          <span class="iss-msg">new Function() is similar to eval() and can enable code injection. Use safer alternatives.</span>
+          <span class="iss-tog" id="t5">▶</span>
+        </div>
+        <div class="iss-body" id="b5">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 81</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(6)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:82</span>
+          <span class="iss-msg">new Function() is similar to eval() and can enable code injection. Use safer alternatives.</span>
+          <span class="iss-tog" id="t6">▶</span>
+        </div>
+        <div class="iss-body" id="b6">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 82</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(7)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:109</span>
+          <span class="iss-msg">Math.random() is not cryptographically secure. Use crypto.randomUUID() or crypto.getRandomValues() for security-sensitive operations.</span>
+          <span class="iss-tog" id="t7">▶</span>
+        </div>
+        <div class="iss-body" id="b7">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 109</div>
+          <div class="iss-det"><strong>Confidence:</strong> 70%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(8)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:115</span>
+          <span class="iss-msg">MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)</span>
+          <span class="iss-tog" id="t8">▶</span>
+        </div>
+        <div class="iss-body" id="b8">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 115</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(9)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:117</span>
+          <span class="iss-msg">MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)</span>
+          <span class="iss-tog" id="t9">▶</span>
+        </div>
+        <div class="iss-body" id="b9">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 117</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(10)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:123</span>
+          <span class="iss-msg">SHA-1 is cryptographically weak. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)</span>
+          <span class="iss-tog" id="t10">▶</span>
+        </div>
+        <div class="iss-body" id="b10">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 123</div>
+          <div class="iss-det"><strong>Confidence:</strong> 70%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(11)">
+          <span class="iss-sev" style="background:#3b82f6">info</span>
+          <span class="iss-file">:23</span>
+          <span class="iss-msg">Interface &quot;SecurityPattern&quot; is defined but never used and not exported. This may indicate a context window issue.</span>
+          <span class="iss-tog" id="t11">▶</span>
+        </div>
+        <div class="iss-body" id="b11">
+          <div class="iss-det"><strong>Detector:</strong> context-coherence</div>
+          <div class="iss-det"><strong>Category:</strong> Context Coherence</div>
+          <div class="iss-det"><strong>Line:</strong> 23</div>
+          <div class="iss-det"><strong>Confidence:</strong> 60%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 detectors/v4/security-pattern.ts <span class="cnt">(12 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(12)">
+          <span class="iss-sev" style="background:#ef4444">error</span>
+          <span class="iss-file">:99</span>
+          <span class="iss-msg">eval() usage detected. This enables code injection attacks. Use safer alternatives like JSON.parse() or a sandboxed evaluator.</span>
+          <span class="iss-tog" id="t12">▶</span>
+        </div>
+        <div class="iss-body" id="b12">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 99</div>
+          <div class="iss-det"><strong>Confidence:</strong> 90%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(13)">
+          <span class="iss-sev" style="background:#ef4444">error</span>
+          <span class="iss-file">:107</span>
+          <span class="iss-msg">eval() usage detected. This enables code injection attacks. Use safer alternatives like JSON.parse() or a sandboxed evaluator.</span>
+          <span class="iss-tog" id="t13">▶</span>
+        </div>
+        <div class="iss-body" id="b13">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 107</div>
+          <div class="iss-det"><strong>Confidence:</strong> 90%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(14)">
+          <span class="iss-sev" style="background:#ef4444">error</span>
+          <span class="iss-file">:123</span>
+          <span class="iss-msg">eval() usage detected. This enables code injection attacks. Use safer alternatives like JSON.parse() or a sandboxed evaluator.</span>
+          <span class="iss-tog" id="t14">▶</span>
+        </div>
+        <div class="iss-body" id="b14">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 123</div>
+          <div class="iss-det"><strong>Confidence:</strong> 90%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(15)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:217</span>
+          <span class="iss-msg">Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t15">▶</span>
+        </div>
+        <div class="iss-body" id="b15">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 217–276</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(16)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:123</span>
+          <span class="iss-msg">new Function() is similar to eval() and can enable code injection. Use safer alternatives.</span>
+          <span class="iss-tog" id="t16">▶</span>
+        </div>
+        <div class="iss-body" id="b16">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 123</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(17)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:157</span>
+          <span class="iss-msg">MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)</span>
+          <span class="iss-tog" id="t17">▶</span>
+        </div>
+        <div class="iss-body" id="b17">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 157</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(18)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:158</span>
+          <span class="iss-msg">MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)</span>
+          <span class="iss-tog" id="t18">▶</span>
+        </div>
+        <div class="iss-body" id="b18">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 158</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(19)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:161</span>
+          <span class="iss-msg">MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)</span>
+          <span class="iss-tog" id="t19">▶</span>
+        </div>
+        <div class="iss-body" id="b19">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 161</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(20)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:165</span>
+          <span class="iss-msg">SHA-1 is cryptographically weak. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)</span>
+          <span class="iss-tog" id="t20">▶</span>
+        </div>
+        <div class="iss-body" id="b20">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 165</div>
+          <div class="iss-det"><strong>Confidence:</strong> 70%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(21)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:166</span>
+          <span class="iss-msg">SHA-1 is cryptographically weak. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)</span>
+          <span class="iss-tog" id="t21">▶</span>
+        </div>
+        <div class="iss-body" id="b21">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 166</div>
+          <div class="iss-det"><strong>Confidence:</strong> 70%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(22)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:177</span>
+          <span class="iss-msg">Math.random() is not cryptographically secure. Use crypto.randomUUID() or crypto.getRandomValues() for security-sensitive operations.</span>
+          <span class="iss-tog" id="t22">▶</span>
+        </div>
+        <div class="iss-body" id="b22">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 177</div>
+          <div class="iss-det"><strong>Confidence:</strong> 70%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(23)">
+          <span class="iss-sev" style="background:#3b82f6">info</span>
+          <span class="iss-file">:26</span>
+          <span class="iss-msg">Interface &quot;SecurityPattern&quot; is defined but never used and not exported. This may indicate a context window issue.</span>
+          <span class="iss-tog" id="t23">▶</span>
+        </div>
+        <div class="iss-body" id="b23">
+          <div class="iss-det"><strong>Detector:</strong> context-coherence</div>
+          <div class="iss-det"><strong>Category:</strong> Context Coherence</div>
+          <div class="iss-det"><strong>Line:</strong> 26</div>
+          <div class="iss-det"><strong>Confidence:</strong> 60%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 parser/extractors/typescript.ts <span class="cnt">(9 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(24)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:476</span>
+          <span class="iss-msg">Function has 6 parameters (max: 5). Consider using an options object or builder pattern.</span>
+          <span class="iss-tog" id="t24">▶</span>
+        </div>
+        <div class="iss-body" id="b24">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 476–568</div>
+          <div class="iss-det"><strong>Confidence:</strong> 80%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(25)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:570</span>
+          <span class="iss-msg">Function has 7 parameters (max: 5). Consider using an options object or builder pattern.</span>
+          <span class="iss-tog" id="t25">▶</span>
+        </div>
+        <div class="iss-body" id="b25">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 570–634</div>
+          <div class="iss-det"><strong>Confidence:</strong> 80%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(26)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:92</span>
+          <span class="iss-msg">Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t26">▶</span>
+        </div>
+        <div class="iss-body" id="b26">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 92–129</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(27)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:168</span>
+          <span class="iss-msg">Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t27">▶</span>
+        </div>
+        <div class="iss-body" id="b27">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 168–217</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(28)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:272</span>
+          <span class="iss-msg">Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t28">▶</span>
+        </div>
+        <div class="iss-body" id="b28">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 272–353</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(29)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:415</span>
+          <span class="iss-msg">Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t29">▶</span>
+        </div>
+        <div class="iss-body" id="b29">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 415–459</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(30)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:476</span>
+          <span class="iss-msg">Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t30">▶</span>
+        </div>
+        <div class="iss-body" id="b30">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 476–568</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(31)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:272</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 18 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t31">▶</span>
+        </div>
+        <div class="iss-body" id="b31">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 272–353</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(32)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:476</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 24 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t32">▶</span>
+        </div>
+        <div class="iss-body" id="b32">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 476–568</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 ai/v4/patterns/defect-patterns.ts <span class="cnt">(8 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(33)">
+          <span class="iss-sev" style="background:#ef4444">error</span>
+          <span class="iss-file">:269</span>
+          <span class="iss-msg">Possible hardcoded API key detected. Use environment variables or a secrets manager instead.</span>
+          <span class="iss-tog" id="t33">▶</span>
+        </div>
+        <div class="iss-body" id="b33">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 269</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(34)">
+          <span class="iss-sev" style="background:#ef4444">error</span>
+          <span class="iss-file">:270</span>
+          <span class="iss-msg">Possible hardcoded password detected. Use environment variables or a secrets manager instead.</span>
+          <span class="iss-tog" id="t34">▶</span>
+        </div>
+        <div class="iss-body" id="b34">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 270</div>
+          <div class="iss-det"><strong>Confidence:</strong> 80%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(35)">
+          <span class="iss-sev" style="background:#ef4444">error</span>
+          <span class="iss-file">:271</span>
+          <span class="iss-msg">Possible hardcoded password detected. Use environment variables or a secrets manager instead.</span>
+          <span class="iss-tog" id="t35">▶</span>
+        </div>
+        <div class="iss-body" id="b35">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 271</div>
+          <div class="iss-det"><strong>Confidence:</strong> 80%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(36)">
+          <span class="iss-sev" style="background:#ef4444">error</span>
+          <span class="iss-file">:308</span>
+          <span class="iss-msg">SQL query with string concatenation from user input detected. Use parameterized queries to prevent SQL injection.</span>
+          <span class="iss-tog" id="t36">▶</span>
+        </div>
+        <div class="iss-body" id="b36">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 308</div>
+          <div class="iss-det"><strong>Confidence:</strong> 80%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(37)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:125</span>
+          <span class="iss-msg">Buffer constructor is deprecated due to security and usability issues</span>
+          <span class="iss-tog" id="t37">▶</span>
+        </div>
+        <div class="iss-body" id="b37">
+          <div class="iss-det"><strong>Detector:</strong> stale-api</div>
+          <div class="iss-det"><strong>Category:</strong> Code Freshness</div>
+          <div class="iss-det"><strong>Line:</strong> 125</div>
+          <div class="iss-det"><strong>Confidence:</strong> 95%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(38)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:127</span>
+          <span class="iss-msg">fs.exists() is deprecated; use fs.existsSync() or fs.access()</span>
+          <span class="iss-tog" id="t38">▶</span>
+        </div>
+        <div class="iss-body" id="b38">
+          <div class="iss-det"><strong>Detector:</strong> stale-api</div>
+          <div class="iss-det"><strong>Category:</strong> Code Freshness</div>
+          <div class="iss-det"><strong>Line:</strong> 127</div>
+          <div class="iss-det"><strong>Confidence:</strong> 90%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(39)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:128</span>
+          <span class="iss-msg">domain module is deprecated and pending removal</span>
+          <span class="iss-tog" id="t39">▶</span>
+        </div>
+        <div class="iss-body" id="b39">
+          <div class="iss-det"><strong>Detector:</strong> stale-api</div>
+          <div class="iss-det"><strong>Category:</strong> Code Freshness</div>
+          <div class="iss-det"><strong>Line:</strong> 128</div>
+          <div class="iss-det"><strong>Confidence:</strong> 90%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(40)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:320</span>
+          <span class="iss-msg">Math.random() is not cryptographically secure. Use crypto.randomUUID() or crypto.getRandomValues() for security-sensitive operations.</span>
+          <span class="iss-tog" id="t40">▶</span>
+        </div>
+        <div class="iss-body" id="b40">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 320</div>
+          <div class="iss-det"><strong>Confidence:</strong> 70%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 parser/extractors/go.ts <span class="cnt">(7 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(41)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:186</span>
+          <span class="iss-msg">Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t41">▶</span>
+        </div>
+        <div class="iss-body" id="b41">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 186–238</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(42)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:382</span>
+          <span class="iss-msg">Function has nesting depth of 10 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t42">▶</span>
+        </div>
+        <div class="iss-body" id="b42">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 382–456</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(43)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:460</span>
+          <span class="iss-msg">Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t43">▶</span>
+        </div>
+        <div class="iss-body" id="b43">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 460–601</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(44)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:605</span>
+          <span class="iss-msg">Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t44">▶</span>
+        </div>
+        <div class="iss-body" id="b44">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 605–679</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(45)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:460</span>
+          <span class="iss-msg">Function has 120 lines of code (max: 100). Consider breaking it into smaller functions.</span>
+          <span class="iss-tog" id="t45">▶</span>
+        </div>
+        <div class="iss-body" id="b45">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 460–601</div>
+          <div class="iss-det"><strong>Confidence:</strong> 70%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(46)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:382</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 20 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t46">▶</span>
+        </div>
+        <div class="iss-body" id="b46">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 382–456</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(47)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:460</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 16 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t47">▶</span>
+        </div>
+        <div class="iss-body" id="b47">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 460–601</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 parser/extractors/python.ts <span class="cnt">(7 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(48)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:86</span>
+          <span class="iss-msg">Function has nesting depth of 8 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t48">▶</span>
+        </div>
+        <div class="iss-body" id="b48">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 86–148</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(49)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:152</span>
+          <span class="iss-msg">Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t49">▶</span>
+        </div>
+        <div class="iss-body" id="b49">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 152–201</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(50)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:352</span>
+          <span class="iss-msg">Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t50">▶</span>
+        </div>
+        <div class="iss-body" id="b50">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 352–400</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(51)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:404</span>
+          <span class="iss-msg">Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t51">▶</span>
+        </div>
+        <div class="iss-body" id="b51">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 404–483</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(52)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:86</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 16 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t52">▶</span>
+        </div>
+        <div class="iss-body" id="b52">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 86–148</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(53)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:352</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 16 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t53">▶</span>
+        </div>
+        <div class="iss-body" id="b53">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 352–400</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(54)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:404</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 18 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t54">▶</span>
+        </div>
+        <div class="iss-body" id="b54">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 404–483</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 detectors/v4/stale-api.ts <span class="cnt">(6 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(55)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:51</span>
+          <span class="iss-msg">url.parse() is deprecated in favor of the WHATWG URL API</span>
+          <span class="iss-tog" id="t55">▶</span>
+        </div>
+        <div class="iss-body" id="b55">
+          <div class="iss-det"><strong>Detector:</strong> stale-api</div>
+          <div class="iss-det"><strong>Category:</strong> Code Freshness</div>
+          <div class="iss-det"><strong>Line:</strong> 51</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(56)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:58</span>
+          <span class="iss-msg">fs.exists() is deprecated; use fs.existsSync() or fs.access()</span>
+          <span class="iss-tog" id="t56">▶</span>
+        </div>
+        <div class="iss-body" id="b56">
+          <div class="iss-det"><strong>Detector:</strong> stale-api</div>
+          <div class="iss-det"><strong>Category:</strong> Code Freshness</div>
+          <div class="iss-det"><strong>Line:</strong> 58</div>
+          <div class="iss-det"><strong>Confidence:</strong> 90%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(57)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:86</span>
+          <span class="iss-msg">SlowBuffer is deprecated in favor of Buffer.allocUnsafeSlow()</span>
+          <span class="iss-tog" id="t57">▶</span>
+        </div>
+        <div class="iss-body" id="b57">
+          <div class="iss-det"><strong>Detector:</strong> stale-api</div>
+          <div class="iss-det"><strong>Category:</strong> Code Freshness</div>
+          <div class="iss-det"><strong>Line:</strong> 86</div>
+          <div class="iss-det"><strong>Confidence:</strong> 90%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(58)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:330</span>
+          <span class="iss-msg">Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t58">▶</span>
+        </div>
+        <div class="iss-body" id="b58">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 330–393</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(59)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:330</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 16 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t59">▶</span>
+        </div>
+        <div class="iss-body" id="b59">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 330–393</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(60)">
+          <span class="iss-sev" style="background:#3b82f6">info</span>
+          <span class="iss-file">:23</span>
+          <span class="iss-msg">Interface &quot;DeprecatedPattern&quot; is defined but never used and not exported. This may indicate a context window issue.</span>
+          <span class="iss-tog" id="t60">▶</span>
+        </div>
+        <div class="iss-body" id="b60">
+          <div class="iss-det"><strong>Detector:</strong> context-coherence</div>
+          <div class="iss-det"><strong>Category:</strong> Context Coherence</div>
+          <div class="iss-det"><strong>Line:</strong> 23</div>
+          <div class="iss-det"><strong>Confidence:</strong> 60%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 parser/extractors/java.ts <span class="cnt">(5 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(61)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:153</span>
+          <span class="iss-msg">Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t61">▶</span>
+        </div>
+        <div class="iss-body" id="b61">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 153–246</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(62)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:380</span>
+          <span class="iss-msg">Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t62">▶</span>
+        </div>
+        <div class="iss-body" id="b62">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 380–420</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(63)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:445</span>
+          <span class="iss-msg">Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t63">▶</span>
+        </div>
+        <div class="iss-body" id="b63">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 445–515</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(64)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:636</span>
+          <span class="iss-msg">Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t64">▶</span>
+        </div>
+        <div class="iss-body" id="b64">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 636–751</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(65)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:153</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 24 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t65">▶</span>
+        </div>
+        <div class="iss-body" id="b65">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 153–246</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 parser/extractors/kotlin.ts <span class="cnt">(5 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(66)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:150</span>
+          <span class="iss-msg">Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t66">▶</span>
+        </div>
+        <div class="iss-body" id="b66">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 150–238</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(67)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:359</span>
+          <span class="iss-msg">Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t67">▶</span>
+        </div>
+        <div class="iss-body" id="b67">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 359–379</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(68)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:383</span>
+          <span class="iss-msg">Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t68">▶</span>
+        </div>
+        <div class="iss-body" id="b68">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 383–436</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(69)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:598</span>
+          <span class="iss-msg">Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t69">▶</span>
+        </div>
+        <div class="iss-body" id="b69">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 598–736</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(70)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:598</span>
+          <span class="iss-msg">Function has 122 lines of code (max: 100). Consider breaking it into smaller functions.</span>
+          <span class="iss-tog" id="t70">▶</span>
+        </div>
+        <div class="iss-body" id="b70">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 598–736</div>
+          <div class="iss-det"><strong>Confidence:</strong> 70%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 detectors/over-engineering.ts <span class="cnt">(4 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(71)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:303</span>
+          <span class="iss-msg">Function has 6 parameters (max: 5). Consider using an options object or builder pattern.</span>
+          <span class="iss-tog" id="t71">▶</span>
+        </div>
+        <div class="iss-body" id="b71">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 303–329</div>
+          <div class="iss-det"><strong>Confidence:</strong> 80%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(72)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:37</span>
+          <span class="iss-msg">Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t72">▶</span>
+        </div>
+        <div class="iss-body" id="b72">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 37–110</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(73)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:37</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 28 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t73">▶</span>
+        </div>
+        <div class="iss-body" id="b73">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 37–110</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(74)">
+          <span class="iss-sev" style="background:#3b82f6">info</span>
+          <span class="iss-file">:23</span>
+          <span class="iss-msg">Interface &quot;FunctionInfo&quot; is defined but never used and not exported. This may indicate a context window issue.</span>
+          <span class="iss-tog" id="t74">▶</span>
+        </div>
+        <div class="iss-body" id="b74">
+          <div class="iss-det"><strong>Detector:</strong> context-coherence</div>
+          <div class="iss-det"><strong>Category:</strong> Context Coherence</div>
+          <div class="iss-det"><strong>Line:</strong> 23</div>
+          <div class="iss-det"><strong>Confidence:</strong> 60%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 reporter/sarif-reporter.ts <span class="cnt">(4 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(75)">
+          <span class="iss-sev" style="background:#3b82f6">info</span>
+          <span class="iss-file">:16</span>
+          <span class="iss-msg">Interface &quot;SARIFResult&quot; is defined but never used and not exported. This may indicate a context window issue.</span>
+          <span class="iss-tog" id="t75">▶</span>
+        </div>
+        <div class="iss-body" id="b75">
+          <div class="iss-det"><strong>Detector:</strong> context-coherence</div>
+          <div class="iss-det"><strong>Category:</strong> Context Coherence</div>
+          <div class="iss-det"><strong>Line:</strong> 16</div>
+          <div class="iss-det"><strong>Confidence:</strong> 60%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(76)">
+          <span class="iss-sev" style="background:#3b82f6">info</span>
+          <span class="iss-file">:22</span>
+          <span class="iss-msg">Interface &quot;SARIFRun&quot; is defined but never used and not exported. This may indicate a context window issue.</span>
+          <span class="iss-tog" id="t76">▶</span>
+        </div>
+        <div class="iss-body" id="b76">
+          <div class="iss-det"><strong>Detector:</strong> context-coherence</div>
+          <div class="iss-det"><strong>Category:</strong> Context Coherence</div>
+          <div class="iss-det"><strong>Line:</strong> 22</div>
+          <div class="iss-det"><strong>Confidence:</strong> 60%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(77)">
+          <span class="iss-sev" style="background:#3b82f6">info</span>
+          <span class="iss-file">:34</span>
+          <span class="iss-msg">Interface &quot;SARIFRule&quot; is defined but never used and not exported. This may indicate a context window issue.</span>
+          <span class="iss-tog" id="t77">▶</span>
+        </div>
+        <div class="iss-body" id="b77">
+          <div class="iss-det"><strong>Detector:</strong> context-coherence</div>
+          <div class="iss-det"><strong>Category:</strong> Context Coherence</div>
+          <div class="iss-det"><strong>Line:</strong> 34</div>
+          <div class="iss-det"><strong>Confidence:</strong> 60%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(78)">
+          <span class="iss-sev" style="background:#3b82f6">info</span>
+          <span class="iss-file">:43</span>
+          <span class="iss-msg">Interface &quot;SARIFResultEntry&quot; is defined but never used and not exported. This may indicate a context window issue.</span>
+          <span class="iss-tog" id="t78">▶</span>
+        </div>
+        <div class="iss-body" id="b78">
+          <div class="iss-det"><strong>Detector:</strong> context-coherence</div>
+          <div class="iss-det"><strong>Category:</strong> Context Coherence</div>
+          <div class="iss-det"><strong>Line:</strong> 43</div>
+          <div class="iss-det"><strong>Confidence:</strong> 60%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 index.ts <span class="cnt">(3 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(79)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:166</span>
+          <span class="iss-msg">Symbol &quot;PackageVerifyResult&quot; is imported from multiple modules: &quot;./languages/index.js&quot;, &quot;./registry/index.js&quot;. This may indicate a context window inconsistency.</span>
+          <span class="iss-tog" id="t79">▶</span>
+        </div>
+        <div class="iss-body" id="b79">
+          <div class="iss-det"><strong>Detector:</strong> context-coherence</div>
+          <div class="iss-det"><strong>Category:</strong> Context Coherence</div>
+          <div class="iss-det"><strong>Line:</strong> 166</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(80)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:121</span>
+          <span class="iss-msg">Symbol &quot;ReportFormat&quot; is imported from multiple modules: &quot;./scorer/report.js&quot;, &quot;./reporter/index.js&quot;. This may indicate a context window inconsistency.</span>
+          <span class="iss-tog" id="t80">▶</span>
+        </div>
+        <div class="iss-body" id="b80">
+          <div class="iss-det"><strong>Detector:</strong> context-coherence</div>
+          <div class="iss-det"><strong>Category:</strong> Context Coherence</div>
+          <div class="iss-det"><strong>Line:</strong> 121</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(81)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:318</span>
+          <span class="iss-msg">Symbol &quot;SLALevel&quot; is imported from multiple modules: &quot;./scanner/index.js&quot;, &quot;./ai/v4/index.js&quot;. This may indicate a context window inconsistency.</span>
+          <span class="iss-tog" id="t81">▶</span>
+        </div>
+        <div class="iss-body" id="b81">
+          <div class="iss-det"><strong>Detector:</strong> context-coherence</div>
+          <div class="iss-det"><strong>Category:</strong> Context Coherence</div>
+          <div class="iss-det"><strong>Line:</strong> 318</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 languages/go/parser.ts <span class="cnt">(3 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(82)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:255</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 17 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t82">▶</span>
+        </div>
+        <div class="iss-body" id="b82">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 255–335</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(83)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:492</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 20 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t83">▶</span>
+        </div>
+        <div class="iss-body" id="b83">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 492–581</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(84)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:49</span>
+          <span class="iss-msg">MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)</span>
+          <span class="iss-tog" id="t84">▶</span>
+        </div>
+        <div class="iss-body" id="b84">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 49</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 detectors/stale-api.ts <span class="cnt">(2 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(85)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:6</span>
+          <span class="iss-msg">Buffer constructor is deprecated due to security and usability issues</span>
+          <span class="iss-tog" id="t85">▶</span>
+        </div>
+        <div class="iss-body" id="b85">
+          <div class="iss-det"><strong>Detector:</strong> stale-api</div>
+          <div class="iss-det"><strong>Category:</strong> Code Freshness</div>
+          <div class="iss-det"><strong>Line:</strong> 6</div>
+          <div class="iss-det"><strong>Confidence:</strong> 95%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(86)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:6</span>
+          <span class="iss-msg">fs.exists() is deprecated; use fs.existsSync() or fs.access()</span>
+          <span class="iss-tog" id="t86">▶</span>
+        </div>
+        <div class="iss-body" id="b86">
+          <div class="iss-det"><strong>Detector:</strong> stale-api</div>
+          <div class="iss-det"><strong>Category:</strong> Code Freshness</div>
+          <div class="iss-det"><strong>Line:</strong> 6</div>
+          <div class="iss-det"><strong>Confidence:</strong> 90%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 detectors/duplication.ts <span class="cnt">(2 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(87)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:52</span>
+          <span class="iss-msg">Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t87">▶</span>
+        </div>
+        <div class="iss-body" id="b87">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 52–87</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(88)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:52</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 16 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t88">▶</span>
+        </div>
+        <div class="iss-body" id="b88">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 52–87</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 detectors/hallucination.ts <span class="cnt">(2 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(89)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:58</span>
+          <span class="iss-msg">Function has nesting depth of 9 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t89">▶</span>
+        </div>
+        <div class="iss-body" id="b89">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 58–112</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(90)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:159</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 28 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t90">▶</span>
+        </div>
+        <div class="iss-body" id="b90">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 159–249</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 detectors/logic-gap.ts <span class="cnt">(2 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(91)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:53</span>
+          <span class="iss-msg">Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t91">▶</span>
+        </div>
+        <div class="iss-body" id="b91">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 53–110</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(92)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:53</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 18 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t92">▶</span>
+        </div>
+        <div class="iss-body" id="b92">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 53–110</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 languages/python/parser.ts <span class="cnt">(2 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(93)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:175</span>
+          <span class="iss-msg">Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t93">▶</span>
+        </div>
+        <div class="iss-body" id="b93">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 175–252</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(94)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:370</span>
+          <span class="iss-msg">Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t94">▶</span>
+        </div>
+        <div class="iss-body" id="b94">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 370–430</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 languages/typescript/parser.ts <span class="cnt">(2 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(95)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:79</span>
+          <span class="iss-msg">Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t95">▶</span>
+        </div>
+        <div class="iss-body" id="b95">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 79–197</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(96)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:79</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 17 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t96">▶</span>
+        </div>
+        <div class="iss-body" id="b96">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 79–197</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 reporter/markdown-reporter.ts <span class="cnt">(2 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(97)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:62</span>
+          <span class="iss-msg">Function has 114 lines of code (max: 100). Consider breaking it into smaller functions.</span>
+          <span class="iss-tog" id="t97">▶</span>
+        </div>
+        <div class="iss-body" id="b97">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 62–199</div>
+          <div class="iss-det"><strong>Confidence:</strong> 70%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(98)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:62</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 20 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t98">▶</span>
+        </div>
+        <div class="iss-body" id="b98">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 62–199</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 license/generator.ts <span class="cnt">(2 issues)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(99)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:55</span>
+          <span class="iss-msg">Math.random() is not cryptographically secure. Use crypto.randomUUID() or crypto.getRandomValues() for security-sensitive operations.</span>
+          <span class="iss-tog" id="t99">▶</span>
+        </div>
+        <div class="iss-body" id="b99">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 55</div>
+          <div class="iss-det"><strong>Confidence:</strong> 70%</div>
+        </div>
+      </li><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(100)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:55</span>
+          <span class="iss-msg">Math.random() is not cryptographically secure. Use crypto.randomUUID() or crypto.getRandomValues() for security-sensitive operations.</span>
+          <span class="iss-tog" id="t100">▶</span>
+        </div>
+        <div class="iss-body" id="b100">
+          <div class="iss-det"><strong>Detector:</strong> security-pattern</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 55</div>
+          <div class="iss-det"><strong>Confidence:</strong> 70%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 ai/v4/pipeline.ts <span class="cnt">(1 issue)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(101)">
+          <span class="iss-sev" style="background:#3b82f6">info</span>
+          <span class="iss-file">:36</span>
+          <span class="iss-msg">Interface &quot;ParsedLLMIssue&quot; is defined but never used and not exported. This may indicate a context window issue.</span>
+          <span class="iss-tog" id="t101">▶</span>
+        </div>
+        <div class="iss-body" id="b101">
+          <div class="iss-det"><strong>Detector:</strong> context-coherence</div>
+          <div class="iss-det"><strong>Category:</strong> Context Coherence</div>
+          <div class="iss-det"><strong>Line:</strong> 36</div>
+          <div class="iss-det"><strong>Confidence:</strong> 60%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 detectors/v4/hallucinated-import.ts <span class="cnt">(1 issue)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(102)">
+          <span class="iss-sev" style="background:#3b82f6">info</span>
+          <span class="iss-file">:38</span>
+          <span class="iss-msg">Interface &quot;ImportOccurrence&quot; is defined but never used and not exported. This may indicate a context window issue.</span>
+          <span class="iss-tog" id="t102">▶</span>
+        </div>
+        <div class="iss-body" id="b102">
+          <div class="iss-det"><strong>Detector:</strong> context-coherence</div>
+          <div class="iss-det"><strong>Category:</strong> Context Coherence</div>
+          <div class="iss-det"><strong>Line:</strong> 38</div>
+          <div class="iss-det"><strong>Confidence:</strong> 60%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 detectors/v4/over-engineering.ts <span class="cnt">(1 issue)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(103)">
+          <span class="iss-sev" style="background:#3b82f6">info</span>
+          <span class="iss-file">:21</span>
+          <span class="iss-msg">Interface &quot;OverEngineeringThresholds&quot; is defined but never used and not exported. This may indicate a context window issue.</span>
+          <span class="iss-tog" id="t103">▶</span>
+        </div>
+        <div class="iss-body" id="b103">
+          <div class="iss-det"><strong>Detector:</strong> context-coherence</div>
+          <div class="iss-det"><strong>Category:</strong> Context Coherence</div>
+          <div class="iss-det"><strong>Line:</strong> 21</div>
+          <div class="iss-det"><strong>Confidence:</strong> 60%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 scorer/report.ts <span class="cnt">(1 issue)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(104)">
+          <span class="iss-sev" style="background:#3b82f6">info</span>
+          <span class="iss-file">:32</span>
+          <span class="iss-msg">Interface &quot;GitLabCodeQualityIssue&quot; is defined but never used and not exported. This may indicate a context window issue.</span>
+          <span class="iss-tog" id="t104">▶</span>
+        </div>
+        <div class="iss-body" id="b104">
+          <div class="iss-det"><strong>Detector:</strong> context-coherence</div>
+          <div class="iss-det"><strong>Category:</strong> Context Coherence</div>
+          <div class="iss-det"><strong>Line:</strong> 32</div>
+          <div class="iss-det"><strong>Confidence:</strong> 60%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 ai/ollama-provider.ts <span class="cnt">(1 issue)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(105)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:116</span>
+          <span class="iss-msg">Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t105">▶</span>
+        </div>
+        <div class="iss-body" id="b105">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 116–152</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 detectors/v4/context-coherence.ts <span class="cnt">(1 issue)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(106)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:163</span>
+          <span class="iss-msg">Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.</span>
+          <span class="iss-tog" id="t106">▶</span>
+        </div>
+        <div class="iss-body" id="b106">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 163–218</div>
+          <div class="iss-det"><strong>Confidence:</strong> 75%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 reporter/html-reporter.ts <span class="cnt">(1 issue)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(107)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:84</span>
+          <span class="iss-msg">Function has 257 lines of code (max: 100). Consider breaking it into smaller functions.</span>
+          <span class="iss-tog" id="t107">▶</span>
+        </div>
+        <div class="iss-body" id="b107">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 84–387</div>
+          <div class="iss-det"><strong>Confidence:</strong> 70%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 config/v4-config.ts <span class="cnt">(1 issue)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(108)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:162</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 20 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t108">▶</span>
+        </div>
+        <div class="iss-body" id="b108">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 162–212</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 detectors/type-safety.ts <span class="cnt">(1 issue)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(109)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:88</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 20 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t109">▶</span>
+        </div>
+        <div class="iss-body" id="b109">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 88–202</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 languages/java/parser.ts <span class="cnt">(1 issue)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(110)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:473</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 19 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t110">▶</span>
+        </div>
+        <div class="iss-body" id="b110">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 473–561</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li></ul>
+    </div><div class="file-group">
+      <div class="file-group-hdr">📄 languages/kotlin/parser.ts <span class="cnt">(1 issue)</span></div>
+      <ul class="iss-list"><li class="iss-item">
+        <div class="iss-hdr" onclick="tog(111)">
+          <span class="iss-sev" style="background:#f59e0b">warning</span>
+          <span class="iss-file">:489</span>
+          <span class="iss-msg">Function has cyclomatic complexity of 21 (max: 15). Consider simplifying the logic.</span>
+          <span class="iss-tog" id="t111">▶</span>
+        </div>
+        <div class="iss-body" id="b111">
+          <div class="iss-det"><strong>Detector:</strong> over-engineering</div>
+          <div class="iss-det"><strong>Category:</strong> Implementation Quality</div>
+          <div class="iss-det"><strong>Line:</strong> 489–583</div>
+          <div class="iss-det"><strong>Confidence:</strong> 85%</div>
+        </div>
+      </li></ul>
+    </div>
+  </div>
+    <div class="card">
+    <h2>⏱️ Pipeline Stages</h2>
+    <div class="stages"><div class="stage"><span class="sname">Discovery</span><span class="sval">5ms</span></div><div class="stage"><span class="sname">Parsing</span><span class="sval">750ms</span></div><div class="stage"><span class="sname">Detection</span><span class="sval">104ms</span></div><div class="stage"><span class="sname">AI Analysis</span><span class="sval">6.7s</span></div></div>
+  </div>
+    <div class="foot">
+    Powered by <a href="https://github.com/user/open-code-review">Open Code Review</a> v0.4.0 · Generated 2026-03-10
+  </div>
+  </div>
+  <script>
+    function tog(i){var b=document.getElementById('b'+i),t=document.getElementById('t'+i);
+    if(b.classList.contains('open')){b.classList.remove('open');t.textContent='▶';}
+    else{b.classList.add('open');t.textContent='▼';}}
+  </script>
+</body>
+</html>

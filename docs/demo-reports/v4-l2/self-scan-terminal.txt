@@ -1,0 +1,258 @@
+
+  Open Code Review V4
+  SLA: L2 | Locale: en
+
+  ⚠ No license key found. Run `open-code-review login` to get one.
+
+  Scanning...
+  Found 112 issue(s) in 110 file(s)
+
+
+╔══════════════════════════════════════════════════════════════╗
+║           Open Code Review V4 — Quality Report              ║
+╚══════════════════════════════════════════════════════════════╝
+
+  Project: /Users/raye.deng/Documents/wss/ai-code-validator/packages/core/src
+  Date: 2026-03-10T20:51:37.605Z
+  SLA: L2 Standard — Structural + Embedding + Local AI
+
+  📊 112 issues found in 110 files
+
+  Overall Score: 67/100  🟠 D
+  Threshold: 70
+  Status: ❌ FAILED
+
+  Files Scanned: 110
+  Languages: typescript
+  Duration: 8.7s
+
+  ── Stage Timing ──
+    Discovery:  6ms
+    Parsing:    1350ms
+    Detection:  169ms
+    AI:         7097ms
+
+  ── Scoring Dimensions ──
+
+  AI Faithfulness           ████████████████████ 35/35 (100%)
+  Code Freshness            ████████████░░░░░░░░ 15/25 (60%)
+  Context Coherence         █████████████████░░░ 17/20 (85%)
+  Implementation Quality    ░░░░░░░░░░░░░░░░░░░░ 0/20 (0%)
+
+  ── Issues by Category ──
+
+    Code Freshness: 8
+    Context Coherence: 15
+    Implementation Quality: 89
+
+  ── File Details ──
+
+  ─── ai/v4/patterns/defect-patterns.ts (8 issues)
+
+    🔴 [error] L269: Possible hardcoded API key detected. Use environment variables or a secrets manager instead.
+    🔴 [error] L270: Possible hardcoded password detected. Use environment variables or a secrets manager instead.
+    🔴 [error] L271: Possible hardcoded password detected. Use environment variables or a secrets manager instead.
+    🔴 [error] L308: SQL query with string concatenation from user input detected. Use parameterized queries to prevent SQL injection.
+    🟡 [warning] L125: Buffer constructor is deprecated due to security and usability issues
+    🟡 [warning] L127: fs.exists() is deprecated; use fs.existsSync() or fs.access()
+    🟡 [warning] L128: domain module is deprecated and pending removal
+    🟡 [warning] L320: Math.random() is not cryptographically secure. Use crypto.randomUUID() or crypto.getRandomValues() for security-sensitive operations.
+
+  ─── detectors/stale-api.ts (2 issues)
+
+    🟡 [warning] L6: Buffer constructor is deprecated due to security and usability issues
+    🟡 [warning] L6: fs.exists() is deprecated; use fs.existsSync() or fs.access()
+
+  ─── detectors/v4/stale-api.ts (6 issues)
+
+    🟡 [warning] L51: url.parse() is deprecated in favor of the WHATWG URL API
+    🟡 [warning] L58: fs.exists() is deprecated; use fs.existsSync() or fs.access()
+    🟡 [warning] L86: SlowBuffer is deprecated in favor of Buffer.allocUnsafeSlow()
+    🟡 [warning] L330: Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L330: Function has cyclomatic complexity of 16 (max: 15). Consider simplifying the logic.
+    ⚪ [info] L23: Interface "DeprecatedPattern" is defined but never used and not exported. This may indicate a context window issue.
+
+  ─── ai/v4/pipeline.ts (1 issues)
+
+    ⚪ [info] L36: Interface "ParsedLLMIssue" is defined but never used and not exported. This may indicate a context window issue.
+
+  ─── detectors/over-engineering.ts (4 issues)
+
+    🟡 [warning] L303: Function has 6 parameters (max: 5). Consider using an options object or builder pattern.
+    🟡 [warning] L37: Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L37: Function has cyclomatic complexity of 28 (max: 15). Consider simplifying the logic.
+    ⚪ [info] L23: Interface "FunctionInfo" is defined but never used and not exported. This may indicate a context window issue.
+
+  ─── detectors/security-pattern.ts (12 issues)
+
+    🔴 [error] L73: eval() usage detected. This enables code injection attacks. Use safer alternatives like JSON.parse() or a sandboxed evaluator.
+    🔴 [error] L74: eval() usage detected. This enables code injection attacks. Use safer alternatives like JSON.parse() or a sandboxed evaluator.
+    🔴 [error] L151: TLS certificate verification is disabled. This enables man-in-the-middle attacks.
+    🟡 [warning] L198: Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L198: Function has cyclomatic complexity of 28 (max: 15). Consider simplifying the logic.
+    🟡 [warning] L81: new Function() is similar to eval() and can enable code injection. Use safer alternatives.
+    🟡 [warning] L82: new Function() is similar to eval() and can enable code injection. Use safer alternatives.
+    🟡 [warning] L109: Math.random() is not cryptographically secure. Use crypto.randomUUID() or crypto.getRandomValues() for security-sensitive operations.
+    🟡 [warning] L115: MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)
+    🟡 [warning] L117: MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)
+    ... and 2 more
+
+  ─── detectors/v4/hallucinated-import.ts (1 issues)
+
+    ⚪ [info] L38: Interface "ImportOccurrence" is defined but never used and not exported. This may indicate a context window issue.
+
+  ─── detectors/v4/over-engineering.ts (1 issues)
+
+    ⚪ [info] L21: Interface "OverEngineeringThresholds" is defined but never used and not exported. This may indicate a context window issue.
+
+  ─── detectors/v4/security-pattern.ts (12 issues)
+
+    🔴 [error] L99: eval() usage detected. This enables code injection attacks. Use safer alternatives like JSON.parse() or a sandboxed evaluator.
+    🔴 [error] L107: eval() usage detected. This enables code injection attacks. Use safer alternatives like JSON.parse() or a sandboxed evaluator.
+    🔴 [error] L123: eval() usage detected. This enables code injection attacks. Use safer alternatives like JSON.parse() or a sandboxed evaluator.
+    🟡 [warning] L217: Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L123: new Function() is similar to eval() and can enable code injection. Use safer alternatives.
+    🟡 [warning] L157: MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)
+    🟡 [warning] L158: MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)
+    🟡 [warning] L161: MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)
+    🟡 [warning] L165: SHA-1 is cryptographically weak. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)
+    🟡 [warning] L166: SHA-1 is cryptographically weak. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)
+    ... and 2 more
+
+  ─── reporter/sarif-reporter.ts (4 issues)
+
+    ⚪ [info] L16: Interface "SARIFResult" is defined but never used and not exported. This may indicate a context window issue.
+    ⚪ [info] L22: Interface "SARIFRun" is defined but never used and not exported. This may indicate a context window issue.
+    ⚪ [info] L34: Interface "SARIFRule" is defined but never used and not exported. This may indicate a context window issue.
+    ⚪ [info] L43: Interface "SARIFResultEntry" is defined but never used and not exported. This may indicate a context window issue.
+
+  ─── scorer/report.ts (1 issues)
+
+    ⚪ [info] L32: Interface "GitLabCodeQualityIssue" is defined but never used and not exported. This may indicate a context window issue.
+
+  ─── index.ts (3 issues)
+
+    🟡 [warning] L166: Symbol "PackageVerifyResult" is imported from multiple modules: "./languages/index.js", "./registry/index.js". This may indicate a context window inconsistency.
+    🟡 [warning] L121: Symbol "ReportFormat" is imported from multiple modules: "./scorer/report.js", "./reporter/index.js". This may indicate a context window inconsistency.
+    🟡 [warning] L318: Symbol "SLALevel" is imported from multiple modules: "./scanner/index.js", "./ai/v4/index.js". This may indicate a context window inconsistency.
+
+  ─── parser/extractors/typescript.ts (9 issues)
+
+    🟡 [warning] L476: Function has 6 parameters (max: 5). Consider using an options object or builder pattern.
+    🟡 [warning] L570: Function has 7 parameters (max: 5). Consider using an options object or builder pattern.
+    🟡 [warning] L92: Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L168: Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L272: Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L415: Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L476: Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L272: Function has cyclomatic complexity of 18 (max: 15). Consider simplifying the logic.
+    🟡 [warning] L476: Function has cyclomatic complexity of 24 (max: 15). Consider simplifying the logic.
+
+  ─── ai/ollama-provider.ts (1 issues)
+
+    🟡 [warning] L116: Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.
+
+  ─── detectors/duplication.ts (2 issues)
+
+    🟡 [warning] L52: Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L52: Function has cyclomatic complexity of 16 (max: 15). Consider simplifying the logic.
+
+  ─── detectors/hallucination.ts (2 issues)
+
+    🟡 [warning] L58: Function has nesting depth of 9 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L159: Function has cyclomatic complexity of 28 (max: 15). Consider simplifying the logic.
+
+  ─── detectors/logic-gap.ts (2 issues)
+
+    🟡 [warning] L53: Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L53: Function has cyclomatic complexity of 18 (max: 15). Consider simplifying the logic.
+
+  ─── detectors/v4/context-coherence.ts (1 issues)
+
+    🟡 [warning] L163: Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.
+
+  ─── languages/python/parser.ts (2 issues)
+
+    🟡 [warning] L175: Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L370: Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.
+
+  ─── languages/typescript/parser.ts (2 issues)
+
+    🟡 [warning] L79: Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L79: Function has cyclomatic complexity of 17 (max: 15). Consider simplifying the logic.
+
+  ─── parser/extractors/go.ts (7 issues)
+
+    🟡 [warning] L186: Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L382: Function has nesting depth of 10 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L460: Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L605: Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L460: Function has 120 lines of code (max: 100). Consider breaking it into smaller functions.
+    🟡 [warning] L382: Function has cyclomatic complexity of 20 (max: 15). Consider simplifying the logic.
+    🟡 [warning] L460: Function has cyclomatic complexity of 16 (max: 15). Consider simplifying the logic.
+
+  ─── parser/extractors/java.ts (5 issues)
+
+    🟡 [warning] L153: Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L380: Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L445: Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L636: Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L153: Function has cyclomatic complexity of 24 (max: 15). Consider simplifying the logic.
+
+  ─── parser/extractors/kotlin.ts (5 issues)
+
+    🟡 [warning] L150: Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L359: Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L383: Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L598: Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L598: Function has 122 lines of code (max: 100). Consider breaking it into smaller functions.
+
+  ─── parser/extractors/python.ts (7 issues)
+
+    🟡 [warning] L86: Function has nesting depth of 8 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L152: Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L352: Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L404: Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.
+    🟡 [warning] L86: Function has cyclomatic complexity of 16 (max: 15). Consider simplifying the logic.
+    🟡 [warning] L352: Function has cyclomatic complexity of 16 (max: 15). Consider simplifying the logic.
+    🟡 [warning] L404: Function has cyclomatic complexity of 18 (max: 15). Consider simplifying the logic.
+
+  ─── reporter/html-reporter.ts (1 issues)
+
+    🟡 [warning] L84: Function has 257 lines of code (max: 100). Consider breaking it into smaller functions.
+
+  ─── reporter/markdown-reporter.ts (2 issues)
+
+    🟡 [warning] L62: Function has 114 lines of code (max: 100). Consider breaking it into smaller functions.
+    🟡 [warning] L62: Function has cyclomatic complexity of 20 (max: 15). Consider simplifying the logic.
+
+  ─── config/v4-config.ts (1 issues)
+
+    🟡 [warning] L162: Function has cyclomatic complexity of 20 (max: 15). Consider simplifying the logic.
+
+  ─── detectors/type-safety.ts (1 issues)
+
+    🟡 [warning] L88: Function has cyclomatic complexity of 20 (max: 15). Consider simplifying the logic.
+
+  ─── languages/go/parser.ts (3 issues)
+
+    🟡 [warning] L255: Function has cyclomatic complexity of 17 (max: 15). Consider simplifying the logic.
+    🟡 [warning] L492: Function has cyclomatic complexity of 20 (max: 15). Consider simplifying the logic.
+    🟡 [warning] L49: MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)
+
+  ─── languages/java/parser.ts (1 issues)
+
+    🟡 [warning] L473: Function has cyclomatic complexity of 19 (max: 15). Consider simplifying the logic.
+
+  ─── languages/kotlin/parser.ts (1 issues)
+
+    🟡 [warning] L489: Function has cyclomatic complexity of 21 (max: 15). Consider simplifying the logic.
+
+  ─── license/generator.ts (2 issues)
+
+    🟡 [warning] L55: Math.random() is not cryptographically secure. Use crypto.randomUUID() or crypto.getRandomValues() for security-sensitive operations.
+    🟡 [warning] L55: Math.random() is not cryptographically secure. Use crypto.randomUUID() or crypto.getRandomValues() for security-sensitive operations.
+
+──────────────────────────────────────────────────────────────
+  Generated at: 2026-03-10T20:51:37.608Z
+

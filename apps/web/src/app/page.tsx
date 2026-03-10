@@ -1,7 +1,7 @@
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'SoftwareApplication',
-  name: 'AI Code Validator',
+  name: 'Open Code Review',
   applicationCategory: 'DeveloperApplication',
   operatingSystem: 'Any',
   url: 'https://codes.evallab.ai',
@@ -41,7 +41,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-2xl">🛡️</span>
-            <span className="font-bold text-lg">AI Code Validator</span>
+            <span className="font-bold text-lg">Open Code Review</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm text-gray-400">
             <a href="#features" className="hover:text-white transition">Features</a>
@@ -76,7 +76,7 @@ export default function Home() {
             <a href="/early-access" className="px-8 py-4 bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-xl transition text-lg">
               Join Early Access →
             </a>
-            <a href="https://github.com/raye-deng/ai-code-validator" className="px-8 py-4 border border-gray-700 hover:border-gray-500 text-gray-300 font-semibold rounded-xl transition text-lg">
+            <a href="https://github.com/raye-deng/open-code-review" className="px-8 py-4 border border-gray-700 hover:border-gray-500 text-gray-300 font-semibold rounded-xl transition text-lg">
               View on GitHub
             </a>
           </div>
@@ -118,7 +118,7 @@ export default function Home() {
               </ul>
             </div>
             <div className="p-8 rounded-2xl border border-primary-700/50 bg-primary-950/30">
-              <h3 className="text-lg font-semibold text-primary-300 mb-6">🛡️ AI Code Validator</h3>
+              <h3 className="text-lg font-semibold text-primary-300 mb-6">🛡️ Open Code Review</h3>
               <ul className="space-y-4 text-gray-300">
                 <li className="flex gap-3">
                   <span className="text-green-400 mt-0.5">✓</span>
@@ -199,7 +199,7 @@ export default function Home() {
               <h3 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wide">GitHub Actions</h3>
               <pre className="code-block text-green-300">
 {`# .github/workflows/ci.yml
-- uses: raye-deng/ai-code-validator@v1
+- uses: raye-deng/open-code-review@v1
   with:
     threshold: 70
     paths: 'src/**/*.ts'
@@ -211,7 +211,7 @@ export default function Home() {
               <pre className="code-block text-green-300">
 {`# .gitlab-ci.yml
 include:
-  - component: ai-code-validator/validate@v1
+  - component: open-code-review/validate@v1
     inputs:
       threshold: 70
       paths: src`}
@@ -241,12 +241,12 @@ include:
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-gray-400">
             <span>🛡️</span>
-            <span className="font-semibold">AI Code Validator</span>
+            <span className="font-semibold">Open Code Review</span>
             <span className="text-gray-600">·</span>
             <span className="text-sm">Built for the AI coding era</span>
           </div>
           <div className="flex items-center gap-6 text-sm text-gray-500">
-            <a href="https://github.com/raye-deng/ai-code-validator" className="hover:text-gray-300 transition">GitHub</a>
+            <a href="https://github.com/raye-deng/open-code-review" className="hover:text-gray-300 transition">GitHub</a>
             <a href="/early-access" className="hover:text-gray-300 transition">Early Access</a>
             <a href="mailto:fengsen.deng@gmail.com" className="hover:text-gray-300 transition">Contact</a>
           </div>

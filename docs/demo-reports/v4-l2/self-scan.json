@@ -1,0 +1,1995 @@
+{
+  "version": "4.0",
+  "projectRoot": "/Users/raye.deng/Documents/wss/ai-code-validator/packages/core/src",
+  "sla": "L2",
+  "files": [
+    "ai/anthropic-provider.ts",
+    "ai/index.ts",
+    "ai/ollama-provider.ts",
+    "ai/openai-provider.ts",
+    "ai/orchestrator.ts",
+    "ai/prompts.ts",
+    "ai/types.ts",
+    "ai/v4/embedding/index.ts",
+    "ai/v4/embedding/local.ts",
+    "ai/v4/embedding/ollama.ts",
+    "ai/v4/embedding/openai.ts",
+    "ai/v4/embedding/similarity.ts",
+    "ai/v4/index.ts",
+    "ai/v4/llm/anthropic.ts",
+    "ai/v4/llm/index.ts",
+    "ai/v4/llm/ollama.ts",
+    "ai/v4/llm/openai.ts",
+    "ai/v4/patterns/defect-patterns.ts",
+    "ai/v4/patterns/index.ts",
+    "ai/v4/pipeline.ts",
+    "ai/v4/sla.ts",
+    "ai/v4/types.ts",
+    "ai-healer/prompt-builder.ts",
+    "config/defaults.ts",
+    "config/index.ts",
+    "config/loader.ts",
+    "config/types.ts",
+    "config/v4-config.ts",
+    "detectors/ai-detector.ts",
+    "detectors/context-break.ts",
+    "detectors/deep-hallucination.ts",
+    "detectors/duplication.ts",
+    "detectors/hallucination.ts",
+    "detectors/index.ts",
+    "detectors/logic-gap.ts",
+    "detectors/over-engineering.ts",
+    "detectors/security-pattern.ts",
+    "detectors/stale-api.ts",
+    "detectors/type-safety.ts",
+    "detectors/v4/context-coherence.ts",
+    "detectors/v4/hallucinated-import.ts",
+    "detectors/v4/index.ts",
+    "detectors/v4/over-engineering.ts",
+    "detectors/v4/security-pattern.ts",
+    "detectors/v4/stale-api.ts",
+    "detectors/v4/types.ts",
+    "i18n/en.ts",
+    "i18n/index.ts",
+    "i18n/provider.ts",
+    "i18n/types.ts",
+    "i18n/zh.ts",
+    "index.ts",
+    "ir/index.ts",
+    "ir/types.ts",
+    "languages/go/index.ts",
+    "languages/go/parser.ts",
+    "languages/index.ts",
+    "languages/java/index.ts",
+    "languages/java/parser.ts",
+    "languages/kotlin/index.ts",
+    "languages/kotlin/parser.ts",
+    "languages/python/index.ts",
+    "languages/python/parser.ts",
+    "languages/registry.ts",
+    "languages/types.ts",
+    "languages/typescript/index.ts",
+    "languages/typescript/parser.ts",
+    "license/generator.ts",
+    "license/index.ts",
+    "license/types.ts",
+    "license/validator.ts",
+    "parser/extractor.ts",
+    "parser/extractors/go.ts",
+    "parser/extractors/index.ts",
+    "parser/extractors/java.ts",
+    "parser/extractors/kotlin.ts",
+    "parser/extractors/python.ts",
+    "parser/extractors/typescript.ts",
+    "parser/index.ts",
+    "parser/manager.ts",
+    "registry/builtins/go-builtins.ts",
+    "registry/builtins/java-builtins.ts",
+    "registry/builtins/kotlin-builtins.ts",
+    "registry/builtins/node-builtins.ts",
+    "registry/builtins/python-builtins.ts",
+    "registry/cache.ts",
+    "registry/go-registry.ts",
+    "registry/index.ts",
+    "registry/maven-registry.ts",
+    "registry/npm-registry.ts",
+    "registry/pypi-registry.ts",
+    "registry/registry-manager.ts",
+    "registry/types.ts",
+    "reporter/html-reporter.ts",
+    "reporter/index.ts",
+    "reporter/markdown-reporter.ts",
+    "reporter/sarif-reporter.ts",
+    "reporter/terminal-reporter.ts",
+    "reporter/types.ts",
+    "reporter/v4-html.ts",
+    "reporter/v4-terminal.ts",
+    "scanner/index.ts",
+    "scanner/v4-scanner.ts",
+    "scorer/report.ts",
+    "scorer/scoring-engine.ts",
+    "scorer/v4-adapter.ts",
+    "sla/index.ts",
+    "sla/tracker.ts",
+    "sla/types.ts",
+    "types.ts"
+  ],
+  "languages": [
+    "typescript"
+  ],
+  "issues": [
+    {
+      "detectorId": "stale-api",
+      "severity": "warning",
+      "category": "code-freshness",
+      "messageKey": "stale-api.deprecated-pattern",
+      "message": "Buffer constructor is deprecated due to security and usability issues",
+      "file": "ai/v4/patterns/defect-patterns.ts",
+      "line": 125,
+      "confidence": 0.95,
+      "metadata": {
+        "language": "typescript",
+        "source": "pattern",
+        "replacement": "Buffer.from() / Buffer.alloc()",
+        "since": "Node.js 6",
+        "matchedPattern": "\\bnew\\s+Buffer\\b"
+      }
+    },
+    {
+      "detectorId": "stale-api",
+      "severity": "warning",
+      "category": "code-freshness",
+      "messageKey": "stale-api.deprecated-pattern",
+      "message": "fs.exists() is deprecated; use fs.existsSync() or fs.access()",
+      "file": "ai/v4/patterns/defect-patterns.ts",
+      "line": 127,
+      "confidence": 0.9,
+      "metadata": {
+        "language": "typescript",
+        "source": "pattern",
+        "replacement": "fs.existsSync() or fs.access()",
+        "since": "Node.js 1.0",
+        "matchedPattern": "\\bfs\\.exists\\b"
+      }
+    },
+    {
+      "detectorId": "stale-api",
+      "severity": "warning",
+      "category": "code-freshness",
+      "messageKey": "stale-api.deprecated-pattern",
+      "message": "domain module is deprecated and pending removal",
+      "file": "ai/v4/patterns/defect-patterns.ts",
+      "line": 128,
+      "confidence": 0.9,
+      "metadata": {
+        "language": "typescript",
+        "source": "pattern",
+        "replacement": "async_hooks or structured error handling",
+        "since": "Node.js 4",
+        "matchedPattern": "\\brequire\\s*\\(\\s*['\"]domain['\"]\\s*\\)"
+      }
+    },
+    {
+      "detectorId": "stale-api",
+      "severity": "warning",
+      "category": "code-freshness",
+      "messageKey": "stale-api.deprecated-pattern",
+      "message": "Buffer constructor is deprecated due to security and usability issues",
+      "file": "detectors/stale-api.ts",
+      "line": 6,
+      "confidence": 0.95,
+      "metadata": {
+        "language": "typescript",
+        "source": "pattern",
+        "replacement": "Buffer.from() / Buffer.alloc()",
+        "since": "Node.js 6",
+        "matchedPattern": "\\bnew\\s+Buffer\\b"
+      }
+    },
+    {
+      "detectorId": "stale-api",
+      "severity": "warning",
+      "category": "code-freshness",
+      "messageKey": "stale-api.deprecated-pattern",
+      "message": "fs.exists() is deprecated; use fs.existsSync() or fs.access()",
+      "file": "detectors/stale-api.ts",
+      "line": 6,
+      "confidence": 0.9,
+      "metadata": {
+        "language": "typescript",
+        "source": "pattern",
+        "replacement": "fs.existsSync() or fs.access()",
+        "since": "Node.js 1.0",
+        "matchedPattern": "\\bfs\\.exists\\b"
+      }
+    },
+    {
+      "detectorId": "stale-api",
+      "severity": "warning",
+      "category": "code-freshness",
+      "messageKey": "stale-api.deprecated-pattern",
+      "message": "url.parse() is deprecated in favor of the WHATWG URL API",
+      "file": "detectors/v4/stale-api.ts",
+      "line": 51,
+      "confidence": 0.85,
+      "metadata": {
+        "language": "typescript",
+        "source": "pattern",
+        "replacement": "new URL()",
+        "since": "Node.js 11",
+        "matchedPattern": "\\burl\\.parse\\b"
+      }
+    },
+    {
+      "detectorId": "stale-api",
+      "severity": "warning",
+      "category": "code-freshness",
+      "messageKey": "stale-api.deprecated-pattern",
+      "message": "fs.exists() is deprecated; use fs.existsSync() or fs.access()",
+      "file": "detectors/v4/stale-api.ts",
+      "line": 58,
+      "confidence": 0.9,
+      "metadata": {
+        "language": "typescript",
+        "source": "pattern",
+        "replacement": "fs.existsSync() or fs.access()",
+        "since": "Node.js 1.0",
+        "matchedPattern": "\\bfs\\.exists\\b"
+      }
+    },
+    {
+      "detectorId": "stale-api",
+      "severity": "warning",
+      "category": "code-freshness",
+      "messageKey": "stale-api.deprecated-pattern",
+      "message": "SlowBuffer is deprecated in favor of Buffer.allocUnsafeSlow()",
+      "file": "detectors/v4/stale-api.ts",
+      "line": 86,
+      "confidence": 0.9,
+      "metadata": {
+        "language": "typescript",
+        "source": "pattern",
+        "replacement": "Buffer.allocUnsafeSlow()",
+        "since": "Node.js 6",
+        "matchedPattern": "\\bSlowBuffer\\b"
+      }
+    },
+    {
+      "detectorId": "context-coherence",
+      "severity": "info",
+      "category": "context-coherence",
+      "messageKey": "context-coherence.unused-definition",
+      "message": "Interface \"ParsedLLMIssue\" is defined but never used and not exported. This may indicate a context window issue.",
+      "file": "ai/v4/pipeline.ts",
+      "line": 36,
+      "confidence": 0.6,
+      "metadata": {
+        "symbolName": "ParsedLLMIssue",
+        "symbolKind": "interface",
+        "analysisType": "unused-definition"
+      }
+    },
+    {
+      "detectorId": "context-coherence",
+      "severity": "info",
+      "category": "context-coherence",
+      "messageKey": "context-coherence.unused-definition",
+      "message": "Interface \"FunctionInfo\" is defined but never used and not exported. This may indicate a context window issue.",
+      "file": "detectors/over-engineering.ts",
+      "line": 23,
+      "confidence": 0.6,
+      "metadata": {
+        "symbolName": "FunctionInfo",
+        "symbolKind": "interface",
+        "analysisType": "unused-definition"
+      }
+    },
+    {
+      "detectorId": "context-coherence",
+      "severity": "info",
+      "category": "context-coherence",
+      "messageKey": "context-coherence.unused-definition",
+      "message": "Interface \"SecurityPattern\" is defined but never used and not exported. This may indicate a context window issue.",
+      "file": "detectors/security-pattern.ts",
+      "line": 23,
+      "confidence": 0.6,
+      "metadata": {
+        "symbolName": "SecurityPattern",
+        "symbolKind": "interface",
+        "analysisType": "unused-definition"
+      }
+    },
+    {
+      "detectorId": "context-coherence",
+      "severity": "info",
+      "category": "context-coherence",
+      "messageKey": "context-coherence.unused-definition",
+      "message": "Interface \"ImportOccurrence\" is defined but never used and not exported. This may indicate a context window issue.",
+      "file": "detectors/v4/hallucinated-import.ts",
+      "line": 38,
+      "confidence": 0.6,
+      "metadata": {
+        "symbolName": "ImportOccurrence",
+        "symbolKind": "interface",
+        "analysisType": "unused-definition"
+      }
+    },
+    {
+      "detectorId": "context-coherence",
+      "severity": "info",
+      "category": "context-coherence",
+      "messageKey": "context-coherence.unused-definition",
+      "message": "Interface \"OverEngineeringThresholds\" is defined but never used and not exported. This may indicate a context window issue.",
+      "file": "detectors/v4/over-engineering.ts",
+      "line": 21,
+      "confidence": 0.6,
+      "metadata": {
+        "symbolName": "OverEngineeringThresholds",
+        "symbolKind": "interface",
+        "analysisType": "unused-definition"
+      }
+    },
+    {
+      "detectorId": "context-coherence",
+      "severity": "info",
+      "category": "context-coherence",
+      "messageKey": "context-coherence.unused-definition",
+      "message": "Interface \"SecurityPattern\" is defined but never used and not exported. This may indicate a context window issue.",
+      "file": "detectors/v4/security-pattern.ts",
+      "line": 26,
+      "confidence": 0.6,
+      "metadata": {
+        "symbolName": "SecurityPattern",
+        "symbolKind": "interface",
+        "analysisType": "unused-definition"
+      }
+    },
+    {
+      "detectorId": "context-coherence",
+      "severity": "info",
+      "category": "context-coherence",
+      "messageKey": "context-coherence.unused-definition",
+      "message": "Interface \"DeprecatedPattern\" is defined but never used and not exported. This may indicate a context window issue.",
+      "file": "detectors/v4/stale-api.ts",
+      "line": 23,
+      "confidence": 0.6,
+      "metadata": {
+        "symbolName": "DeprecatedPattern",
+        "symbolKind": "interface",
+        "analysisType": "unused-definition"
+      }
+    },
+    {
+      "detectorId": "context-coherence",
+      "severity": "info",
+      "category": "context-coherence",
+      "messageKey": "context-coherence.unused-definition",
+      "message": "Interface \"SARIFResult\" is defined but never used and not exported. This may indicate a context window issue.",
+      "file": "reporter/sarif-reporter.ts",
+      "line": 16,
+      "confidence": 0.6,
+      "metadata": {
+        "symbolName": "SARIFResult",
+        "symbolKind": "interface",
+        "analysisType": "unused-definition"
+      }
+    },
+    {
+      "detectorId": "context-coherence",
+      "severity": "info",
+      "category": "context-coherence",
+      "messageKey": "context-coherence.unused-definition",
+      "message": "Interface \"SARIFRun\" is defined but never used and not exported. This may indicate a context window issue.",
+      "file": "reporter/sarif-reporter.ts",
+      "line": 22,
+      "confidence": 0.6,
+      "metadata": {
+        "symbolName": "SARIFRun",
+        "symbolKind": "interface",
+        "analysisType": "unused-definition"
+      }
+    },
+    {
+      "detectorId": "context-coherence",
+      "severity": "info",
+      "category": "context-coherence",
+      "messageKey": "context-coherence.unused-definition",
+      "message": "Interface \"SARIFRule\" is defined but never used and not exported. This may indicate a context window issue.",
+      "file": "reporter/sarif-reporter.ts",
+      "line": 34,
+      "confidence": 0.6,
+      "metadata": {
+        "symbolName": "SARIFRule",
+        "symbolKind": "interface",
+        "analysisType": "unused-definition"
+      }
+    },
+    {
+      "detectorId": "context-coherence",
+      "severity": "info",
+      "category": "context-coherence",
+      "messageKey": "context-coherence.unused-definition",
+      "message": "Interface \"SARIFResultEntry\" is defined but never used and not exported. This may indicate a context window issue.",
+      "file": "reporter/sarif-reporter.ts",
+      "line": 43,
+      "confidence": 0.6,
+      "metadata": {
+        "symbolName": "SARIFResultEntry",
+        "symbolKind": "interface",
+        "analysisType": "unused-definition"
+      }
+    },
+    {
+      "detectorId": "context-coherence",
+      "severity": "info",
+      "category": "context-coherence",
+      "messageKey": "context-coherence.unused-definition",
+      "message": "Interface \"GitLabCodeQualityIssue\" is defined but never used and not exported. This may indicate a context window issue.",
+      "file": "scorer/report.ts",
+      "line": 32,
+      "confidence": 0.6,
+      "metadata": {
+        "symbolName": "GitLabCodeQualityIssue",
+        "symbolKind": "interface",
+        "analysisType": "unused-definition"
+      }
+    },
+    {
+      "detectorId": "context-coherence",
+      "severity": "warning",
+      "category": "context-coherence",
+      "messageKey": "context-coherence.inconsistent-import",
+      "message": "Symbol \"PackageVerifyResult\" is imported from multiple modules: \"./languages/index.js\", \"./registry/index.js\". This may indicate a context window inconsistency.",
+      "file": "index.ts",
+      "line": 166,
+      "confidence": 0.75,
+      "metadata": {
+        "symbol": "PackageVerifyResult",
+        "modules": [
+          "./languages/index.js",
+          "./registry/index.js"
+        ],
+        "analysisType": "inconsistent-import"
+      }
+    },
+    {
+      "detectorId": "context-coherence",
+      "severity": "warning",
+      "category": "context-coherence",
+      "messageKey": "context-coherence.inconsistent-import",
+      "message": "Symbol \"ReportFormat\" is imported from multiple modules: \"./scorer/report.js\", \"./reporter/index.js\". This may indicate a context window inconsistency.",
+      "file": "index.ts",
+      "line": 121,
+      "confidence": 0.75,
+      "metadata": {
+        "symbol": "ReportFormat",
+        "modules": [
+          "./scorer/report.js",
+          "./reporter/index.js"
+        ],
+        "analysisType": "inconsistent-import"
+      }
+    },
+    {
+      "detectorId": "context-coherence",
+      "severity": "warning",
+      "category": "context-coherence",
+      "messageKey": "context-coherence.inconsistent-import",
+      "message": "Symbol \"SLALevel\" is imported from multiple modules: \"./scanner/index.js\", \"./ai/v4/index.js\". This may indicate a context window inconsistency.",
+      "file": "index.ts",
+      "line": 318,
+      "confidence": 0.75,
+      "metadata": {
+        "symbol": "SLALevel",
+        "modules": [
+          "./scanner/index.js",
+          "./ai/v4/index.js"
+        ],
+        "analysisType": "inconsistent-import"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.excessive-params",
+      "message": "Function has 6 parameters (max: 5). Consider using an options object or builder pattern.",
+      "file": "detectors/over-engineering.ts",
+      "line": 303,
+      "endLine": 329,
+      "confidence": 0.8,
+      "metadata": {
+        "paramCount": 6,
+        "threshold": 5,
+        "functionId": "method:detectors/over-engineering.ts:OverEngineeringDetector.makeIssue",
+        "analysisType": "excessive-params"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.excessive-params",
+      "message": "Function has 6 parameters (max: 5). Consider using an options object or builder pattern.",
+      "file": "parser/extractors/typescript.ts",
+      "line": 476,
+      "endLine": 568,
+      "confidence": 0.8,
+      "metadata": {
+        "paramCount": 6,
+        "threshold": 5,
+        "functionId": "method:parser/extractors/typescript.ts:TypeScriptExtractor.extractFunctions",
+        "analysisType": "excessive-params"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.excessive-params",
+      "message": "Function has 7 parameters (max: 5). Consider using an options object or builder pattern.",
+      "file": "parser/extractors/typescript.ts",
+      "line": 570,
+      "endLine": 634,
+      "confidence": 0.8,
+      "metadata": {
+        "paramCount": 7,
+        "threshold": 5,
+        "functionId": "method:parser/extractors/typescript.ts:TypeScriptExtractor.createFunctionUnit",
+        "analysisType": "excessive-params"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "ai/ollama-provider.ts",
+      "line": 116,
+      "endLine": 152,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 5,
+        "threshold": 4,
+        "functionId": "method:ai/ollama-provider.ts:OllamaProvider.parseResponse",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "detectors/duplication.ts",
+      "line": 52,
+      "endLine": 87,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 5,
+        "threshold": 4,
+        "functionId": "func:detectors/duplication.ts:extractFunctionBlocks",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 9 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "detectors/hallucination.ts",
+      "line": 58,
+      "endLine": 112,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 9,
+        "threshold": 4,
+        "functionId": "func:detectors/hallucination.ts:resolveValidPackages",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "detectors/logic-gap.ts",
+      "line": 53,
+      "endLine": 110,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 6,
+        "threshold": 4,
+        "functionId": "func:detectors/logic-gap.ts:detectEmptyCatch",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "detectors/over-engineering.ts",
+      "line": 37,
+      "endLine": 110,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 5,
+        "threshold": 4,
+        "functionId": "func:detectors/over-engineering.ts:extractFunctions",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "detectors/security-pattern.ts",
+      "line": 198,
+      "endLine": 277,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 5,
+        "threshold": 4,
+        "functionId": "method:detectors/security-pattern.ts:SecurityPatternDetector.analyzeFile",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "detectors/v4/context-coherence.ts",
+      "line": 163,
+      "endLine": 218,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 5,
+        "threshold": 4,
+        "functionId": "method:detectors/v4/context-coherence.ts:ContextCoherenceDetector.detectDuplicateFunctionNames",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "detectors/v4/security-pattern.ts",
+      "line": 217,
+      "endLine": 276,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 6,
+        "threshold": 4,
+        "functionId": "method:detectors/v4/security-pattern.ts:SecurityPatternDetector.detect",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "detectors/v4/stale-api.ts",
+      "line": 330,
+      "endLine": 393,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 5,
+        "threshold": 4,
+        "functionId": "method:detectors/v4/stale-api.ts:StaleAPIDetector.checkRegistryDeprecations",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "languages/python/parser.ts",
+      "line": 175,
+      "endLine": 252,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 5,
+        "threshold": 4,
+        "functionId": "method:languages/python/parser.ts:PythonAdapter.extractImports",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "languages/python/parser.ts",
+      "line": 370,
+      "endLine": 430,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 5,
+        "threshold": 4,
+        "functionId": "method:languages/python/parser.ts:PythonAdapter.computeComplexity",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "languages/typescript/parser.ts",
+      "line": 79,
+      "endLine": 197,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 5,
+        "threshold": 4,
+        "functionId": "method:languages/typescript/parser.ts:TypeScriptAdapter.extractImports",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/go.ts",
+      "line": 186,
+      "endLine": 238,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 5,
+        "threshold": 4,
+        "functionId": "func:parser/extractors/go.ts:extractCalls",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 10 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/go.ts",
+      "line": 382,
+      "endLine": 456,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 10,
+        "threshold": 4,
+        "functionId": "method:parser/extractors/go.ts:GoExtractor.extractFileDefinitions",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/go.ts",
+      "line": 460,
+      "endLine": 601,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 7,
+        "threshold": 4,
+        "functionId": "method:parser/extractors/go.ts:GoExtractor.extractFunctions",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/go.ts",
+      "line": 605,
+      "endLine": 679,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 7,
+        "threshold": 4,
+        "functionId": "method:parser/extractors/go.ts:GoExtractor.extractTypeDeclarations",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/java.ts",
+      "line": 153,
+      "endLine": 246,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 6,
+        "threshold": 4,
+        "functionId": "func:parser/extractors/java.ts:extractCalls",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/java.ts",
+      "line": 380,
+      "endLine": 420,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 5,
+        "threshold": 4,
+        "functionId": "method:parser/extractors/java.ts:JavaExtractor.extractFileDefinitions",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/java.ts",
+      "line": 445,
+      "endLine": 515,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 6,
+        "threshold": 4,
+        "functionId": "method:parser/extractors/java.ts:JavaExtractor.extractClass",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/java.ts",
+      "line": 636,
+      "endLine": 751,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 6,
+        "threshold": 4,
+        "functionId": "method:parser/extractors/java.ts:JavaExtractor.extractMethods",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/kotlin.ts",
+      "line": 150,
+      "endLine": 238,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 6,
+        "threshold": 4,
+        "functionId": "func:parser/extractors/kotlin.ts:extractCalls",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/kotlin.ts",
+      "line": 359,
+      "endLine": 379,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 5,
+        "threshold": 4,
+        "functionId": "method:parser/extractors/kotlin.ts:KotlinExtractor.extractFileImports",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/kotlin.ts",
+      "line": 383,
+      "endLine": 436,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 7,
+        "threshold": 4,
+        "functionId": "method:parser/extractors/kotlin.ts:KotlinExtractor.extractFileDefinitions",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/kotlin.ts",
+      "line": 598,
+      "endLine": 736,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 6,
+        "threshold": 4,
+        "functionId": "method:parser/extractors/kotlin.ts:KotlinExtractor.extractClassMembers",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 8 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/python.ts",
+      "line": 86,
+      "endLine": 148,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 8,
+        "threshold": 4,
+        "functionId": "func:parser/extractors/python.ts:extractImportStatement",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/python.ts",
+      "line": 152,
+      "endLine": 201,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 5,
+        "threshold": 4,
+        "functionId": "func:parser/extractors/python.ts:extractCalls",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/python.ts",
+      "line": 352,
+      "endLine": 400,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 6,
+        "threshold": 4,
+        "functionId": "method:parser/extractors/python.ts:PythonExtractor.extractFileDefinitions",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/python.ts",
+      "line": 404,
+      "endLine": 483,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 5,
+        "threshold": 4,
+        "functionId": "method:parser/extractors/python.ts:PythonExtractor.extractFunctions",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 6 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/typescript.ts",
+      "line": 92,
+      "endLine": 129,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 6,
+        "threshold": 4,
+        "functionId": "func:parser/extractors/typescript.ts:extractImport",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 5 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/typescript.ts",
+      "line": 168,
+      "endLine": 217,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 5,
+        "threshold": 4,
+        "functionId": "func:parser/extractors/typescript.ts:extractCalls",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/typescript.ts",
+      "line": 272,
+      "endLine": 353,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 7,
+        "threshold": 4,
+        "functionId": "func:parser/extractors/typescript.ts:extractDefinitions",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/typescript.ts",
+      "line": 415,
+      "endLine": 459,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 7,
+        "threshold": 4,
+        "functionId": "method:parser/extractors/typescript.ts:TypeScriptExtractor.extractFileImports",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.deep-nesting",
+      "message": "Function has nesting depth of 7 (max: 4). Consider early returns or extracting helper functions.",
+      "file": "parser/extractors/typescript.ts",
+      "line": 476,
+      "endLine": 568,
+      "confidence": 0.75,
+      "metadata": {
+        "nestingDepth": 7,
+        "threshold": 4,
+        "functionId": "method:parser/extractors/typescript.ts:TypeScriptExtractor.extractFunctions",
+        "analysisType": "deep-nesting"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.long-function",
+      "message": "Function has 120 lines of code (max: 100). Consider breaking it into smaller functions.",
+      "file": "parser/extractors/go.ts",
+      "line": 460,
+      "endLine": 601,
+      "confidence": 0.7,
+      "metadata": {
+        "linesOfCode": 120,
+        "threshold": 100,
+        "functionId": "method:parser/extractors/go.ts:GoExtractor.extractFunctions",
+        "analysisType": "long-function"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.long-function",
+      "message": "Function has 122 lines of code (max: 100). Consider breaking it into smaller functions.",
+      "file": "parser/extractors/kotlin.ts",
+      "line": 598,
+      "endLine": 736,
+      "confidence": 0.7,
+      "metadata": {
+        "linesOfCode": 122,
+        "threshold": 100,
+        "functionId": "method:parser/extractors/kotlin.ts:KotlinExtractor.extractClassMembers",
+        "analysisType": "long-function"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.long-function",
+      "message": "Function has 257 lines of code (max: 100). Consider breaking it into smaller functions.",
+      "file": "reporter/html-reporter.ts",
+      "line": 84,
+      "endLine": 387,
+      "confidence": 0.7,
+      "metadata": {
+        "linesOfCode": 257,
+        "threshold": 100,
+        "functionId": "func:reporter/html-reporter.ts:generateCSS",
+        "analysisType": "long-function"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.long-function",
+      "message": "Function has 114 lines of code (max: 100). Consider breaking it into smaller functions.",
+      "file": "reporter/markdown-reporter.ts",
+      "line": 62,
+      "endLine": 199,
+      "confidence": 0.7,
+      "metadata": {
+        "linesOfCode": 114,
+        "threshold": 100,
+        "functionId": "func:reporter/markdown-reporter.ts:generateMarkdown",
+        "analysisType": "long-function"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 20 (max: 15). Consider simplifying the logic.",
+      "file": "config/v4-config.ts",
+      "line": 162,
+      "endLine": 212,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 20,
+        "threshold": 15,
+        "functionId": "func:config/v4-config.ts:parseConfig",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 16 (max: 15). Consider simplifying the logic.",
+      "file": "detectors/duplication.ts",
+      "line": 52,
+      "endLine": 87,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 16,
+        "threshold": 15,
+        "functionId": "func:detectors/duplication.ts:extractFunctionBlocks",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 28 (max: 15). Consider simplifying the logic.",
+      "file": "detectors/hallucination.ts",
+      "line": 159,
+      "endLine": 249,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 28,
+        "threshold": 15,
+        "functionId": "func:detectors/hallucination.ts:detectPhantomReferences",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 18 (max: 15). Consider simplifying the logic.",
+      "file": "detectors/logic-gap.ts",
+      "line": 53,
+      "endLine": 110,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 18,
+        "threshold": 15,
+        "functionId": "func:detectors/logic-gap.ts:detectEmptyCatch",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 28 (max: 15). Consider simplifying the logic.",
+      "file": "detectors/over-engineering.ts",
+      "line": 37,
+      "endLine": 110,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 28,
+        "threshold": 15,
+        "functionId": "func:detectors/over-engineering.ts:extractFunctions",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 28 (max: 15). Consider simplifying the logic.",
+      "file": "detectors/security-pattern.ts",
+      "line": 198,
+      "endLine": 277,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 28,
+        "threshold": 15,
+        "functionId": "method:detectors/security-pattern.ts:SecurityPatternDetector.analyzeFile",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 20 (max: 15). Consider simplifying the logic.",
+      "file": "detectors/type-safety.ts",
+      "line": 88,
+      "endLine": 202,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 20,
+        "threshold": 15,
+        "functionId": "method:detectors/type-safety.ts:TypeSafetyDetector.detectAnyUsage",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 16 (max: 15). Consider simplifying the logic.",
+      "file": "detectors/v4/stale-api.ts",
+      "line": 330,
+      "endLine": 393,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 16,
+        "threshold": 15,
+        "functionId": "method:detectors/v4/stale-api.ts:StaleAPIDetector.checkRegistryDeprecations",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 17 (max: 15). Consider simplifying the logic.",
+      "file": "languages/go/parser.ts",
+      "line": 255,
+      "endLine": 335,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 17,
+        "threshold": 15,
+        "functionId": "method:languages/go/parser.ts:GoAdapter.extractImports",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 20 (max: 15). Consider simplifying the logic.",
+      "file": "languages/go/parser.ts",
+      "line": 492,
+      "endLine": 581,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 20,
+        "threshold": 15,
+        "functionId": "method:languages/go/parser.ts:GoAdapter.computeComplexity",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 19 (max: 15). Consider simplifying the logic.",
+      "file": "languages/java/parser.ts",
+      "line": 473,
+      "endLine": 561,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 19,
+        "threshold": 15,
+        "functionId": "method:languages/java/parser.ts:JavaAdapter.computeComplexity",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 21 (max: 15). Consider simplifying the logic.",
+      "file": "languages/kotlin/parser.ts",
+      "line": 489,
+      "endLine": 583,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 21,
+        "threshold": 15,
+        "functionId": "method:languages/kotlin/parser.ts:KotlinAdapter.computeComplexity",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 17 (max: 15). Consider simplifying the logic.",
+      "file": "languages/typescript/parser.ts",
+      "line": 79,
+      "endLine": 197,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 17,
+        "threshold": 15,
+        "functionId": "method:languages/typescript/parser.ts:TypeScriptAdapter.extractImports",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 20 (max: 15). Consider simplifying the logic.",
+      "file": "parser/extractors/go.ts",
+      "line": 382,
+      "endLine": 456,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 20,
+        "threshold": 15,
+        "functionId": "method:parser/extractors/go.ts:GoExtractor.extractFileDefinitions",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 16 (max: 15). Consider simplifying the logic.",
+      "file": "parser/extractors/go.ts",
+      "line": 460,
+      "endLine": 601,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 16,
+        "threshold": 15,
+        "functionId": "method:parser/extractors/go.ts:GoExtractor.extractFunctions",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 24 (max: 15). Consider simplifying the logic.",
+      "file": "parser/extractors/java.ts",
+      "line": 153,
+      "endLine": 246,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 24,
+        "threshold": 15,
+        "functionId": "func:parser/extractors/java.ts:extractCalls",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 16 (max: 15). Consider simplifying the logic.",
+      "file": "parser/extractors/python.ts",
+      "line": 86,
+      "endLine": 148,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 16,
+        "threshold": 15,
+        "functionId": "func:parser/extractors/python.ts:extractImportStatement",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 16 (max: 15). Consider simplifying the logic.",
+      "file": "parser/extractors/python.ts",
+      "line": 352,
+      "endLine": 400,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 16,
+        "threshold": 15,
+        "functionId": "method:parser/extractors/python.ts:PythonExtractor.extractFileDefinitions",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 18 (max: 15). Consider simplifying the logic.",
+      "file": "parser/extractors/python.ts",
+      "line": 404,
+      "endLine": 483,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 18,
+        "threshold": 15,
+        "functionId": "method:parser/extractors/python.ts:PythonExtractor.extractFunctions",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 18 (max: 15). Consider simplifying the logic.",
+      "file": "parser/extractors/typescript.ts",
+      "line": 272,
+      "endLine": 353,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 18,
+        "threshold": 15,
+        "functionId": "func:parser/extractors/typescript.ts:extractDefinitions",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 24 (max: 15). Consider simplifying the logic.",
+      "file": "parser/extractors/typescript.ts",
+      "line": 476,
+      "endLine": 568,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 24,
+        "threshold": 15,
+        "functionId": "method:parser/extractors/typescript.ts:TypeScriptExtractor.extractFunctions",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "over-engineering",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "over-engineering.high-complexity",
+      "message": "Function has cyclomatic complexity of 20 (max: 15). Consider simplifying the logic.",
+      "file": "reporter/markdown-reporter.ts",
+      "line": 62,
+      "endLine": 199,
+      "confidence": 0.85,
+      "metadata": {
+        "cyclomaticComplexity": 20,
+        "threshold": 15,
+        "functionId": "func:reporter/markdown-reporter.ts:generateMarkdown",
+        "analysisType": "high-complexity"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "error",
+      "category": "implementation",
+      "messageKey": "security-pattern.hardcoded-api-key",
+      "message": "Possible hardcoded API key detected. Use environment variables or a secrets manager instead.",
+      "file": "ai/v4/patterns/defect-patterns.ts",
+      "line": 269,
+      "confidence": 0.85,
+      "metadata": {
+        "patternId": "hardcoded-api-key",
+        "language": "typescript",
+        "matchedLine": "'const API_KEY = \"sk-proj-abc123def456\"',"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "error",
+      "category": "implementation",
+      "messageKey": "security-pattern.hardcoded-password",
+      "message": "Possible hardcoded password detected. Use environment variables or a secrets manager instead.",
+      "file": "ai/v4/patterns/defect-patterns.ts",
+      "line": 270,
+      "confidence": 0.8,
+      "metadata": {
+        "patternId": "hardcoded-password",
+        "language": "typescript",
+        "matchedLine": "'password = \"admin123\"',"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "error",
+      "category": "implementation",
+      "messageKey": "security-pattern.hardcoded-password",
+      "message": "Possible hardcoded password detected. Use environment variables or a secrets manager instead.",
+      "file": "ai/v4/patterns/defect-patterns.ts",
+      "line": 271,
+      "confidence": 0.8,
+      "metadata": {
+        "patternId": "hardcoded-password",
+        "language": "typescript",
+        "matchedLine": "'private static final String SECRET = \"my-secret-key\"',"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "error",
+      "category": "implementation",
+      "messageKey": "security-pattern.sql-string-concat",
+      "message": "SQL query with string concatenation from user input detected. Use parameterized queries to prevent SQL injection.",
+      "file": "ai/v4/patterns/defect-patterns.ts",
+      "line": 308,
+      "confidence": 0.8,
+      "metadata": {
+        "patternId": "sql-string-concat",
+        "language": "typescript",
+        "matchedLine": "'const query = \"SELECT * FROM users WHERE id = \" + userId',"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "security-pattern.weak-random",
+      "message": "Math.random() is not cryptographically secure. Use crypto.randomUUID() or crypto.getRandomValues() for security-sensitive operations.",
+      "file": "ai/v4/patterns/defect-patterns.ts",
+      "line": 320,
+      "confidence": 0.7,
+      "metadata": {
+        "patternId": "weak-random",
+        "language": "typescript",
+        "matchedLine": "'const token = Math.random().toString(36)',"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "error",
+      "category": "implementation",
+      "messageKey": "security-pattern.eval-usage-js",
+      "message": "eval() usage detected. This enables code injection attacks. Use safer alternatives like JSON.parse() or a sandboxed evaluator.",
+      "file": "detectors/security-pattern.ts",
+      "line": 73,
+      "confidence": 0.9,
+      "metadata": {
+        "patternId": "eval-usage-js",
+        "language": "typescript",
+        "matchedLine": "message: 'Use of eval() detected — allows arbitrary code execution',"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "error",
+      "category": "implementation",
+      "messageKey": "security-pattern.eval-usage-js",
+      "message": "eval() usage detected. This enables code injection attacks. Use safer alternatives like JSON.parse() or a sandboxed evaluator.",
+      "file": "detectors/security-pattern.ts",
+      "line": 74,
+      "confidence": 0.9,
+      "metadata": {
+        "patternId": "eval-usage-js",
+        "language": "typescript",
+        "matchedLine": "suggestion: 'Avoid eval(). Use JSON.parse() for data parsing, or safer alternatives like Function co"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "security-pattern.new-function-js",
+      "message": "new Function() is similar to eval() and can enable code injection. Use safer alternatives.",
+      "file": "detectors/security-pattern.ts",
+      "line": 81,
+      "confidence": 0.85,
+      "metadata": {
+        "patternId": "new-function-js",
+        "language": "typescript",
+        "matchedLine": "message: 'Use of new Function() detected — allows dynamic code execution',"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "security-pattern.new-function-js",
+      "message": "new Function() is similar to eval() and can enable code injection. Use safer alternatives.",
+      "file": "detectors/security-pattern.ts",
+      "line": 82,
+      "confidence": 0.85,
+      "metadata": {
+        "patternId": "new-function-js",
+        "language": "typescript",
+        "matchedLine": "suggestion: 'Avoid new Function(). Use structured approaches to achieve dynamic behavior.',"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "security-pattern.weak-random",
+      "message": "Math.random() is not cryptographically secure. Use crypto.randomUUID() or crypto.getRandomValues() for security-sensitive operations.",
+      "file": "detectors/security-pattern.ts",
+      "line": 109,
+      "confidence": 0.7,
+      "metadata": {
+        "patternId": "weak-random",
+        "language": "typescript",
+        "matchedLine": "message: 'Math.random() is not cryptographically secure',"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "security-pattern.weak-hash-md5",
+      "message": "MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)",
+      "file": "detectors/security-pattern.ts",
+      "line": 115,
+      "confidence": 0.75,
+      "metadata": {
+        "patternId": "weak-hash-md5",
+        "language": "typescript",
+        "matchedLine": "regex: /createHash\\s*\\(\\s*['\"]md5['\"]\\s*\\)/,"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "security-pattern.weak-hash-md5",
+      "message": "MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)",
+      "file": "detectors/security-pattern.ts",
+      "line": 117,
+      "confidence": 0.75,
+      "metadata": {
+        "patternId": "weak-hash-md5",
+        "language": "typescript",
+        "matchedLine": "message: 'MD5 is cryptographically broken — should not be used for security purposes',"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "security-pattern.weak-hash-sha1",
+      "message": "SHA-1 is cryptographically weak. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)",
+      "file": "detectors/security-pattern.ts",
+      "line": 123,
+      "confidence": 0.7,
+      "metadata": {
+        "patternId": "weak-hash-sha1",
+        "language": "typescript",
+        "matchedLine": "regex: /createHash\\s*\\(\\s*['\"]sha1['\"]\\s*\\)/,"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "error",
+      "category": "implementation",
+      "messageKey": "security-pattern.tls-verify-disabled",
+      "message": "TLS certificate verification is disabled. This enables man-in-the-middle attacks.",
+      "file": "detectors/security-pattern.ts",
+      "line": 151,
+      "confidence": 0.9,
+      "metadata": {
+        "patternId": "tls-verify-disabled",
+        "language": "typescript",
+        "matchedLine": "message: 'TLS certificate verification is disabled (rejectUnauthorized: false)',"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "error",
+      "category": "implementation",
+      "messageKey": "security-pattern.eval-usage-js",
+      "message": "eval() usage detected. This enables code injection attacks. Use safer alternatives like JSON.parse() or a sandboxed evaluator.",
+      "file": "detectors/v4/security-pattern.ts",
+      "line": 99,
+      "confidence": 0.9,
+      "metadata": {
+        "patternId": "eval-usage-js",
+        "language": "typescript",
+        "matchedLine": "message: 'eval() usage detected. This enables code injection attacks. Use safer alternatives like JS"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "error",
+      "category": "implementation",
+      "messageKey": "security-pattern.eval-usage-js",
+      "message": "eval() usage detected. This enables code injection attacks. Use safer alternatives like JSON.parse() or a sandboxed evaluator.",
+      "file": "detectors/v4/security-pattern.ts",
+      "line": 107,
+      "confidence": 0.9,
+      "metadata": {
+        "patternId": "eval-usage-js",
+        "language": "typescript",
+        "matchedLine": "message: 'eval() usage detected. This enables code injection attacks. Use ast.literal_eval() or safe"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "error",
+      "category": "implementation",
+      "messageKey": "security-pattern.eval-usage-js",
+      "message": "eval() usage detected. This enables code injection attacks. Use safer alternatives like JSON.parse() or a sandboxed evaluator.",
+      "file": "detectors/v4/security-pattern.ts",
+      "line": 123,
+      "confidence": 0.9,
+      "metadata": {
+        "patternId": "eval-usage-js",
+        "language": "typescript",
+        "matchedLine": "message: 'new Function() is similar to eval() and can enable code injection. Use safer alternatives."
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "security-pattern.new-function-js",
+      "message": "new Function() is similar to eval() and can enable code injection. Use safer alternatives.",
+      "file": "detectors/v4/security-pattern.ts",
+      "line": 123,
+      "confidence": 0.85,
+      "metadata": {
+        "patternId": "new-function-js",
+        "language": "typescript",
+        "matchedLine": "message: 'new Function() is similar to eval() and can enable code injection. Use safer alternatives."
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "security-pattern.weak-hash-md5",
+      "message": "MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)",
+      "file": "detectors/v4/security-pattern.ts",
+      "line": 157,
+      "confidence": 0.75,
+      "metadata": {
+        "patternId": "weak-hash-md5",
+        "language": "typescript",
+        "matchedLine": "id: 'weak-hash-md5',"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "security-pattern.weak-hash-md5",
+      "message": "MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)",
+      "file": "detectors/v4/security-pattern.ts",
+      "line": 158,
+      "confidence": 0.75,
+      "metadata": {
+        "patternId": "weak-hash-md5",
+        "language": "typescript",
+        "matchedLine": "pattern: /\\b(?:md5|MD5|createHash\\s*\\(\\s*['\"]md5['\"]|hashlib\\.md5|MessageDigest\\.getInstance\\s*\\(\\s*"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "security-pattern.weak-hash-md5",
+      "message": "MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)",
+      "file": "detectors/v4/security-pattern.ts",
+      "line": 161,
+      "confidence": 0.75,
+      "metadata": {
+        "patternId": "weak-hash-md5",
+        "language": "typescript",
+        "matchedLine": "message: 'MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for chec"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "security-pattern.weak-hash-sha1",
+      "message": "SHA-1 is cryptographically weak. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)",
+      "file": "detectors/v4/security-pattern.ts",
+      "line": 165,
+      "confidence": 0.7,
+      "metadata": {
+        "patternId": "weak-hash-sha1",
+        "language": "typescript",
+        "matchedLine": "id: 'weak-hash-sha1',"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "security-pattern.weak-hash-sha1",
+      "message": "SHA-1 is cryptographically weak. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)",
+      "file": "detectors/v4/security-pattern.ts",
+      "line": 166,
+      "confidence": 0.7,
+      "metadata": {
+        "patternId": "weak-hash-sha1",
+        "language": "typescript",
+        "matchedLine": "pattern: /\\b(?:sha1|SHA1|createHash\\s*\\(\\s*['\"]sha1['\"]|hashlib\\.sha1|MessageDigest\\.getInstance\\s*\\"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "security-pattern.weak-random",
+      "message": "Math.random() is not cryptographically secure. Use crypto.randomUUID() or crypto.getRandomValues() for security-sensitive operations.",
+      "file": "detectors/v4/security-pattern.ts",
+      "line": 177,
+      "confidence": 0.7,
+      "metadata": {
+        "patternId": "weak-random",
+        "language": "typescript",
+        "matchedLine": "message: 'Math.random() is not cryptographically secure. Use crypto.randomUUID() or crypto.getRandom"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "security-pattern.weak-hash-md5",
+      "message": "MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)",
+      "file": "languages/go/parser.ts",
+      "line": 49,
+      "confidence": 0.75,
+      "metadata": {
+        "patternId": "weak-hash-md5",
+        "language": "typescript",
+        "matchedLine": "'crypto/md5', 'crypto/rand', 'crypto/tls',"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "security-pattern.weak-random",
+      "message": "Math.random() is not cryptographically secure. Use crypto.randomUUID() or crypto.getRandomValues() for security-sensitive operations.",
+      "file": "license/generator.ts",
+      "line": 55,
+      "confidence": 0.7,
+      "metadata": {
+        "patternId": "weak-random",
+        "language": "typescript",
+        "matchedLine": "part += LICENSE_CHARS[Math.floor(Math.random() * LICENSE_CHARS.length)];"
+      }
+    },
+    {
+      "detectorId": "security-pattern",
+      "severity": "warning",
+      "category": "implementation",
+      "messageKey": "security-pattern.weak-random",
+      "message": "Math.random() is not cryptographically secure. Use crypto.randomUUID() or crypto.getRandomValues() for security-sensitive operations.",
+      "file": "license/generator.ts",
+      "line": 55,
+      "confidence": 0.7,
+      "metadata": {
+        "patternId": "weak-random",
+        "language": "typescript",
+        "matchedLine": "part += LICENSE_CHARS[Math.floor(Math.random() * LICENSE_CHARS.length)];"
+      }
+    }
+  ],
+  "score": {
+    "total": 67,
+    "grade": "D",
+    "passed": false,
+    "threshold": 70,
+    "dimensions": {
+      "faithfulness": {
+        "name": "AI Faithfulness",
+        "maxScore": 35,
+        "score": 35,
+        "issueCount": 0,
+        "percentage": 100
+      },
+      "freshness": {
+        "name": "Code Freshness",
+        "maxScore": 25,
+        "score": 15,
+        "issueCount": 8,
+        "percentage": 60
+      },
+      "coherence": {
+        "name": "Context Coherence",
+        "maxScore": 20,
+        "score": 17,
+        "issueCount": 15,
+        "percentage": 85
+      },
+      "quality": {
+        "name": "Implementation Quality",
+        "maxScore": 20,
+        "score": 0,
+        "issueCount": 89,
+        "percentage": 0
+      }
+    }
+  },
+  "duration": 7522,
+  "stages": {
+    "discovery": 5,
+    "parsing": 743,
+    "detection": 91,
+    "ai": 6654
+  },
+  "timestamp": "2026-03-10T20:51:53.373Z"
+}

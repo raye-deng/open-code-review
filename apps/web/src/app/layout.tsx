@@ -2,20 +2,20 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'AI Code Validator — Quality Gate for AI-Generated Code',
+  title: 'Open Code Review — Quality Gate for AI-Generated Code',
   description: 'The first CI/CD quality gate built specifically for AI-generated code. Detect hallucinations, logic gaps, and architectural inconsistencies before they reach production.',
   keywords: ['AI code quality', 'code validation', 'CI/CD', 'quality gate', 'hallucination detection'],
   metadataBase: new URL('https://codes.evallab.ai'),
   openGraph: {
-    title: 'AI Code Validator — Quality Gate for AI-Generated Code',
+    title: 'Open Code Review — Quality Gate for AI-Generated Code',
     description: 'Detect AI code hallucinations, logic gaps & architectural issues in CI/CD. First 50 teams get 50% off forever.',
     url: 'https://codes.evallab.ai',
-    siteName: 'AI Code Validator by EvalLab',
+    siteName: 'Open Code Review',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'AI Code Validator — Quality Gate for AI-Generated Code',
+    title: 'Open Code Review — Quality Gate for AI-Generated Code',
     description: 'Detect AI code hallucinations, logic gaps & architectural issues in CI/CD.',
   },
 };

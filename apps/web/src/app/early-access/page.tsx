@@ -186,13 +186,13 @@ export default function EarlyAccess() {
           <span className="text-6xl mb-6 block">📋</span>
           <h1 className="text-4xl font-bold mb-4">You&apos;re on the list!</h1>
           <p className="text-xl text-gray-400 mb-4">
-            We&apos;ll notify <strong className="text-gray-300">{formData.email}</strong> when AI Code Validator launches.
+            We&apos;ll notify <strong className="text-gray-300">{formData.email}</strong> when Open Code Review launches.
           </p>
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-8 text-left">
             <h3 className="text-white font-semibold mb-3">While you wait:</h3>
             <ul className="text-gray-400 space-y-2">
-              <li>⚡ Try the free CLI: <code className="text-green-400">npx ai-code-validator scan ./src</code></li>
-              <li>⭐ Star us on <a href="https://github.com/raye-deng/ai-code-validator" className="text-primary-400 hover:underline">GitHub</a></li>
+              <li>⚡ Try the free CLI: <code className="text-green-400">npx open-code-review scan ./src</code></li>
+              <li>⭐ Star us on <a href="https://github.com/raye-deng/open-code-review" className="text-primary-400 hover:underline">GitHub</a></li>
               <li>🔔 Waitlist members get first access + best pricing</li>
             </ul>
           </div>
@@ -212,7 +212,7 @@ export default function EarlyAccess() {
           <h1 className="text-4xl font-bold mb-4">Welcome Aboard!</h1>
           <p className="text-xl text-gray-400 mb-4">
             Your payment has been confirmed. You&apos;re now part of the
-            <span className="text-primary-300 font-semibold"> AI Code Validator Early Access</span> program.
+            <span className="text-primary-300 font-semibold"> Open Code Review Early Access</span> program.
           </p>
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-8 text-left">
             <h3 className="text-white font-semibold mb-3">What happens next:</h3>

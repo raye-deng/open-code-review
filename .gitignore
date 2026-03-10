@@ -8,3 +8,4 @@ out/
 .env.local
 *.log
 .DS_Store
+.ocrrc.yml
