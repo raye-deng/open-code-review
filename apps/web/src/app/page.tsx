@@ -221,82 +221,18 @@ include:
         </div>
       </section>
 
-      {/* Early Access Banner */}
-      <section className="py-16 px-6">
-        <div className="max-w-3xl mx-auto text-center bg-gradient-to-r from-primary-900/40 to-purple-900/40 border border-primary-700/30 rounded-2xl p-12">
-          <h2 className="text-3xl font-bold mb-4">🎉 Early Access: 50% Off Forever</h2>
+      {/* Pricing CTA Section */}
+      <section id="pricing" className="py-16 px-6">
+        <div className="max-w-3xl mx-auto text-center bg-gradient-to-r from-blue-900/40 to-purple-900/40 border border-blue-700/30 rounded-2xl p-12">
+          <h2 className="text-3xl font-bold mb-4">Free for Individuals</h2>
           <p className="text-gray-300 mb-8 text-lg">
-            Be among the first 50 teams to validate AI code quality.
-            Lock in <span className="text-primary-300 font-bold">$9.50/month</span> instead of $19/month — forever.
+            Full CLI, all analysis features, local AI models — <span className="text-blue-300 font-bold">$0 forever</span>.
+            <br />
+            Team plans from <span className="text-blue-300 font-bold">$19/seat/month</span>.
           </p>
-          <a href="/early-access" className="inline-flex px-8 py-4 bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-xl transition text-lg">
-            Claim Your Spot →
+          <a href="/pricing" className="inline-flex px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition text-lg">
+            View Pricing →
           </a>
-          <p className="text-gray-500 text-sm mt-4">No credit card required. Cancel anytime.</p>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section id="pricing" className="py-20 px-6 bg-gray-900/50">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-4">Simple Pricing</h2>
-          <p className="text-gray-400 text-center mb-12">Start free. Upgrade when you need more.</p>
-          <div className="grid md:grid-cols-3 gap-6">
-            {/* Free */}
-            <div className="p-8 rounded-2xl border border-gray-800 bg-gray-900">
-              <h3 className="text-lg font-semibold mb-2">Free</h3>
-              <p className="text-3xl font-bold mb-1">$0</p>
-              <p className="text-gray-500 text-sm mb-6">forever</p>
-              <ul className="space-y-3 text-sm text-gray-400 mb-8">
-                <li className="flex gap-2"><span className="text-green-400">✓</span> 1 repository</li>
-                <li className="flex gap-2"><span className="text-green-400">✓</span> CLI tool</li>
-                <li className="flex gap-2"><span className="text-green-400">✓</span> Basic detectors</li>
-                <li className="flex gap-2"><span className="text-green-400">✓</span> Terminal reports</li>
-                <li className="flex gap-2"><span className="text-gray-600">—</span> <span className="text-gray-600">PR comments</span></li>
-                <li className="flex gap-2"><span className="text-gray-600">—</span> <span className="text-gray-600">AI self-heal</span></li>
-              </ul>
-              <a href="https://github.com/raye-deng/ai-code-validator" className="block text-center py-3 border border-gray-700 rounded-lg text-gray-300 hover:border-gray-500 transition">
-                Get Started
-              </a>
-            </div>
-            {/* Pro */}
-            <div className="p-8 rounded-2xl border-2 border-primary-600 bg-primary-950/20 relative">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-primary-600 rounded-full text-xs font-bold">
-                MOST POPULAR
-              </div>
-              <h3 className="text-lg font-semibold mb-2">Pro</h3>
-              <p className="text-3xl font-bold mb-1">$19<span className="text-lg text-gray-400">/mo</span></p>
-              <p className="text-primary-300 text-sm mb-6">Early Access: $9.50/mo</p>
-              <ul className="space-y-3 text-sm text-gray-300 mb-8">
-                <li className="flex gap-2"><span className="text-green-400">✓</span> Unlimited repositories</li>
-                <li className="flex gap-2"><span className="text-green-400">✓</span> GitHub Action + GitLab CI</li>
-                <li className="flex gap-2"><span className="text-green-400">✓</span> All detectors</li>
-                <li className="flex gap-2"><span className="text-green-400">✓</span> PR comments & quality gate</li>
-                <li className="flex gap-2"><span className="text-green-400">✓</span> AI self-heal prompts</li>
-                <li className="flex gap-2"><span className="text-green-400">✓</span> Quality trend dashboard</li>
-              </ul>
-              <a href="/early-access" className="block text-center py-3 bg-primary-600 hover:bg-primary-500 rounded-lg text-white font-medium transition">
-                Start Free Trial
-              </a>
-            </div>
-            {/* Enterprise */}
-            <div className="p-8 rounded-2xl border border-gray-800 bg-gray-900">
-              <h3 className="text-lg font-semibold mb-2">Enterprise</h3>
-              <p className="text-3xl font-bold mb-1">Custom</p>
-              <p className="text-gray-500 text-sm mb-6">contact us</p>
-              <ul className="space-y-3 text-sm text-gray-400 mb-8">
-                <li className="flex gap-2"><span className="text-green-400">✓</span> Everything in Pro</li>
-                <li className="flex gap-2"><span className="text-green-400">✓</span> Self-hosted option</li>
-                <li className="flex gap-2"><span className="text-green-400">✓</span> Custom rules & policies</li>
-                <li className="flex gap-2"><span className="text-green-400">✓</span> SSO / SAML</li>
-                <li className="flex gap-2"><span className="text-green-400">✓</span> Dedicated support</li>
-                <li className="flex gap-2"><span className="text-green-400">✓</span> SLA guarantee</li>
-              </ul>
-              <a href="mailto:fengsen.deng@gmail.com" className="block text-center py-3 border border-gray-700 rounded-lg text-gray-300 hover:border-gray-500 transition">
-                Contact Sales
-              </a>
-            </div>
-          </div>
         </div>
       </section>
 

@@ -4,7 +4,7 @@
   "private": true,
   "description": "The first CI/CD quality gate built specifically for AI-generated code",
   "author": "Raye Deng <fengsen.deng@gmail.com>",
-  "license": "MIT",
+  "license": "BUSL-1.1",
   "scripts": {
     "build": "pnpm -r build",
     "test": "pnpm -r test",

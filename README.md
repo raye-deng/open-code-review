@@ -4,7 +4,9 @@
 > Free forever. Self-hostable. Not another linter.
 
 [![npm](https://img.shields.io/npm/v/open-code-review)](https://www.npmjs.com/package/open-code-review)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: BUSL-1.1](https://img.shields.io/badge/License-BUSL--1.1-blue.svg)](LICENSE)
+
+> **Free for personal use. Commercial use requires a Team or Enterprise license.**
 
 ## Why Open Code Review?
 
@@ -35,7 +37,7 @@ Stage 2: LLM Deep Scan (precise)
 | | Claude Code Review | CodeRabbit | GitHub Copilot Review | **Open Code Review** |
 |---|---|---|---|---|
 | **Price** | $15-25/PR | $24/mo/seat | $10-39/mo | **Free** |
-| **Open Source** | ❌ | ❌ | ❌ | **✅ MIT** |
+| **Open Source** | ❌ | ❌ | ❌ | **✅ BSL-1.1** |
 | **Self-hosted** | ❌ | ❌ | ❌ | **✅** |
 | **AI Hallucination Detection** | ❌ | ❌ | ❌ | **✅** |
 | **Dynamic Registry Verification** | ❌ | ❌ | ❌ | **✅** |
@@ -145,9 +147,9 @@ ai:
 ## Philosophy
 
 - **Don't reinvent the wheel.** ESLint handles formatting. SonarQube handles complexity. We handle what AI breaks.
-- **Open by default.** MIT license, no vendor lock-in, runs on your hardware.
+- **Open by default.** BSL-1.1 license (free for personal use, Apache 2.0 after 4 years), no vendor lock-in, runs on your hardware.
 - **AI understands AI.** We use embeddings + LLM to detect issues only AI would create.
 
 ## License
 
-MIT — use it however you want.
+[Business Source License 1.1](LICENSE) — free for personal and non-commercial use. Commercial use requires a [Team or Enterprise license](https://codes.evallab.ai/pricing). Code becomes Apache 2.0 on 2030-03-11.
