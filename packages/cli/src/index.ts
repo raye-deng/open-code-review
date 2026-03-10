@@ -42,6 +42,7 @@ import {
   scoreV4Results,
   createI18n,
   V4TerminalReporter,
+  generateV4HTML,
   generateDefaultConfigYaml,
 } from '@open-code-review/core';
 import type {
@@ -481,58 +482,21 @@ function renderV4Markdown(result: V4ScanResult, score?: V4ScoreResult): string {
 }
 
 function renderV4Html(result: V4ScanResult, score?: V4ScoreResult): string {
-  const issueRows = result.issues.map(i => `
-    <tr>
-      <td class="sev-${i.severity}">${i.severity}</td>
-      <td>${escapeHtml(i.file)}</td>
-      <td>${i.line}</td>
-      <td>${escapeHtml(i.detectorId)}</td>
-      <td>${escapeHtml(i.message)}</td>
-    </tr>`).join('');
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Open Code Review V4 Report</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 960px; margin: 40px auto; padding: 0 20px; color: #333; }
-    h1 { color: #1a1a2e; }
-    .summary { display: flex; gap: 20px; flex-wrap: wrap; margin: 20px 0; }
-    .card { background: #f8f9fa; border-radius: 8px; padding: 16px 24px; min-width: 120px; }
-    .card h3 { margin: 0; font-size: 14px; color: #666; }
-    .card p { margin: 4px 0 0; font-size: 24px; font-weight: bold; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th { background: #1a1a2e; color: white; padding: 10px; text-align: left; }
-    td { padding: 8px 10px; border-bottom: 1px solid #eee; }
-    .sev-error { color: #d32f2f; font-weight: bold; }
-    .sev-warning { color: #f57c00; }
-    .sev-info { color: #1976d2; }
-    .passed { color: #2e7d32; }
-    .failed { color: #d32f2f; }
-  </style>
-</head>
-<body>
-  <h1>Open Code Review V4</h1>
-  <div class="summary">
-    <div class="card"><h3>Files</h3><p>${result.files.length}</p></div>
-    <div class="card"><h3>Issues</h3><p>${result.issues.length}</p></div>
-    <div class="card"><h3>SLA</h3><p>${result.sla}</p></div>
-    ${score ? `
-    <div class="card"><h3>Score</h3><p>${score.totalScore}</p></div>
-    <div class="card"><h3>Grade</h3><p>${score.grade}</p></div>
-    <div class="card"><h3>Status</h3><p class="${score.passed ? 'passed' : 'failed'}">${score.passed ? 'PASSED' : 'FAILED'}</p></div>
-    ` : ''}
-    <div class="card"><h3>Duration</h3><p>${result.durationMs}ms</p></div>
-  </div>
-  ${result.issues.length > 0 ? `
-  <h2>Issues</h2>
-  <table>
-    <thead><tr><th>Severity</th><th>File</th><th>Line</th><th>Detector</th><th>Message</th></tr></thead>
-    <tbody>${issueRows}</tbody>
-  </table>` : '<p>✅ No issues found!</p>'}
-</body>
-</html>`;
+  if (score) {
+    return generateV4HTML(result, score);
+  }
+  // Fallback: generate a minimal score for HTML
+  const fallbackScore: V4ScoreResult = {
+    totalScore: 0, grade: 'N/A', issueCount: result.issues.length,
+    passed: false, threshold: 70,
+    dimensions: {
+      faithfulness: { name: 'AI Faithfulness', maxScore: 25, score: 25, issueCount: 0, percentage: 100 },
+      freshness: { name: 'Code Freshness', maxScore: 25, score: 25, issueCount: 0, percentage: 100 },
+      coherence: { name: 'Context Coherence', maxScore: 25, score: 25, issueCount: 0, percentage: 100 },
+      quality: { name: 'Implementation Quality', maxScore: 25, score: 25, issueCount: 0, percentage: 100 },
+    },
+  };
+  return generateV4HTML(result, fallbackScore);
 }
 
 function escapeHtml(str: string): string {

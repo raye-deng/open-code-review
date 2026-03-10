@@ -46,6 +46,28 @@ Stage 2: LLM Deep Scan (precise)
 
 > We don't replace your code reviewer. We catch what it can't see.
 
+## Real-World Scan Results
+
+Scanned 5 popular open-source repositories across 5 languages with V4 (L1 structural analysis):
+
+### create-t3-app (TypeScript) — Score: 80 / Grade B
+![create-t3-app scan report](docs/demo-reports/v4/create-t3-app/screenshot.png)
+
+### typer (Python) — Score: 74 / Grade C
+![typer scan report](docs/demo-reports/v4/typer/screenshot.png)
+
+### java-design-patterns (Java) — Score: 36 / Grade F
+![java-design-patterns scan report](docs/demo-reports/v4/java-design-patterns/screenshot.png)
+
+### chi (Go) — Score: 70 / Grade C
+![chi scan report](docs/demo-reports/v4/chi/screenshot.png)
+
+### moshi (Kotlin) — Score: 58 / Grade F
+![moshi scan report](docs/demo-reports/v4/moshi/screenshot.png)
+
+> **These are well-maintained, human-written projects.** AI-generated code typically scores lower.  
+> V4 reduced per-file false positives by **88%** compared to V3. See [full comparison →](docs/demo-reports/v4/SUMMARY.md)
+
 ## Quick Start
 
 ```bash

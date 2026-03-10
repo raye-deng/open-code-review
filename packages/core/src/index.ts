@@ -117,7 +117,7 @@ export type { ReportFormat } from './scorer/report.js';
 
 // ─── Reporter (V3) ───
 
-export { generateReport, generateHTML, generateSARIF, generateMarkdown, generateTerminal } from './reporter/index.js';
+export { generateReport, generateHTML, generateV4HTML, generateSARIF, generateMarkdown, generateTerminal } from './reporter/index.js';
 export type { ReportFormat as ReportFormatV3, ReportOptions, ReportData } from './reporter/index.js';
 
 // ─── AI Analysis (Tier 3) ───

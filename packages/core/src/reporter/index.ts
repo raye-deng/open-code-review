@@ -13,6 +13,7 @@
 
 export type { ReportFormat, ReportOptions, ReportData } from './types.js';
 export { generateHTML } from './html-reporter.js';
+export { generateV4HTML } from './v4-html.js';
 export { generateSARIF } from './sarif-reporter.js';
 export { generateMarkdown } from './markdown-reporter.js';
 export { generateTerminal } from './terminal-reporter.js';
