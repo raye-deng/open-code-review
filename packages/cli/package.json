@@ -1,6 +1,6 @@
 {
   "name": "@opencodereview/cli",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "CLI tool for validating AI-generated code quality",
   "type": "module",
   "bin": {
@@ -29,7 +29,7 @@
   "license": "MIT",
   "dependencies": {
     "glob": "^10.3.0",
-    "@opencodereview/core": "workspace:^"
+    "@opencodereview/core": "^2.0.0"
   },
   "devDependencies": {
     "typescript": "^5.4.0",
