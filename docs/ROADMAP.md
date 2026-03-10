@@ -109,10 +109,10 @@
 
 | # | 任务 | 文件/模块 | 状态 |
 |---|------|----------|------|
-| 4.1 | AI Provider 抽象层 | `packages/core/src/ai/` | ⬜ |
-| 4.2 | Ollama 集成 | `packages/core/src/ai/providers/ollama.ts` | ⬜ |
-| 4.3 | OpenAI/Anthropic 集成 | `packages/core/src/ai/providers/` | ⬜ |
-| 4.4 | Prompt 模板（多语言） | `packages/core/src/ai/prompts/` | ⬜ |
+| 4.1 | AI Provider 抽象层 | `packages/core/src/ai/` | ✅ |
+| 4.2 | Ollama 集成 | `packages/core/src/ai/ollama-provider.ts` | ✅ |
+| 4.3 | OpenAI/Anthropic 集成 | `packages/core/src/ai/openai-provider.ts`, `anthropic-provider.ts` | ✅ |
+| 4.4 | Prompt 模板（多语言） | `packages/core/src/ai/prompts.ts` | ✅ |
 | 4.5 | Result Fusion 引擎 | `packages/core/src/ai/fusion.ts` | ⬜ |
 | 4.6 | HTML 报告 (Lighthouse 风格) | `packages/core/src/reporter/html.ts` | ⬜ |
 | 4.7 | Terminal 报告升级 | `packages/core/src/reporter/terminal.ts` | ⬜ |
