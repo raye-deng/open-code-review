@@ -30,7 +30,7 @@ jobs:
       - name: Build
         run: |
           pnpm --filter @open-code-review/core build
-          pnpm --filter open-code-review build
+          pnpm --filter @open-code-review/cli build
           pnpm --filter @open-code-review/github-action build
 
       - name: Verify CLI
