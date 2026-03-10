@@ -226,3 +226,68 @@ export type {
   DetectorCategory,
   DetectorContext,
 } from './detectors/v4/index.js';
+
+// ─── V4: i18n Framework ───
+
+export {
+  DefaultI18nProvider,
+  createI18n,
+  EN_MESSAGES,
+  EN_LOCALE,
+  ZH_MESSAGES,
+  ZH_LOCALE,
+} from './i18n/index.js';
+
+export type { Locale, I18nProvider } from './i18n/index.js';
+
+// ─── V4: Scanner ───
+
+export {
+  V4Scanner,
+  createV4Scanner,
+  DEFAULT_INCLUDE_PATTERNS,
+  DEFAULT_EXCLUDE_PATTERNS,
+} from './scanner/index.js';
+
+export type {
+  V4ScanConfig,
+  V4ScanResult,
+  SLALevel,
+} from './scanner/index.js';
+
+// ─── V4: Score Adapter ───
+
+export {
+  v4ResultToV3Issue,
+  v4ResultsToV3Issues,
+  scoreV4Results,
+  computeGrade as computeGradeV4,
+  countByCategory,
+  countBySeverity,
+  getV4ResultStats,
+} from './scorer/v4-adapter.js';
+
+export type {
+  V4ScoreResult,
+  DimensionInfo,
+} from './scorer/v4-adapter.js';
+
+// ─── V4: Terminal Reporter ───
+
+export {
+  V4TerminalReporter,
+  createV4TerminalReporter,
+  renderV4Terminal,
+} from './reporter/v4-terminal.js';
+
+export type { V4TerminalReportOptions } from './reporter/v4-terminal.js';
+
+// ─── V4: Configuration ───
+
+export {
+  loadV4Config,
+  DEFAULT_V4_CONFIG,
+  generateDefaultConfigYaml,
+} from './config/v4-config.js';
+
+export type { V4Config, LoadV4ConfigOptions } from './config/v4-config.js';
