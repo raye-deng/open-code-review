@@ -63,9 +63,9 @@
 | 2.3 | OverEngineeringDetector | `packages/core/src/detectors/over-engineering.ts` | ⬜ |
 | 2.4 | DeepHallucinationDetector | `packages/core/src/detectors/deep-hallucination.ts` | ⬜ |
 | 2.5 | TypeSafetyDetector (TS only) | `packages/core/src/detectors/type-safety.ts` | ⬜ |
-| 2.6 | Python LanguageAdapter | `packages/core/src/languages/python/` | ⬜ |
-| 2.7 | PyPI + Python 废弃 API 数据库 | `data/deprecated-apis/python.json` | ⬜ |
-| 2.8 | 全检测器 × Python 单元测试 | `packages/core/tests/python/` | ⬜ |
+| 2.6 | Python LanguageAdapter | `packages/core/src/languages/python/` | ✅ |
+| 2.7 | PyPI + Python 废弃 API 数据库 | `data/deprecated-apis/python.json` | ✅ |
+| 2.8 | 全检测器 × Python 单元测试 | `packages/core/tests/python/` | ✅ |
 
 ### 验收标准
 - [ ] 9 个检测器对 TS/JS + Python 均有测试覆盖
