@@ -30204,6 +30204,13 @@ module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:events"
 
 /***/ }),
 
+/***/ 8995:
+/***/ ((module) => {
+
+module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:module");
+
+/***/ }),
+
 /***/ 7075:
 /***/ ((module) => {
 
@@ -30236,6 +30243,13 @@ module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("path");
 /***/ ((module) => {
 
 module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("perf_hooks");
+
+/***/ }),
+
+/***/ 932:
+/***/ ((module) => {
+
+module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("process");
 
 /***/ }),
 
@@ -31927,6 +31941,8530 @@ function parseParams (str) {
 module.exports = parseParams
 
 
+/***/ }),
+
+/***/ 6553:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+var Scalar = __nccwpck_require__(6129);
+var YAMLMap = __nccwpck_require__(6122);
+var YAMLSeq = __nccwpck_require__(5971);
+var resolveBlockMap = __nccwpck_require__(8459);
+var resolveBlockSeq = __nccwpck_require__(2714);
+var resolveFlowCollection = __nccwpck_require__(5106);
+
+function resolveCollection(CN, ctx, token, onError, tagName, tag) {
+    const coll = token.type === 'block-map'
+        ? resolveBlockMap.resolveBlockMap(CN, ctx, token, onError, tag)
+        : token.type === 'block-seq'
+            ? resolveBlockSeq.resolveBlockSeq(CN, ctx, token, onError, tag)
+            : resolveFlowCollection.resolveFlowCollection(CN, ctx, token, onError, tag);
+    const Coll = coll.constructor;
+    // If we got a tagName matching the class, or the tag name is '!',
+    // then use the tagName from the node class used to create it.
+    if (tagName === '!' || tagName === Coll.tagName) {
+        coll.tag = Coll.tagName;
+        return coll;
+    }
+    if (tagName)
+        coll.tag = tagName;
+    return coll;
+}
+function composeCollection(CN, ctx, token, props, onError) {
+    const tagToken = props.tag;
+    const tagName = !tagToken
+        ? null
+        : ctx.directives.tagName(tagToken.source, msg => onError(tagToken, 'TAG_RESOLVE_FAILED', msg));
+    if (token.type === 'block-seq') {
+        const { anchor, newlineAfterProp: nl } = props;
+        const lastProp = anchor && tagToken
+            ? anchor.offset > tagToken.offset
+                ? anchor
+                : tagToken
+            : (anchor ?? tagToken);
+        if (lastProp && (!nl || nl.offset < lastProp.offset)) {
+            const message = 'Missing newline after block sequence props';
+            onError(lastProp, 'MISSING_CHAR', message);
+        }
+    }
+    const expType = token.type === 'block-map'
+        ? 'map'
+        : token.type === 'block-seq'
+            ? 'seq'
+            : token.start.source === '{'
+                ? 'map'
+                : 'seq';
+    // shortcut: check if it's a generic YAMLMap or YAMLSeq
+    // before jumping into the custom tag logic.
+    if (!tagToken ||
+        !tagName ||
+        tagName === '!' ||
+        (tagName === YAMLMap.YAMLMap.tagName && expType === 'map') ||
+        (tagName === YAMLSeq.YAMLSeq.tagName && expType === 'seq')) {
+        return resolveCollection(CN, ctx, token, onError, tagName);
+    }
+    let tag = ctx.schema.tags.find(t => t.tag === tagName && t.collection === expType);
+    if (!tag) {
+        const kt = ctx.schema.knownTags[tagName];
+        if (kt?.collection === expType) {
+            ctx.schema.tags.push(Object.assign({}, kt, { default: false }));
+            tag = kt;
+        }
+        else {
+            if (kt) {
+                onError(tagToken, 'BAD_COLLECTION_TYPE', `${kt.tag} used for ${expType} collection, but expects ${kt.collection ?? 'scalar'}`, true);
+            }
+            else {
+                onError(tagToken, 'TAG_RESOLVE_FAILED', `Unresolved tag: ${tagName}`, true);
+            }
+            return resolveCollection(CN, ctx, token, onError, tagName);
+        }
+    }
+    const coll = resolveCollection(CN, ctx, token, onError, tagName, tag);
+    const res = tag.resolve?.(coll, msg => onError(tagToken, 'TAG_RESOLVE_FAILED', msg), ctx.options) ?? coll;
+    const node = identity.isNode(res)
+        ? res
+        : new Scalar.Scalar(res);
+    node.range = coll.range;
+    node.tag = tagName;
+    if (tag?.format)
+        node.format = tag.format;
+    return node;
+}
+
+exports.composeCollection = composeCollection;
+
+
+/***/ }),
+
+/***/ 3031:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var Document = __nccwpck_require__(9097);
+var composeNode = __nccwpck_require__(3613);
+var resolveEnd = __nccwpck_require__(8608);
+var resolveProps = __nccwpck_require__(2523);
+
+function composeDoc(options, directives, { offset, start, value, end }, onError) {
+    const opts = Object.assign({ _directives: directives }, options);
+    const doc = new Document.Document(undefined, opts);
+    const ctx = {
+        atKey: false,
+        atRoot: true,
+        directives: doc.directives,
+        options: doc.options,
+        schema: doc.schema
+    };
+    const props = resolveProps.resolveProps(start, {
+        indicator: 'doc-start',
+        next: value ?? end?.[0],
+        offset,
+        onError,
+        parentIndent: 0,
+        startOnNewline: true
+    });
+    if (props.found) {
+        doc.directives.docStart = true;
+        if (value &&
+            (value.type === 'block-map' || value.type === 'block-seq') &&
+            !props.hasNewline)
+            onError(props.end, 'MISSING_CHAR', 'Block collection cannot start on same line with directives-end marker');
+    }
+    // @ts-expect-error If Contents is set, let's trust the user
+    doc.contents = value
+        ? composeNode.composeNode(ctx, value, props, onError)
+        : composeNode.composeEmptyNode(ctx, props.end, start, null, props, onError);
+    const contentEnd = doc.contents.range[2];
+    const re = resolveEnd.resolveEnd(end, contentEnd, false, onError);
+    if (re.comment)
+        doc.comment = re.comment;
+    doc.range = [offset, contentEnd, re.offset];
+    return doc;
+}
+
+exports.composeDoc = composeDoc;
+
+
+/***/ }),
+
+/***/ 3613:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var Alias = __nccwpck_require__(709);
+var identity = __nccwpck_require__(1667);
+var composeCollection = __nccwpck_require__(6553);
+var composeScalar = __nccwpck_require__(3929);
+var resolveEnd = __nccwpck_require__(8608);
+var utilEmptyScalarPosition = __nccwpck_require__(7595);
+
+const CN = { composeNode, composeEmptyNode };
+function composeNode(ctx, token, props, onError) {
+    const atKey = ctx.atKey;
+    const { spaceBefore, comment, anchor, tag } = props;
+    let node;
+    let isSrcToken = true;
+    switch (token.type) {
+        case 'alias':
+            node = composeAlias(ctx, token, onError);
+            if (anchor || tag)
+                onError(token, 'ALIAS_PROPS', 'An alias node must not specify any properties');
+            break;
+        case 'scalar':
+        case 'single-quoted-scalar':
+        case 'double-quoted-scalar':
+        case 'block-scalar':
+            node = composeScalar.composeScalar(ctx, token, tag, onError);
+            if (anchor)
+                node.anchor = anchor.source.substring(1);
+            break;
+        case 'block-map':
+        case 'block-seq':
+        case 'flow-collection':
+            node = composeCollection.composeCollection(CN, ctx, token, props, onError);
+            if (anchor)
+                node.anchor = anchor.source.substring(1);
+            break;
+        default: {
+            const message = token.type === 'error'
+                ? token.message
+                : `Unsupported token (type: ${token.type})`;
+            onError(token, 'UNEXPECTED_TOKEN', message);
+            node = composeEmptyNode(ctx, token.offset, undefined, null, props, onError);
+            isSrcToken = false;
+        }
+    }
+    if (anchor && node.anchor === '')
+        onError(anchor, 'BAD_ALIAS', 'Anchor cannot be an empty string');
+    if (atKey &&
+        ctx.options.stringKeys &&
+        (!identity.isScalar(node) ||
+            typeof node.value !== 'string' ||
+            (node.tag && node.tag !== 'tag:yaml.org,2002:str'))) {
+        const msg = 'With stringKeys, all keys must be strings';
+        onError(tag ?? token, 'NON_STRING_KEY', msg);
+    }
+    if (spaceBefore)
+        node.spaceBefore = true;
+    if (comment) {
+        if (token.type === 'scalar' && token.source === '')
+            node.comment = comment;
+        else
+            node.commentBefore = comment;
+    }
+    // @ts-expect-error Type checking misses meaning of isSrcToken
+    if (ctx.options.keepSourceTokens && isSrcToken)
+        node.srcToken = token;
+    return node;
+}
+function composeEmptyNode(ctx, offset, before, pos, { spaceBefore, comment, anchor, tag, end }, onError) {
+    const token = {
+        type: 'scalar',
+        offset: utilEmptyScalarPosition.emptyScalarPosition(offset, before, pos),
+        indent: -1,
+        source: ''
+    };
+    const node = composeScalar.composeScalar(ctx, token, tag, onError);
+    if (anchor) {
+        node.anchor = anchor.source.substring(1);
+        if (node.anchor === '')
+            onError(anchor, 'BAD_ALIAS', 'Anchor cannot be an empty string');
+    }
+    if (spaceBefore)
+        node.spaceBefore = true;
+    if (comment) {
+        node.comment = comment;
+        node.range[2] = end;
+    }
+    return node;
+}
+function composeAlias({ options }, { offset, source, end }, onError) {
+    const alias = new Alias.Alias(source.substring(1));
+    if (alias.source === '')
+        onError(offset, 'BAD_ALIAS', 'Alias cannot be an empty string');
+    if (alias.source.endsWith(':'))
+        onError(offset + source.length - 1, 'BAD_ALIAS', 'Alias ending in : is ambiguous', true);
+    const valueEnd = offset + source.length;
+    const re = resolveEnd.resolveEnd(end, valueEnd, options.strict, onError);
+    alias.range = [offset, valueEnd, re.offset];
+    if (re.comment)
+        alias.comment = re.comment;
+    return alias;
+}
+
+exports.composeEmptyNode = composeEmptyNode;
+exports.composeNode = composeNode;
+
+
+/***/ }),
+
+/***/ 3929:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+var Scalar = __nccwpck_require__(6129);
+var resolveBlockScalar = __nccwpck_require__(117);
+var resolveFlowScalar = __nccwpck_require__(9382);
+
+function composeScalar(ctx, token, tagToken, onError) {
+    const { value, type, comment, range } = token.type === 'block-scalar'
+        ? resolveBlockScalar.resolveBlockScalar(ctx, token, onError)
+        : resolveFlowScalar.resolveFlowScalar(token, ctx.options.strict, onError);
+    const tagName = tagToken
+        ? ctx.directives.tagName(tagToken.source, msg => onError(tagToken, 'TAG_RESOLVE_FAILED', msg))
+        : null;
+    let tag;
+    if (ctx.options.stringKeys && ctx.atKey) {
+        tag = ctx.schema[identity.SCALAR];
+    }
+    else if (tagName)
+        tag = findScalarTagByName(ctx.schema, value, tagName, tagToken, onError);
+    else if (token.type === 'scalar')
+        tag = findScalarTagByTest(ctx, value, token, onError);
+    else
+        tag = ctx.schema[identity.SCALAR];
+    let scalar;
+    try {
+        const res = tag.resolve(value, msg => onError(tagToken ?? token, 'TAG_RESOLVE_FAILED', msg), ctx.options);
+        scalar = identity.isScalar(res) ? res : new Scalar.Scalar(res);
+    }
+    catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        onError(tagToken ?? token, 'TAG_RESOLVE_FAILED', msg);
+        scalar = new Scalar.Scalar(value);
+    }
+    scalar.range = range;
+    scalar.source = value;
+    if (type)
+        scalar.type = type;
+    if (tagName)
+        scalar.tag = tagName;
+    if (tag.format)
+        scalar.format = tag.format;
+    if (comment)
+        scalar.comment = comment;
+    return scalar;
+}
+function findScalarTagByName(schema, value, tagName, tagToken, onError) {
+    if (tagName === '!')
+        return schema[identity.SCALAR]; // non-specific tag
+    const matchWithTest = [];
+    for (const tag of schema.tags) {
+        if (!tag.collection && tag.tag === tagName) {
+            if (tag.default && tag.test)
+                matchWithTest.push(tag);
+            else
+                return tag;
+        }
+    }
+    for (const tag of matchWithTest)
+        if (tag.test?.test(value))
+            return tag;
+    const kt = schema.knownTags[tagName];
+    if (kt && !kt.collection) {
+        // Ensure that the known tag is available for stringifying,
+        // but does not get used by default.
+        schema.tags.push(Object.assign({}, kt, { default: false, test: undefined }));
+        return kt;
+    }
+    onError(tagToken, 'TAG_RESOLVE_FAILED', `Unresolved tag: ${tagName}`, tagName !== 'tag:yaml.org,2002:str');
+    return schema[identity.SCALAR];
+}
+function findScalarTagByTest({ atKey, directives, schema }, value, token, onError) {
+    const tag = schema.tags.find(tag => (tag.default === true || (atKey && tag.default === 'key')) &&
+        tag.test?.test(value)) || schema[identity.SCALAR];
+    if (schema.compat) {
+        const compat = schema.compat.find(tag => tag.default && tag.test?.test(value)) ??
+            schema[identity.SCALAR];
+        if (tag.tag !== compat.tag) {
+            const ts = directives.tagString(tag.tag);
+            const cs = directives.tagString(compat.tag);
+            const msg = `Value may be parsed as either ${ts} or ${cs}`;
+            onError(token, 'TAG_RESOLVE_FAILED', msg, true);
+        }
+    }
+    return tag;
+}
+
+exports.composeScalar = composeScalar;
+
+
+/***/ }),
+
+/***/ 3156:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var node_process = __nccwpck_require__(932);
+var directives = __nccwpck_require__(8202);
+var Document = __nccwpck_require__(9097);
+var errors = __nccwpck_require__(1940);
+var identity = __nccwpck_require__(1667);
+var composeDoc = __nccwpck_require__(3031);
+var resolveEnd = __nccwpck_require__(8608);
+
+function getErrorPos(src) {
+    if (typeof src === 'number')
+        return [src, src + 1];
+    if (Array.isArray(src))
+        return src.length === 2 ? src : [src[0], src[1]];
+    const { offset, source } = src;
+    return [offset, offset + (typeof source === 'string' ? source.length : 1)];
+}
+function parsePrelude(prelude) {
+    let comment = '';
+    let atComment = false;
+    let afterEmptyLine = false;
+    for (let i = 0; i < prelude.length; ++i) {
+        const source = prelude[i];
+        switch (source[0]) {
+            case '#':
+                comment +=
+                    (comment === '' ? '' : afterEmptyLine ? '\n\n' : '\n') +
+                        (source.substring(1) || ' ');
+                atComment = true;
+                afterEmptyLine = false;
+                break;
+            case '%':
+                if (prelude[i + 1]?.[0] !== '#')
+                    i += 1;
+                atComment = false;
+                break;
+            default:
+                // This may be wrong after doc-end, but in that case it doesn't matter
+                if (!atComment)
+                    afterEmptyLine = true;
+                atComment = false;
+        }
+    }
+    return { comment, afterEmptyLine };
+}
+/**
+ * Compose a stream of CST nodes into a stream of YAML Documents.
+ *
+ * ```ts
+ * import { Composer, Parser } from 'yaml'
+ *
+ * const src: string = ...
+ * const tokens = new Parser().parse(src)
+ * const docs = new Composer().compose(tokens)
+ * ```
+ */
+class Composer {
+    constructor(options = {}) {
+        this.doc = null;
+        this.atDirectives = false;
+        this.prelude = [];
+        this.errors = [];
+        this.warnings = [];
+        this.onError = (source, code, message, warning) => {
+            const pos = getErrorPos(source);
+            if (warning)
+                this.warnings.push(new errors.YAMLWarning(pos, code, message));
+            else
+                this.errors.push(new errors.YAMLParseError(pos, code, message));
+        };
+        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+        this.directives = new directives.Directives({ version: options.version || '1.2' });
+        this.options = options;
+    }
+    decorate(doc, afterDoc) {
+        const { comment, afterEmptyLine } = parsePrelude(this.prelude);
+        //console.log({ dc: doc.comment, prelude, comment })
+        if (comment) {
+            const dc = doc.contents;
+            if (afterDoc) {
+                doc.comment = doc.comment ? `${doc.comment}\n${comment}` : comment;
+            }
+            else if (afterEmptyLine || doc.directives.docStart || !dc) {
+                doc.commentBefore = comment;
+            }
+            else if (identity.isCollection(dc) && !dc.flow && dc.items.length > 0) {
+                let it = dc.items[0];
+                if (identity.isPair(it))
+                    it = it.key;
+                const cb = it.commentBefore;
+                it.commentBefore = cb ? `${comment}\n${cb}` : comment;
+            }
+            else {
+                const cb = dc.commentBefore;
+                dc.commentBefore = cb ? `${comment}\n${cb}` : comment;
+            }
+        }
+        if (afterDoc) {
+            Array.prototype.push.apply(doc.errors, this.errors);
+            Array.prototype.push.apply(doc.warnings, this.warnings);
+        }
+        else {
+            doc.errors = this.errors;
+            doc.warnings = this.warnings;
+        }
+        this.prelude = [];
+        this.errors = [];
+        this.warnings = [];
+    }
+    /**
+     * Current stream status information.
+     *
+     * Mostly useful at the end of input for an empty stream.
+     */
+    streamInfo() {
+        return {
+            comment: parsePrelude(this.prelude).comment,
+            directives: this.directives,
+            errors: this.errors,
+            warnings: this.warnings
+        };
+    }
+    /**
+     * Compose tokens into documents.
+     *
+     * @param forceDoc - If the stream contains no document, still emit a final document including any comments and directives that would be applied to a subsequent document.
+     * @param endOffset - Should be set if `forceDoc` is also set, to set the document range end and to indicate errors correctly.
+     */
+    *compose(tokens, forceDoc = false, endOffset = -1) {
+        for (const token of tokens)
+            yield* this.next(token);
+        yield* this.end(forceDoc, endOffset);
+    }
+    /** Advance the composer by one CST token. */
+    *next(token) {
+        if (node_process.env.LOG_STREAM)
+            console.dir(token, { depth: null });
+        switch (token.type) {
+            case 'directive':
+                this.directives.add(token.source, (offset, message, warning) => {
+                    const pos = getErrorPos(token);
+                    pos[0] += offset;
+                    this.onError(pos, 'BAD_DIRECTIVE', message, warning);
+                });
+                this.prelude.push(token.source);
+                this.atDirectives = true;
+                break;
+            case 'document': {
+                const doc = composeDoc.composeDoc(this.options, this.directives, token, this.onError);
+                if (this.atDirectives && !doc.directives.docStart)
+                    this.onError(token, 'MISSING_CHAR', 'Missing directives-end/doc-start indicator line');
+                this.decorate(doc, false);
+                if (this.doc)
+                    yield this.doc;
+                this.doc = doc;
+                this.atDirectives = false;
+                break;
+            }
+            case 'byte-order-mark':
+            case 'space':
+                break;
+            case 'comment':
+            case 'newline':
+                this.prelude.push(token.source);
+                break;
+            case 'error': {
+                const msg = token.source
+                    ? `${token.message}: ${JSON.stringify(token.source)}`
+                    : token.message;
+                const error = new errors.YAMLParseError(getErrorPos(token), 'UNEXPECTED_TOKEN', msg);
+                if (this.atDirectives || !this.doc)
+                    this.errors.push(error);
+                else
+                    this.doc.errors.push(error);
+                break;
+            }
+            case 'doc-end': {
+                if (!this.doc) {
+                    const msg = 'Unexpected doc-end without preceding document';
+                    this.errors.push(new errors.YAMLParseError(getErrorPos(token), 'UNEXPECTED_TOKEN', msg));
+                    break;
+                }
+                this.doc.directives.docEnd = true;
+                const end = resolveEnd.resolveEnd(token.end, token.offset + token.source.length, this.doc.options.strict, this.onError);
+                this.decorate(this.doc, true);
+                if (end.comment) {
+                    const dc = this.doc.comment;
+                    this.doc.comment = dc ? `${dc}\n${end.comment}` : end.comment;
+                }
+                this.doc.range[2] = end.offset;
+                break;
+            }
+            default:
+                this.errors.push(new errors.YAMLParseError(getErrorPos(token), 'UNEXPECTED_TOKEN', `Unsupported token ${token.type}`));
+        }
+    }
+    /**
+     * Call at end of input to yield any remaining document.
+     *
+     * @param forceDoc - If the stream contains no document, still emit a final document including any comments and directives that would be applied to a subsequent document.
+     * @param endOffset - Should be set if `forceDoc` is also set, to set the document range end and to indicate errors correctly.
+     */
+    *end(forceDoc = false, endOffset = -1) {
+        if (this.doc) {
+            this.decorate(this.doc, true);
+            yield this.doc;
+            this.doc = null;
+        }
+        else if (forceDoc) {
+            const opts = Object.assign({ _directives: this.directives }, this.options);
+            const doc = new Document.Document(undefined, opts);
+            if (this.atDirectives)
+                this.onError(endOffset, 'MISSING_CHAR', 'Missing directives-end indicator line');
+            doc.range = [0, endOffset, endOffset];
+            this.decorate(doc, false);
+            yield doc;
+        }
+    }
+}
+
+exports.Composer = Composer;
+
+
+/***/ }),
+
+/***/ 8459:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var Pair = __nccwpck_require__(6033);
+var YAMLMap = __nccwpck_require__(6122);
+var resolveProps = __nccwpck_require__(2523);
+var utilContainsNewline = __nccwpck_require__(9823);
+var utilFlowIndentCheck = __nccwpck_require__(8983);
+var utilMapIncludes = __nccwpck_require__(119);
+
+const startColMsg = 'All mapping items must start at the same column';
+function resolveBlockMap({ composeNode, composeEmptyNode }, ctx, bm, onError, tag) {
+    const NodeClass = tag?.nodeClass ?? YAMLMap.YAMLMap;
+    const map = new NodeClass(ctx.schema);
+    if (ctx.atRoot)
+        ctx.atRoot = false;
+    let offset = bm.offset;
+    let commentEnd = null;
+    for (const collItem of bm.items) {
+        const { start, key, sep, value } = collItem;
+        // key properties
+        const keyProps = resolveProps.resolveProps(start, {
+            indicator: 'explicit-key-ind',
+            next: key ?? sep?.[0],
+            offset,
+            onError,
+            parentIndent: bm.indent,
+            startOnNewline: true
+        });
+        const implicitKey = !keyProps.found;
+        if (implicitKey) {
+            if (key) {
+                if (key.type === 'block-seq')
+                    onError(offset, 'BLOCK_AS_IMPLICIT_KEY', 'A block sequence may not be used as an implicit map key');
+                else if ('indent' in key && key.indent !== bm.indent)
+                    onError(offset, 'BAD_INDENT', startColMsg);
+            }
+            if (!keyProps.anchor && !keyProps.tag && !sep) {
+                commentEnd = keyProps.end;
+                if (keyProps.comment) {
+                    if (map.comment)
+                        map.comment += '\n' + keyProps.comment;
+                    else
+                        map.comment = keyProps.comment;
+                }
+                continue;
+            }
+            if (keyProps.newlineAfterProp || utilContainsNewline.containsNewline(key)) {
+                onError(key ?? start[start.length - 1], 'MULTILINE_IMPLICIT_KEY', 'Implicit keys need to be on a single line');
+            }
+        }
+        else if (keyProps.found?.indent !== bm.indent) {
+            onError(offset, 'BAD_INDENT', startColMsg);
+        }
+        // key value
+        ctx.atKey = true;
+        const keyStart = keyProps.end;
+        const keyNode = key
+            ? composeNode(ctx, key, keyProps, onError)
+            : composeEmptyNode(ctx, keyStart, start, null, keyProps, onError);
+        if (ctx.schema.compat)
+            utilFlowIndentCheck.flowIndentCheck(bm.indent, key, onError);
+        ctx.atKey = false;
+        if (utilMapIncludes.mapIncludes(ctx, map.items, keyNode))
+            onError(keyStart, 'DUPLICATE_KEY', 'Map keys must be unique');
+        // value properties
+        const valueProps = resolveProps.resolveProps(sep ?? [], {
+            indicator: 'map-value-ind',
+            next: value,
+            offset: keyNode.range[2],
+            onError,
+            parentIndent: bm.indent,
+            startOnNewline: !key || key.type === 'block-scalar'
+        });
+        offset = valueProps.end;
+        if (valueProps.found) {
+            if (implicitKey) {
+                if (value?.type === 'block-map' && !valueProps.hasNewline)
+                    onError(offset, 'BLOCK_AS_IMPLICIT_KEY', 'Nested mappings are not allowed in compact mappings');
+                if (ctx.options.strict &&
+                    keyProps.start < valueProps.found.offset - 1024)
+                    onError(keyNode.range, 'KEY_OVER_1024_CHARS', 'The : indicator must be at most 1024 chars after the start of an implicit block mapping key');
+            }
+            // value value
+            const valueNode = value
+                ? composeNode(ctx, value, valueProps, onError)
+                : composeEmptyNode(ctx, offset, sep, null, valueProps, onError);
+            if (ctx.schema.compat)
+                utilFlowIndentCheck.flowIndentCheck(bm.indent, value, onError);
+            offset = valueNode.range[2];
+            const pair = new Pair.Pair(keyNode, valueNode);
+            if (ctx.options.keepSourceTokens)
+                pair.srcToken = collItem;
+            map.items.push(pair);
+        }
+        else {
+            // key with no value
+            if (implicitKey)
+                onError(keyNode.range, 'MISSING_CHAR', 'Implicit map keys need to be followed by map values');
+            if (valueProps.comment) {
+                if (keyNode.comment)
+                    keyNode.comment += '\n' + valueProps.comment;
+                else
+                    keyNode.comment = valueProps.comment;
+            }
+            const pair = new Pair.Pair(keyNode);
+            if (ctx.options.keepSourceTokens)
+                pair.srcToken = collItem;
+            map.items.push(pair);
+        }
+    }
+    if (commentEnd && commentEnd < offset)
+        onError(commentEnd, 'IMPOSSIBLE', 'Map comment with trailing content');
+    map.range = [bm.offset, offset, commentEnd ?? offset];
+    return map;
+}
+
+exports.resolveBlockMap = resolveBlockMap;
+
+
+/***/ }),
+
+/***/ 117:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var Scalar = __nccwpck_require__(6129);
+
+function resolveBlockScalar(ctx, scalar, onError) {
+    const start = scalar.offset;
+    const header = parseBlockScalarHeader(scalar, ctx.options.strict, onError);
+    if (!header)
+        return { value: '', type: null, comment: '', range: [start, start, start] };
+    const type = header.mode === '>' ? Scalar.Scalar.BLOCK_FOLDED : Scalar.Scalar.BLOCK_LITERAL;
+    const lines = scalar.source ? splitLines(scalar.source) : [];
+    // determine the end of content & start of chomping
+    let chompStart = lines.length;
+    for (let i = lines.length - 1; i >= 0; --i) {
+        const content = lines[i][1];
+        if (content === '' || content === '\r')
+            chompStart = i;
+        else
+            break;
+    }
+    // shortcut for empty contents
+    if (chompStart === 0) {
+        const value = header.chomp === '+' && lines.length > 0
+            ? '\n'.repeat(Math.max(1, lines.length - 1))
+            : '';
+        let end = start + header.length;
+        if (scalar.source)
+            end += scalar.source.length;
+        return { value, type, comment: header.comment, range: [start, end, end] };
+    }
+    // find the indentation level to trim from start
+    let trimIndent = scalar.indent + header.indent;
+    let offset = scalar.offset + header.length;
+    let contentStart = 0;
+    for (let i = 0; i < chompStart; ++i) {
+        const [indent, content] = lines[i];
+        if (content === '' || content === '\r') {
+            if (header.indent === 0 && indent.length > trimIndent)
+                trimIndent = indent.length;
+        }
+        else {
+            if (indent.length < trimIndent) {
+                const message = 'Block scalars with more-indented leading empty lines must use an explicit indentation indicator';
+                onError(offset + indent.length, 'MISSING_CHAR', message);
+            }
+            if (header.indent === 0)
+                trimIndent = indent.length;
+            contentStart = i;
+            if (trimIndent === 0 && !ctx.atRoot) {
+                const message = 'Block scalar values in collections must be indented';
+                onError(offset, 'BAD_INDENT', message);
+            }
+            break;
+        }
+        offset += indent.length + content.length + 1;
+    }
+    // include trailing more-indented empty lines in content
+    for (let i = lines.length - 1; i >= chompStart; --i) {
+        if (lines[i][0].length > trimIndent)
+            chompStart = i + 1;
+    }
+    let value = '';
+    let sep = '';
+    let prevMoreIndented = false;
+    // leading whitespace is kept intact
+    for (let i = 0; i < contentStart; ++i)
+        value += lines[i][0].slice(trimIndent) + '\n';
+    for (let i = contentStart; i < chompStart; ++i) {
+        let [indent, content] = lines[i];
+        offset += indent.length + content.length + 1;
+        const crlf = content[content.length - 1] === '\r';
+        if (crlf)
+            content = content.slice(0, -1);
+        /* istanbul ignore if already caught in lexer */
+        if (content && indent.length < trimIndent) {
+            const src = header.indent
+                ? 'explicit indentation indicator'
+                : 'first line';
+            const message = `Block scalar lines must not be less indented than their ${src}`;
+            onError(offset - content.length - (crlf ? 2 : 1), 'BAD_INDENT', message);
+            indent = '';
+        }
+        if (type === Scalar.Scalar.BLOCK_LITERAL) {
+            value += sep + indent.slice(trimIndent) + content;
+            sep = '\n';
+        }
+        else if (indent.length > trimIndent || content[0] === '\t') {
+            // more-indented content within a folded block
+            if (sep === ' ')
+                sep = '\n';
+            else if (!prevMoreIndented && sep === '\n')
+                sep = '\n\n';
+            value += sep + indent.slice(trimIndent) + content;
+            sep = '\n';
+            prevMoreIndented = true;
+        }
+        else if (content === '') {
+            // empty line
+            if (sep === '\n')
+                value += '\n';
+            else
+                sep = '\n';
+        }
+        else {
+            value += sep + content;
+            sep = ' ';
+            prevMoreIndented = false;
+        }
+    }
+    switch (header.chomp) {
+        case '-':
+            break;
+        case '+':
+            for (let i = chompStart; i < lines.length; ++i)
+                value += '\n' + lines[i][0].slice(trimIndent);
+            if (value[value.length - 1] !== '\n')
+                value += '\n';
+            break;
+        default:
+            value += '\n';
+    }
+    const end = start + header.length + scalar.source.length;
+    return { value, type, comment: header.comment, range: [start, end, end] };
+}
+function parseBlockScalarHeader({ offset, props }, strict, onError) {
+    /* istanbul ignore if should not happen */
+    if (props[0].type !== 'block-scalar-header') {
+        onError(props[0], 'IMPOSSIBLE', 'Block scalar header not found');
+        return null;
+    }
+    const { source } = props[0];
+    const mode = source[0];
+    let indent = 0;
+    let chomp = '';
+    let error = -1;
+    for (let i = 1; i < source.length; ++i) {
+        const ch = source[i];
+        if (!chomp && (ch === '-' || ch === '+'))
+            chomp = ch;
+        else {
+            const n = Number(ch);
+            if (!indent && n)
+                indent = n;
+            else if (error === -1)
+                error = offset + i;
+        }
+    }
+    if (error !== -1)
+        onError(error, 'UNEXPECTED_TOKEN', `Block scalar header includes extra characters: ${source}`);
+    let hasSpace = false;
+    let comment = '';
+    let length = source.length;
+    for (let i = 1; i < props.length; ++i) {
+        const token = props[i];
+        switch (token.type) {
+            case 'space':
+                hasSpace = true;
+            // fallthrough
+            case 'newline':
+                length += token.source.length;
+                break;
+            case 'comment':
+                if (strict && !hasSpace) {
+                    const message = 'Comments must be separated from other tokens by white space characters';
+                    onError(token, 'MISSING_CHAR', message);
+                }
+                length += token.source.length;
+                comment = token.source.substring(1);
+                break;
+            case 'error':
+                onError(token, 'UNEXPECTED_TOKEN', token.message);
+                length += token.source.length;
+                break;
+            /* istanbul ignore next should not happen */
+            default: {
+                const message = `Unexpected token in block scalar header: ${token.type}`;
+                onError(token, 'UNEXPECTED_TOKEN', message);
+                const ts = token.source;
+                if (ts && typeof ts === 'string')
+                    length += ts.length;
+            }
+        }
+    }
+    return { mode, indent, chomp, comment, length };
+}
+/** @returns Array of lines split up as `[indent, content]` */
+function splitLines(source) {
+    const split = source.split(/\n( *)/);
+    const first = split[0];
+    const m = first.match(/^( *)/);
+    const line0 = m?.[1]
+        ? [m[1], first.slice(m[1].length)]
+        : ['', first];
+    const lines = [line0];
+    for (let i = 1; i < split.length; i += 2)
+        lines.push([split[i], split[i + 1]]);
+    return lines;
+}
+
+exports.resolveBlockScalar = resolveBlockScalar;
+
+
+/***/ }),
+
+/***/ 2714:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var YAMLSeq = __nccwpck_require__(5971);
+var resolveProps = __nccwpck_require__(2523);
+var utilFlowIndentCheck = __nccwpck_require__(8983);
+
+function resolveBlockSeq({ composeNode, composeEmptyNode }, ctx, bs, onError, tag) {
+    const NodeClass = tag?.nodeClass ?? YAMLSeq.YAMLSeq;
+    const seq = new NodeClass(ctx.schema);
+    if (ctx.atRoot)
+        ctx.atRoot = false;
+    if (ctx.atKey)
+        ctx.atKey = false;
+    let offset = bs.offset;
+    let commentEnd = null;
+    for (const { start, value } of bs.items) {
+        const props = resolveProps.resolveProps(start, {
+            indicator: 'seq-item-ind',
+            next: value,
+            offset,
+            onError,
+            parentIndent: bs.indent,
+            startOnNewline: true
+        });
+        if (!props.found) {
+            if (props.anchor || props.tag || value) {
+                if (value?.type === 'block-seq')
+                    onError(props.end, 'BAD_INDENT', 'All sequence items must start at the same column');
+                else
+                    onError(offset, 'MISSING_CHAR', 'Sequence item without - indicator');
+            }
+            else {
+                commentEnd = props.end;
+                if (props.comment)
+                    seq.comment = props.comment;
+                continue;
+            }
+        }
+        const node = value
+            ? composeNode(ctx, value, props, onError)
+            : composeEmptyNode(ctx, props.end, start, null, props, onError);
+        if (ctx.schema.compat)
+            utilFlowIndentCheck.flowIndentCheck(bs.indent, value, onError);
+        offset = node.range[2];
+        seq.items.push(node);
+    }
+    seq.range = [bs.offset, offset, commentEnd ?? offset];
+    return seq;
+}
+
+exports.resolveBlockSeq = resolveBlockSeq;
+
+
+/***/ }),
+
+/***/ 8608:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+
+function resolveEnd(end, offset, reqSpace, onError) {
+    let comment = '';
+    if (end) {
+        let hasSpace = false;
+        let sep = '';
+        for (const token of end) {
+            const { source, type } = token;
+            switch (type) {
+                case 'space':
+                    hasSpace = true;
+                    break;
+                case 'comment': {
+                    if (reqSpace && !hasSpace)
+                        onError(token, 'MISSING_CHAR', 'Comments must be separated from other tokens by white space characters');
+                    const cb = source.substring(1) || ' ';
+                    if (!comment)
+                        comment = cb;
+                    else
+                        comment += sep + cb;
+                    sep = '';
+                    break;
+                }
+                case 'newline':
+                    if (comment)
+                        sep += source;
+                    hasSpace = true;
+                    break;
+                default:
+                    onError(token, 'UNEXPECTED_TOKEN', `Unexpected ${type} at node end`);
+            }
+            offset += source.length;
+        }
+    }
+    return { comment, offset };
+}
+
+exports.resolveEnd = resolveEnd;
+
+
+/***/ }),
+
+/***/ 5106:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+var Pair = __nccwpck_require__(6033);
+var YAMLMap = __nccwpck_require__(6122);
+var YAMLSeq = __nccwpck_require__(5971);
+var resolveEnd = __nccwpck_require__(8608);
+var resolveProps = __nccwpck_require__(2523);
+var utilContainsNewline = __nccwpck_require__(9823);
+var utilMapIncludes = __nccwpck_require__(119);
+
+const blockMsg = 'Block collections are not allowed within flow collections';
+const isBlock = (token) => token && (token.type === 'block-map' || token.type === 'block-seq');
+function resolveFlowCollection({ composeNode, composeEmptyNode }, ctx, fc, onError, tag) {
+    const isMap = fc.start.source === '{';
+    const fcName = isMap ? 'flow map' : 'flow sequence';
+    const NodeClass = (tag?.nodeClass ?? (isMap ? YAMLMap.YAMLMap : YAMLSeq.YAMLSeq));
+    const coll = new NodeClass(ctx.schema);
+    coll.flow = true;
+    const atRoot = ctx.atRoot;
+    if (atRoot)
+        ctx.atRoot = false;
+    if (ctx.atKey)
+        ctx.atKey = false;
+    let offset = fc.offset + fc.start.source.length;
+    for (let i = 0; i < fc.items.length; ++i) {
+        const collItem = fc.items[i];
+        const { start, key, sep, value } = collItem;
+        const props = resolveProps.resolveProps(start, {
+            flow: fcName,
+            indicator: 'explicit-key-ind',
+            next: key ?? sep?.[0],
+            offset,
+            onError,
+            parentIndent: fc.indent,
+            startOnNewline: false
+        });
+        if (!props.found) {
+            if (!props.anchor && !props.tag && !sep && !value) {
+                if (i === 0 && props.comma)
+                    onError(props.comma, 'UNEXPECTED_TOKEN', `Unexpected , in ${fcName}`);
+                else if (i < fc.items.length - 1)
+                    onError(props.start, 'UNEXPECTED_TOKEN', `Unexpected empty item in ${fcName}`);
+                if (props.comment) {
+                    if (coll.comment)
+                        coll.comment += '\n' + props.comment;
+                    else
+                        coll.comment = props.comment;
+                }
+                offset = props.end;
+                continue;
+            }
+            if (!isMap && ctx.options.strict && utilContainsNewline.containsNewline(key))
+                onError(key, // checked by containsNewline()
+                'MULTILINE_IMPLICIT_KEY', 'Implicit keys of flow sequence pairs need to be on a single line');
+        }
+        if (i === 0) {
+            if (props.comma)
+                onError(props.comma, 'UNEXPECTED_TOKEN', `Unexpected , in ${fcName}`);
+        }
+        else {
+            if (!props.comma)
+                onError(props.start, 'MISSING_CHAR', `Missing , between ${fcName} items`);
+            if (props.comment) {
+                let prevItemComment = '';
+                loop: for (const st of start) {
+                    switch (st.type) {
+                        case 'comma':
+                        case 'space':
+                            break;
+                        case 'comment':
+                            prevItemComment = st.source.substring(1);
+                            break loop;
+                        default:
+                            break loop;
+                    }
+                }
+                if (prevItemComment) {
+                    let prev = coll.items[coll.items.length - 1];
+                    if (identity.isPair(prev))
+                        prev = prev.value ?? prev.key;
+                    if (prev.comment)
+                        prev.comment += '\n' + prevItemComment;
+                    else
+                        prev.comment = prevItemComment;
+                    props.comment = props.comment.substring(prevItemComment.length + 1);
+                }
+            }
+        }
+        if (!isMap && !sep && !props.found) {
+            // item is a value in a seq
+            // → key & sep are empty, start does not include ? or :
+            const valueNode = value
+                ? composeNode(ctx, value, props, onError)
+                : composeEmptyNode(ctx, props.end, sep, null, props, onError);
+            coll.items.push(valueNode);
+            offset = valueNode.range[2];
+            if (isBlock(value))
+                onError(valueNode.range, 'BLOCK_IN_FLOW', blockMsg);
+        }
+        else {
+            // item is a key+value pair
+            // key value
+            ctx.atKey = true;
+            const keyStart = props.end;
+            const keyNode = key
+                ? composeNode(ctx, key, props, onError)
+                : composeEmptyNode(ctx, keyStart, start, null, props, onError);
+            if (isBlock(key))
+                onError(keyNode.range, 'BLOCK_IN_FLOW', blockMsg);
+            ctx.atKey = false;
+            // value properties
+            const valueProps = resolveProps.resolveProps(sep ?? [], {
+                flow: fcName,
+                indicator: 'map-value-ind',
+                next: value,
+                offset: keyNode.range[2],
+                onError,
+                parentIndent: fc.indent,
+                startOnNewline: false
+            });
+            if (valueProps.found) {
+                if (!isMap && !props.found && ctx.options.strict) {
+                    if (sep)
+                        for (const st of sep) {
+                            if (st === valueProps.found)
+                                break;
+                            if (st.type === 'newline') {
+                                onError(st, 'MULTILINE_IMPLICIT_KEY', 'Implicit keys of flow sequence pairs need to be on a single line');
+                                break;
+                            }
+                        }
+                    if (props.start < valueProps.found.offset - 1024)
+                        onError(valueProps.found, 'KEY_OVER_1024_CHARS', 'The : indicator must be at most 1024 chars after the start of an implicit flow sequence key');
+                }
+            }
+            else if (value) {
+                if ('source' in value && value.source?.[0] === ':')
+                    onError(value, 'MISSING_CHAR', `Missing space after : in ${fcName}`);
+                else
+                    onError(valueProps.start, 'MISSING_CHAR', `Missing , or : between ${fcName} items`);
+            }
+            // value value
+            const valueNode = value
+                ? composeNode(ctx, value, valueProps, onError)
+                : valueProps.found
+                    ? composeEmptyNode(ctx, valueProps.end, sep, null, valueProps, onError)
+                    : null;
+            if (valueNode) {
+                if (isBlock(value))
+                    onError(valueNode.range, 'BLOCK_IN_FLOW', blockMsg);
+            }
+            else if (valueProps.comment) {
+                if (keyNode.comment)
+                    keyNode.comment += '\n' + valueProps.comment;
+                else
+                    keyNode.comment = valueProps.comment;
+            }
+            const pair = new Pair.Pair(keyNode, valueNode);
+            if (ctx.options.keepSourceTokens)
+                pair.srcToken = collItem;
+            if (isMap) {
+                const map = coll;
+                if (utilMapIncludes.mapIncludes(ctx, map.items, keyNode))
+                    onError(keyStart, 'DUPLICATE_KEY', 'Map keys must be unique');
+                map.items.push(pair);
+            }
+            else {
+                const map = new YAMLMap.YAMLMap(ctx.schema);
+                map.flow = true;
+                map.items.push(pair);
+                const endRange = (valueNode ?? keyNode).range;
+                map.range = [keyNode.range[0], endRange[1], endRange[2]];
+                coll.items.push(map);
+            }
+            offset = valueNode ? valueNode.range[2] : valueProps.end;
+        }
+    }
+    const expectedEnd = isMap ? '}' : ']';
+    const [ce, ...ee] = fc.end;
+    let cePos = offset;
+    if (ce?.source === expectedEnd)
+        cePos = ce.offset + ce.source.length;
+    else {
+        const name = fcName[0].toUpperCase() + fcName.substring(1);
+        const msg = atRoot
+            ? `${name} must end with a ${expectedEnd}`
+            : `${name} in block collection must be sufficiently indented and end with a ${expectedEnd}`;
+        onError(offset, atRoot ? 'MISSING_CHAR' : 'BAD_INDENT', msg);
+        if (ce && ce.source.length !== 1)
+            ee.unshift(ce);
+    }
+    if (ee.length > 0) {
+        const end = resolveEnd.resolveEnd(ee, cePos, ctx.options.strict, onError);
+        if (end.comment) {
+            if (coll.comment)
+                coll.comment += '\n' + end.comment;
+            else
+                coll.comment = end.comment;
+        }
+        coll.range = [fc.offset, cePos, end.offset];
+    }
+    else {
+        coll.range = [fc.offset, cePos, cePos];
+    }
+    return coll;
+}
+
+exports.resolveFlowCollection = resolveFlowCollection;
+
+
+/***/ }),
+
+/***/ 9382:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var Scalar = __nccwpck_require__(6129);
+var resolveEnd = __nccwpck_require__(8608);
+
+function resolveFlowScalar(scalar, strict, onError) {
+    const { offset, type, source, end } = scalar;
+    let _type;
+    let value;
+    const _onError = (rel, code, msg) => onError(offset + rel, code, msg);
+    switch (type) {
+        case 'scalar':
+            _type = Scalar.Scalar.PLAIN;
+            value = plainValue(source, _onError);
+            break;
+        case 'single-quoted-scalar':
+            _type = Scalar.Scalar.QUOTE_SINGLE;
+            value = singleQuotedValue(source, _onError);
+            break;
+        case 'double-quoted-scalar':
+            _type = Scalar.Scalar.QUOTE_DOUBLE;
+            value = doubleQuotedValue(source, _onError);
+            break;
+        /* istanbul ignore next should not happen */
+        default:
+            onError(scalar, 'UNEXPECTED_TOKEN', `Expected a flow scalar value, but found: ${type}`);
+            return {
+                value: '',
+                type: null,
+                comment: '',
+                range: [offset, offset + source.length, offset + source.length]
+            };
+    }
+    const valueEnd = offset + source.length;
+    const re = resolveEnd.resolveEnd(end, valueEnd, strict, onError);
+    return {
+        value,
+        type: _type,
+        comment: re.comment,
+        range: [offset, valueEnd, re.offset]
+    };
+}
+function plainValue(source, onError) {
+    let badChar = '';
+    switch (source[0]) {
+        /* istanbul ignore next should not happen */
+        case '\t':
+            badChar = 'a tab character';
+            break;
+        case ',':
+            badChar = 'flow indicator character ,';
+            break;
+        case '%':
+            badChar = 'directive indicator character %';
+            break;
+        case '|':
+        case '>': {
+            badChar = `block scalar indicator ${source[0]}`;
+            break;
+        }
+        case '@':
+        case '`': {
+            badChar = `reserved character ${source[0]}`;
+            break;
+        }
+    }
+    if (badChar)
+        onError(0, 'BAD_SCALAR_START', `Plain value cannot start with ${badChar}`);
+    return foldLines(source);
+}
+function singleQuotedValue(source, onError) {
+    if (source[source.length - 1] !== "'" || source.length === 1)
+        onError(source.length, 'MISSING_CHAR', "Missing closing 'quote");
+    return foldLines(source.slice(1, -1)).replace(/''/g, "'");
+}
+function foldLines(source) {
+    /**
+     * The negative lookbehind here and in the `re` RegExp is to
+     * prevent causing a polynomial search time in certain cases.
+     *
+     * The try-catch is for Safari, which doesn't support this yet:
+     * https://caniuse.com/js-regexp-lookbehind
+     */
+    let first, line;
+    try {
+        first = new RegExp('(.*?)(?<![ \t])[ \t]*\r?\n', 'sy');
+        line = new RegExp('[ \t]*(.*?)(?:(?<![ \t])[ \t]*)?\r?\n', 'sy');
+    }
+    catch {
+        first = /(.*?)[ \t]*\r?\n/sy;
+        line = /[ \t]*(.*?)[ \t]*\r?\n/sy;
+    }
+    let match = first.exec(source);
+    if (!match)
+        return source;
+    let res = match[1];
+    let sep = ' ';
+    let pos = first.lastIndex;
+    line.lastIndex = pos;
+    while ((match = line.exec(source))) {
+        if (match[1] === '') {
+            if (sep === '\n')
+                res += sep;
+            else
+                sep = '\n';
+        }
+        else {
+            res += sep + match[1];
+            sep = ' ';
+        }
+        pos = line.lastIndex;
+    }
+    const last = /[ \t]*(.*)/sy;
+    last.lastIndex = pos;
+    match = last.exec(source);
+    return res + sep + (match?.[1] ?? '');
+}
+function doubleQuotedValue(source, onError) {
+    let res = '';
+    for (let i = 1; i < source.length - 1; ++i) {
+        const ch = source[i];
+        if (ch === '\r' && source[i + 1] === '\n')
+            continue;
+        if (ch === '\n') {
+            const { fold, offset } = foldNewline(source, i);
+            res += fold;
+            i = offset;
+        }
+        else if (ch === '\\') {
+            let next = source[++i];
+            const cc = escapeCodes[next];
+            if (cc)
+                res += cc;
+            else if (next === '\n') {
+                // skip escaped newlines, but still trim the following line
+                next = source[i + 1];
+                while (next === ' ' || next === '\t')
+                    next = source[++i + 1];
+            }
+            else if (next === '\r' && source[i + 1] === '\n') {
+                // skip escaped CRLF newlines, but still trim the following line
+                next = source[++i + 1];
+                while (next === ' ' || next === '\t')
+                    next = source[++i + 1];
+            }
+            else if (next === 'x' || next === 'u' || next === 'U') {
+                const length = { x: 2, u: 4, U: 8 }[next];
+                res += parseCharCode(source, i + 1, length, onError);
+                i += length;
+            }
+            else {
+                const raw = source.substr(i - 1, 2);
+                onError(i - 1, 'BAD_DQ_ESCAPE', `Invalid escape sequence ${raw}`);
+                res += raw;
+            }
+        }
+        else if (ch === ' ' || ch === '\t') {
+            // trim trailing whitespace
+            const wsStart = i;
+            let next = source[i + 1];
+            while (next === ' ' || next === '\t')
+                next = source[++i + 1];
+            if (next !== '\n' && !(next === '\r' && source[i + 2] === '\n'))
+                res += i > wsStart ? source.slice(wsStart, i + 1) : ch;
+        }
+        else {
+            res += ch;
+        }
+    }
+    if (source[source.length - 1] !== '"' || source.length === 1)
+        onError(source.length, 'MISSING_CHAR', 'Missing closing "quote');
+    return res;
+}
+/**
+ * Fold a single newline into a space, multiple newlines to N - 1 newlines.
+ * Presumes `source[offset] === '\n'`
+ */
+function foldNewline(source, offset) {
+    let fold = '';
+    let ch = source[offset + 1];
+    while (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
+        if (ch === '\r' && source[offset + 2] !== '\n')
+            break;
+        if (ch === '\n')
+            fold += '\n';
+        offset += 1;
+        ch = source[offset + 1];
+    }
+    if (!fold)
+        fold = ' ';
+    return { fold, offset };
+}
+const escapeCodes = {
+    '0': '\0', // null character
+    a: '\x07', // bell character
+    b: '\b', // backspace
+    e: '\x1b', // escape character
+    f: '\f', // form feed
+    n: '\n', // line feed
+    r: '\r', // carriage return
+    t: '\t', // horizontal tab
+    v: '\v', // vertical tab
+    N: '\u0085', // Unicode next line
+    _: '\u00a0', // Unicode non-breaking space
+    L: '\u2028', // Unicode line separator
+    P: '\u2029', // Unicode paragraph separator
+    ' ': ' ',
+    '"': '"',
+    '/': '/',
+    '\\': '\\',
+    '\t': '\t'
+};
+function parseCharCode(source, offset, length, onError) {
+    const cc = source.substr(offset, length);
+    const ok = cc.length === length && /^[0-9a-fA-F]+$/.test(cc);
+    const code = ok ? parseInt(cc, 16) : NaN;
+    if (isNaN(code)) {
+        const raw = source.substr(offset - 2, length + 2);
+        onError(offset - 2, 'BAD_DQ_ESCAPE', `Invalid escape sequence ${raw}`);
+        return raw;
+    }
+    return String.fromCodePoint(code);
+}
+
+exports.resolveFlowScalar = resolveFlowScalar;
+
+
+/***/ }),
+
+/***/ 2523:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+
+function resolveProps(tokens, { flow, indicator, next, offset, onError, parentIndent, startOnNewline }) {
+    let spaceBefore = false;
+    let atNewline = startOnNewline;
+    let hasSpace = startOnNewline;
+    let comment = '';
+    let commentSep = '';
+    let hasNewline = false;
+    let reqSpace = false;
+    let tab = null;
+    let anchor = null;
+    let tag = null;
+    let newlineAfterProp = null;
+    let comma = null;
+    let found = null;
+    let start = null;
+    for (const token of tokens) {
+        if (reqSpace) {
+            if (token.type !== 'space' &&
+                token.type !== 'newline' &&
+                token.type !== 'comma')
+                onError(token.offset, 'MISSING_CHAR', 'Tags and anchors must be separated from the next token by white space');
+            reqSpace = false;
+        }
+        if (tab) {
+            if (atNewline && token.type !== 'comment' && token.type !== 'newline') {
+                onError(tab, 'TAB_AS_INDENT', 'Tabs are not allowed as indentation');
+            }
+            tab = null;
+        }
+        switch (token.type) {
+            case 'space':
+                // At the doc level, tabs at line start may be parsed
+                // as leading white space rather than indentation.
+                // In a flow collection, only the parser handles indent.
+                if (!flow &&
+                    (indicator !== 'doc-start' || next?.type !== 'flow-collection') &&
+                    token.source.includes('\t')) {
+                    tab = token;
+                }
+                hasSpace = true;
+                break;
+            case 'comment': {
+                if (!hasSpace)
+                    onError(token, 'MISSING_CHAR', 'Comments must be separated from other tokens by white space characters');
+                const cb = token.source.substring(1) || ' ';
+                if (!comment)
+                    comment = cb;
+                else
+                    comment += commentSep + cb;
+                commentSep = '';
+                atNewline = false;
+                break;
+            }
+            case 'newline':
+                if (atNewline) {
+                    if (comment)
+                        comment += token.source;
+                    else if (!found || indicator !== 'seq-item-ind')
+                        spaceBefore = true;
+                }
+                else
+                    commentSep += token.source;
+                atNewline = true;
+                hasNewline = true;
+                if (anchor || tag)
+                    newlineAfterProp = token;
+                hasSpace = true;
+                break;
+            case 'anchor':
+                if (anchor)
+                    onError(token, 'MULTIPLE_ANCHORS', 'A node can have at most one anchor');
+                if (token.source.endsWith(':'))
+                    onError(token.offset + token.source.length - 1, 'BAD_ALIAS', 'Anchor ending in : is ambiguous', true);
+                anchor = token;
+                start ?? (start = token.offset);
+                atNewline = false;
+                hasSpace = false;
+                reqSpace = true;
+                break;
+            case 'tag': {
+                if (tag)
+                    onError(token, 'MULTIPLE_TAGS', 'A node can have at most one tag');
+                tag = token;
+                start ?? (start = token.offset);
+                atNewline = false;
+                hasSpace = false;
+                reqSpace = true;
+                break;
+            }
+            case indicator:
+                // Could here handle preceding comments differently
+                if (anchor || tag)
+                    onError(token, 'BAD_PROP_ORDER', `Anchors and tags must be after the ${token.source} indicator`);
+                if (found)
+                    onError(token, 'UNEXPECTED_TOKEN', `Unexpected ${token.source} in ${flow ?? 'collection'}`);
+                found = token;
+                atNewline =
+                    indicator === 'seq-item-ind' || indicator === 'explicit-key-ind';
+                hasSpace = false;
+                break;
+            case 'comma':
+                if (flow) {
+                    if (comma)
+                        onError(token, 'UNEXPECTED_TOKEN', `Unexpected , in ${flow}`);
+                    comma = token;
+                    atNewline = false;
+                    hasSpace = false;
+                    break;
+                }
+            // else fallthrough
+            default:
+                onError(token, 'UNEXPECTED_TOKEN', `Unexpected ${token.type} token`);
+                atNewline = false;
+                hasSpace = false;
+        }
+    }
+    const last = tokens[tokens.length - 1];
+    const end = last ? last.offset + last.source.length : offset;
+    if (reqSpace &&
+        next &&
+        next.type !== 'space' &&
+        next.type !== 'newline' &&
+        next.type !== 'comma' &&
+        (next.type !== 'scalar' || next.source !== '')) {
+        onError(next.offset, 'MISSING_CHAR', 'Tags and anchors must be separated from the next token by white space');
+    }
+    if (tab &&
+        ((atNewline && tab.indent <= parentIndent) ||
+            next?.type === 'block-map' ||
+            next?.type === 'block-seq'))
+        onError(tab, 'TAB_AS_INDENT', 'Tabs are not allowed as indentation');
+    return {
+        comma,
+        found,
+        spaceBefore,
+        comment,
+        hasNewline,
+        anchor,
+        tag,
+        newlineAfterProp,
+        end,
+        start: start ?? end
+    };
+}
+
+exports.resolveProps = resolveProps;
+
+
+/***/ }),
+
+/***/ 9823:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+
+function containsNewline(key) {
+    if (!key)
+        return null;
+    switch (key.type) {
+        case 'alias':
+        case 'scalar':
+        case 'double-quoted-scalar':
+        case 'single-quoted-scalar':
+            if (key.source.includes('\n'))
+                return true;
+            if (key.end)
+                for (const st of key.end)
+                    if (st.type === 'newline')
+                        return true;
+            return false;
+        case 'flow-collection':
+            for (const it of key.items) {
+                for (const st of it.start)
+                    if (st.type === 'newline')
+                        return true;
+                if (it.sep)
+                    for (const st of it.sep)
+                        if (st.type === 'newline')
+                            return true;
+                if (containsNewline(it.key) || containsNewline(it.value))
+                    return true;
+            }
+            return false;
+        default:
+            return true;
+    }
+}
+
+exports.containsNewline = containsNewline;
+
+
+/***/ }),
+
+/***/ 7595:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+
+function emptyScalarPosition(offset, before, pos) {
+    if (before) {
+        pos ?? (pos = before.length);
+        for (let i = pos - 1; i >= 0; --i) {
+            let st = before[i];
+            switch (st.type) {
+                case 'space':
+                case 'comment':
+                case 'newline':
+                    offset -= st.source.length;
+                    continue;
+            }
+            // Technically, an empty scalar is immediately after the last non-empty
+            // node, but it's more useful to place it after any whitespace.
+            st = before[++i];
+            while (st?.type === 'space') {
+                offset += st.source.length;
+                st = before[++i];
+            }
+            break;
+        }
+    }
+    return offset;
+}
+
+exports.emptyScalarPosition = emptyScalarPosition;
+
+
+/***/ }),
+
+/***/ 8983:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var utilContainsNewline = __nccwpck_require__(9823);
+
+function flowIndentCheck(indent, fc, onError) {
+    if (fc?.type === 'flow-collection') {
+        const end = fc.end[0];
+        if (end.indent === indent &&
+            (end.source === ']' || end.source === '}') &&
+            utilContainsNewline.containsNewline(fc)) {
+            const msg = 'Flow end indicator should be more indented than parent';
+            onError(end, 'BAD_INDENT', msg, true);
+        }
+    }
+}
+
+exports.flowIndentCheck = flowIndentCheck;
+
+
+/***/ }),
+
+/***/ 119:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+
+function mapIncludes(ctx, items, search) {
+    const { uniqueKeys } = ctx.options;
+    if (uniqueKeys === false)
+        return false;
+    const isEqual = typeof uniqueKeys === 'function'
+        ? uniqueKeys
+        : (a, b) => a === b || (identity.isScalar(a) && identity.isScalar(b) && a.value === b.value);
+    return items.some(pair => isEqual(pair.key, search));
+}
+
+exports.mapIncludes = mapIncludes;
+
+
+/***/ }),
+
+/***/ 9097:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var Alias = __nccwpck_require__(709);
+var Collection = __nccwpck_require__(9521);
+var identity = __nccwpck_require__(1667);
+var Pair = __nccwpck_require__(6033);
+var toJS = __nccwpck_require__(3103);
+var Schema = __nccwpck_require__(1516);
+var stringifyDocument = __nccwpck_require__(2577);
+var anchors = __nccwpck_require__(6840);
+var applyReviver = __nccwpck_require__(4009);
+var createNode = __nccwpck_require__(4592);
+var directives = __nccwpck_require__(8202);
+
+class Document {
+    constructor(value, replacer, options) {
+        /** A comment before this Document */
+        this.commentBefore = null;
+        /** A comment immediately after this Document */
+        this.comment = null;
+        /** Errors encountered during parsing. */
+        this.errors = [];
+        /** Warnings encountered during parsing. */
+        this.warnings = [];
+        Object.defineProperty(this, identity.NODE_TYPE, { value: identity.DOC });
+        let _replacer = null;
+        if (typeof replacer === 'function' || Array.isArray(replacer)) {
+            _replacer = replacer;
+        }
+        else if (options === undefined && replacer) {
+            options = replacer;
+            replacer = undefined;
+        }
+        const opt = Object.assign({
+            intAsBigInt: false,
+            keepSourceTokens: false,
+            logLevel: 'warn',
+            prettyErrors: true,
+            strict: true,
+            stringKeys: false,
+            uniqueKeys: true,
+            version: '1.2'
+        }, options);
+        this.options = opt;
+        let { version } = opt;
+        if (options?._directives) {
+            this.directives = options._directives.atDocument();
+            if (this.directives.yaml.explicit)
+                version = this.directives.yaml.version;
+        }
+        else
+            this.directives = new directives.Directives({ version });
+        this.setSchema(version, options);
+        // @ts-expect-error We can't really know that this matches Contents.
+        this.contents =
+            value === undefined ? null : this.createNode(value, _replacer, options);
+    }
+    /**
+     * Create a deep copy of this Document and its contents.
+     *
+     * Custom Node values that inherit from `Object` still refer to their original instances.
+     */
+    clone() {
+        const copy = Object.create(Document.prototype, {
+            [identity.NODE_TYPE]: { value: identity.DOC }
+        });
+        copy.commentBefore = this.commentBefore;
+        copy.comment = this.comment;
+        copy.errors = this.errors.slice();
+        copy.warnings = this.warnings.slice();
+        copy.options = Object.assign({}, this.options);
+        if (this.directives)
+            copy.directives = this.directives.clone();
+        copy.schema = this.schema.clone();
+        // @ts-expect-error We can't really know that this matches Contents.
+        copy.contents = identity.isNode(this.contents)
+            ? this.contents.clone(copy.schema)
+            : this.contents;
+        if (this.range)
+            copy.range = this.range.slice();
+        return copy;
+    }
+    /** Adds a value to the document. */
+    add(value) {
+        if (assertCollection(this.contents))
+            this.contents.add(value);
+    }
+    /** Adds a value to the document. */
+    addIn(path, value) {
+        if (assertCollection(this.contents))
+            this.contents.addIn(path, value);
+    }
+    /**
+     * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
+     *
+     * If `node` already has an anchor, `name` is ignored.
+     * Otherwise, the `node.anchor` value will be set to `name`,
+     * or if an anchor with that name is already present in the document,
+     * `name` will be used as a prefix for a new unique anchor.
+     * If `name` is undefined, the generated anchor will use 'a' as a prefix.
+     */
+    createAlias(node, name) {
+        if (!node.anchor) {
+            const prev = anchors.anchorNames(this);
+            node.anchor =
+                // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+                !name || prev.has(name) ? anchors.findNewAnchor(name || 'a', prev) : name;
+        }
+        return new Alias.Alias(node.anchor);
+    }
+    createNode(value, replacer, options) {
+        let _replacer = undefined;
+        if (typeof replacer === 'function') {
+            value = replacer.call({ '': value }, '', value);
+            _replacer = replacer;
+        }
+        else if (Array.isArray(replacer)) {
+            const keyToStr = (v) => typeof v === 'number' || v instanceof String || v instanceof Number;
+            const asStr = replacer.filter(keyToStr).map(String);
+            if (asStr.length > 0)
+                replacer = replacer.concat(asStr);
+            _replacer = replacer;
+        }
+        else if (options === undefined && replacer) {
+            options = replacer;
+            replacer = undefined;
+        }
+        const { aliasDuplicateObjects, anchorPrefix, flow, keepUndefined, onTagObj, tag } = options ?? {};
+        const { onAnchor, setAnchors, sourceObjects } = anchors.createNodeAnchors(this, 
+        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+        anchorPrefix || 'a');
+        const ctx = {
+            aliasDuplicateObjects: aliasDuplicateObjects ?? true,
+            keepUndefined: keepUndefined ?? false,
+            onAnchor,
+            onTagObj,
+            replacer: _replacer,
+            schema: this.schema,
+            sourceObjects
+        };
+        const node = createNode.createNode(value, tag, ctx);
+        if (flow && identity.isCollection(node))
+            node.flow = true;
+        setAnchors();
+        return node;
+    }
+    /**
+     * Convert a key and a value into a `Pair` using the current schema,
+     * recursively wrapping all values as `Scalar` or `Collection` nodes.
+     */
+    createPair(key, value, options = {}) {
+        const k = this.createNode(key, null, options);
+        const v = this.createNode(value, null, options);
+        return new Pair.Pair(k, v);
+    }
+    /**
+     * Removes a value from the document.
+     * @returns `true` if the item was found and removed.
+     */
+    delete(key) {
+        return assertCollection(this.contents) ? this.contents.delete(key) : false;
+    }
+    /**
+     * Removes a value from the document.
+     * @returns `true` if the item was found and removed.
+     */
+    deleteIn(path) {
+        if (Collection.isEmptyPath(path)) {
+            if (this.contents == null)
+                return false;
+            // @ts-expect-error Presumed impossible if Strict extends false
+            this.contents = null;
+            return true;
+        }
+        return assertCollection(this.contents)
+            ? this.contents.deleteIn(path)
+            : false;
+    }
+    /**
+     * Returns item at `key`, or `undefined` if not found. By default unwraps
+     * scalar values from their surrounding node; to disable set `keepScalar` to
+     * `true` (collections are always returned intact).
+     */
+    get(key, keepScalar) {
+        return identity.isCollection(this.contents)
+            ? this.contents.get(key, keepScalar)
+            : undefined;
+    }
+    /**
+     * Returns item at `path`, or `undefined` if not found. By default unwraps
+     * scalar values from their surrounding node; to disable set `keepScalar` to
+     * `true` (collections are always returned intact).
+     */
+    getIn(path, keepScalar) {
+        if (Collection.isEmptyPath(path))
+            return !keepScalar && identity.isScalar(this.contents)
+                ? this.contents.value
+                : this.contents;
+        return identity.isCollection(this.contents)
+            ? this.contents.getIn(path, keepScalar)
+            : undefined;
+    }
+    /**
+     * Checks if the document includes a value with the key `key`.
+     */
+    has(key) {
+        return identity.isCollection(this.contents) ? this.contents.has(key) : false;
+    }
+    /**
+     * Checks if the document includes a value at `path`.
+     */
+    hasIn(path) {
+        if (Collection.isEmptyPath(path))
+            return this.contents !== undefined;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path) : false;
+    }
+    /**
+     * Sets a value in this document. For `!!set`, `value` needs to be a
+     * boolean to add/remove the item from the set.
+     */
+    set(key, value) {
+        if (this.contents == null) {
+            // @ts-expect-error We can't really know that this matches Contents.
+            this.contents = Collection.collectionFromPath(this.schema, [key], value);
+        }
+        else if (assertCollection(this.contents)) {
+            this.contents.set(key, value);
+        }
+    }
+    /**
+     * Sets a value in this document. For `!!set`, `value` needs to be a
+     * boolean to add/remove the item from the set.
+     */
+    setIn(path, value) {
+        if (Collection.isEmptyPath(path)) {
+            // @ts-expect-error We can't really know that this matches Contents.
+            this.contents = value;
+        }
+        else if (this.contents == null) {
+            // @ts-expect-error We can't really know that this matches Contents.
+            this.contents = Collection.collectionFromPath(this.schema, Array.from(path), value);
+        }
+        else if (assertCollection(this.contents)) {
+            this.contents.setIn(path, value);
+        }
+    }
+    /**
+     * Change the YAML version and schema used by the document.
+     * A `null` version disables support for directives, explicit tags, anchors, and aliases.
+     * It also requires the `schema` option to be given as a `Schema` instance value.
+     *
+     * Overrides all previously set schema options.
+     */
+    setSchema(version, options = {}) {
+        if (typeof version === 'number')
+            version = String(version);
+        let opt;
+        switch (version) {
+            case '1.1':
+                if (this.directives)
+                    this.directives.yaml.version = '1.1';
+                else
+                    this.directives = new directives.Directives({ version: '1.1' });
+                opt = { resolveKnownTags: false, schema: 'yaml-1.1' };
+                break;
+            case '1.2':
+            case 'next':
+                if (this.directives)
+                    this.directives.yaml.version = version;
+                else
+                    this.directives = new directives.Directives({ version });
+                opt = { resolveKnownTags: true, schema: 'core' };
+                break;
+            case null:
+                if (this.directives)
+                    delete this.directives;
+                opt = null;
+                break;
+            default: {
+                const sv = JSON.stringify(version);
+                throw new Error(`Expected '1.1', '1.2' or null as first argument, but found: ${sv}`);
+            }
+        }
+        // Not using `instanceof Schema` to allow for duck typing
+        if (options.schema instanceof Object)
+            this.schema = options.schema;
+        else if (opt)
+            this.schema = new Schema.Schema(Object.assign(opt, options));
+        else
+            throw new Error(`With a null YAML version, the { schema: Schema } option is required`);
+    }
+    // json & jsonArg are only used from toJSON()
+    toJS({ json, jsonArg, mapAsMap, maxAliasCount, onAnchor, reviver } = {}) {
+        const ctx = {
+            anchors: new Map(),
+            doc: this,
+            keep: !json,
+            mapAsMap: mapAsMap === true,
+            mapKeyWarned: false,
+            maxAliasCount: typeof maxAliasCount === 'number' ? maxAliasCount : 100
+        };
+        const res = toJS.toJS(this.contents, jsonArg ?? '', ctx);
+        if (typeof onAnchor === 'function')
+            for (const { count, res } of ctx.anchors.values())
+                onAnchor(res, count);
+        return typeof reviver === 'function'
+            ? applyReviver.applyReviver(reviver, { '': res }, '', res)
+            : res;
+    }
+    /**
+     * A JSON representation of the document `contents`.
+     *
+     * @param jsonArg Used by `JSON.stringify` to indicate the array index or
+     *   property name.
+     */
+    toJSON(jsonArg, onAnchor) {
+        return this.toJS({ json: true, jsonArg, mapAsMap: false, onAnchor });
+    }
+    /** A YAML representation of the document. */
+    toString(options = {}) {
+        if (this.errors.length > 0)
+            throw new Error('Document with errors cannot be stringified');
+        if ('indent' in options &&
+            (!Number.isInteger(options.indent) || Number(options.indent) <= 0)) {
+            const s = JSON.stringify(options.indent);
+            throw new Error(`"indent" option must be a positive integer, not ${s}`);
+        }
+        return stringifyDocument.stringifyDocument(this, options);
+    }
+}
+function assertCollection(contents) {
+    if (identity.isCollection(contents))
+        return true;
+    throw new Error('Expected a YAML collection as document contents');
+}
+
+exports.Document = Document;
+
+
+/***/ }),
+
+/***/ 6840:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+var visit = __nccwpck_require__(9520);
+
+/**
+ * Verify that the input string is a valid anchor.
+ *
+ * Will throw on errors.
+ */
+function anchorIsValid(anchor) {
+    if (/[\x00-\x19\s,[\]{}]/.test(anchor)) {
+        const sa = JSON.stringify(anchor);
+        const msg = `Anchor must not contain whitespace or control characters: ${sa}`;
+        throw new Error(msg);
+    }
+    return true;
+}
+function anchorNames(root) {
+    const anchors = new Set();
+    visit.visit(root, {
+        Value(_key, node) {
+            if (node.anchor)
+                anchors.add(node.anchor);
+        }
+    });
+    return anchors;
+}
+/** Find a new anchor name with the given `prefix` and a one-indexed suffix. */
+function findNewAnchor(prefix, exclude) {
+    for (let i = 1; true; ++i) {
+        const name = `${prefix}${i}`;
+        if (!exclude.has(name))
+            return name;
+    }
+}
+function createNodeAnchors(doc, prefix) {
+    const aliasObjects = [];
+    const sourceObjects = new Map();
+    let prevAnchors = null;
+    return {
+        onAnchor: (source) => {
+            aliasObjects.push(source);
+            prevAnchors ?? (prevAnchors = anchorNames(doc));
+            const anchor = findNewAnchor(prefix, prevAnchors);
+            prevAnchors.add(anchor);
+            return anchor;
+        },
+        /**
+         * With circular references, the source node is only resolved after all
+         * of its child nodes are. This is why anchors are set only after all of
+         * the nodes have been created.
+         */
+        setAnchors: () => {
+            for (const source of aliasObjects) {
+                const ref = sourceObjects.get(source);
+                if (typeof ref === 'object' &&
+                    ref.anchor &&
+                    (identity.isScalar(ref.node) || identity.isCollection(ref.node))) {
+                    ref.node.anchor = ref.anchor;
+                }
+                else {
+                    const error = new Error('Failed to resolve repeated object (this should not happen)');
+                    error.source = source;
+                    throw error;
+                }
+            }
+        },
+        sourceObjects
+    };
+}
+
+exports.anchorIsValid = anchorIsValid;
+exports.anchorNames = anchorNames;
+exports.createNodeAnchors = createNodeAnchors;
+exports.findNewAnchor = findNewAnchor;
+
+
+/***/ }),
+
+/***/ 4009:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+
+/**
+ * Applies the JSON.parse reviver algorithm as defined in the ECMA-262 spec,
+ * in section 24.5.1.1 "Runtime Semantics: InternalizeJSONProperty" of the
+ * 2021 edition: https://tc39.es/ecma262/#sec-json.parse
+ *
+ * Includes extensions for handling Map and Set objects.
+ */
+function applyReviver(reviver, obj, key, val) {
+    if (val && typeof val === 'object') {
+        if (Array.isArray(val)) {
+            for (let i = 0, len = val.length; i < len; ++i) {
+                const v0 = val[i];
+                const v1 = applyReviver(reviver, val, String(i), v0);
+                // eslint-disable-next-line @typescript-eslint/no-array-delete
+                if (v1 === undefined)
+                    delete val[i];
+                else if (v1 !== v0)
+                    val[i] = v1;
+            }
+        }
+        else if (val instanceof Map) {
+            for (const k of Array.from(val.keys())) {
+                const v0 = val.get(k);
+                const v1 = applyReviver(reviver, val, k, v0);
+                if (v1 === undefined)
+                    val.delete(k);
+                else if (v1 !== v0)
+                    val.set(k, v1);
+            }
+        }
+        else if (val instanceof Set) {
+            for (const v0 of Array.from(val)) {
+                const v1 = applyReviver(reviver, val, v0, v0);
+                if (v1 === undefined)
+                    val.delete(v0);
+                else if (v1 !== v0) {
+                    val.delete(v0);
+                    val.add(v1);
+                }
+            }
+        }
+        else {
+            for (const [k, v0] of Object.entries(val)) {
+                const v1 = applyReviver(reviver, val, k, v0);
+                if (v1 === undefined)
+                    delete val[k];
+                else if (v1 !== v0)
+                    val[k] = v1;
+            }
+        }
+    }
+    return reviver.call(obj, key, val);
+}
+
+exports.applyReviver = applyReviver;
+
+
+/***/ }),
+
+/***/ 4592:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var Alias = __nccwpck_require__(709);
+var identity = __nccwpck_require__(1667);
+var Scalar = __nccwpck_require__(6129);
+
+const defaultTagPrefix = 'tag:yaml.org,2002:';
+function findTagObject(value, tagName, tags) {
+    if (tagName) {
+        const match = tags.filter(t => t.tag === tagName);
+        const tagObj = match.find(t => !t.format) ?? match[0];
+        if (!tagObj)
+            throw new Error(`Tag ${tagName} not found`);
+        return tagObj;
+    }
+    return tags.find(t => t.identify?.(value) && !t.format);
+}
+function createNode(value, tagName, ctx) {
+    if (identity.isDocument(value))
+        value = value.contents;
+    if (identity.isNode(value))
+        return value;
+    if (identity.isPair(value)) {
+        const map = ctx.schema[identity.MAP].createNode?.(ctx.schema, null, ctx);
+        map.items.push(value);
+        return map;
+    }
+    if (value instanceof String ||
+        value instanceof Number ||
+        value instanceof Boolean ||
+        (typeof BigInt !== 'undefined' && value instanceof BigInt) // not supported everywhere
+    ) {
+        // https://tc39.es/ecma262/#sec-serializejsonproperty
+        value = value.valueOf();
+    }
+    const { aliasDuplicateObjects, onAnchor, onTagObj, schema, sourceObjects } = ctx;
+    // Detect duplicate references to the same object & use Alias nodes for all
+    // after first. The `ref` wrapper allows for circular references to resolve.
+    let ref = undefined;
+    if (aliasDuplicateObjects && value && typeof value === 'object') {
+        ref = sourceObjects.get(value);
+        if (ref) {
+            ref.anchor ?? (ref.anchor = onAnchor(value));
+            return new Alias.Alias(ref.anchor);
+        }
+        else {
+            ref = { anchor: null, node: null };
+            sourceObjects.set(value, ref);
+        }
+    }
+    if (tagName?.startsWith('!!'))
+        tagName = defaultTagPrefix + tagName.slice(2);
+    let tagObj = findTagObject(value, tagName, schema.tags);
+    if (!tagObj) {
+        if (value && typeof value.toJSON === 'function') {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+            value = value.toJSON();
+        }
+        if (!value || typeof value !== 'object') {
+            const node = new Scalar.Scalar(value);
+            if (ref)
+                ref.node = node;
+            return node;
+        }
+        tagObj =
+            value instanceof Map
+                ? schema[identity.MAP]
+                : Symbol.iterator in Object(value)
+                    ? schema[identity.SEQ]
+                    : schema[identity.MAP];
+    }
+    if (onTagObj) {
+        onTagObj(tagObj);
+        delete ctx.onTagObj;
+    }
+    const node = tagObj?.createNode
+        ? tagObj.createNode(ctx.schema, value, ctx)
+        : typeof tagObj?.nodeClass?.from === 'function'
+            ? tagObj.nodeClass.from(ctx.schema, value, ctx)
+            : new Scalar.Scalar(value);
+    if (tagName)
+        node.tag = tagName;
+    else if (!tagObj.default)
+        node.tag = tagObj.tag;
+    if (ref)
+        ref.node = node;
+    return node;
+}
+
+exports.createNode = createNode;
+
+
+/***/ }),
+
+/***/ 8202:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+var visit = __nccwpck_require__(9520);
+
+const escapeChars = {
+    '!': '%21',
+    ',': '%2C',
+    '[': '%5B',
+    ']': '%5D',
+    '{': '%7B',
+    '}': '%7D'
+};
+const escapeTagName = (tn) => tn.replace(/[!,[\]{}]/g, ch => escapeChars[ch]);
+class Directives {
+    constructor(yaml, tags) {
+        /**
+         * The directives-end/doc-start marker `---`. If `null`, a marker may still be
+         * included in the document's stringified representation.
+         */
+        this.docStart = null;
+        /** The doc-end marker `...`.  */
+        this.docEnd = false;
+        this.yaml = Object.assign({}, Directives.defaultYaml, yaml);
+        this.tags = Object.assign({}, Directives.defaultTags, tags);
+    }
+    clone() {
+        const copy = new Directives(this.yaml, this.tags);
+        copy.docStart = this.docStart;
+        return copy;
+    }
+    /**
+     * During parsing, get a Directives instance for the current document and
+     * update the stream state according to the current version's spec.
+     */
+    atDocument() {
+        const res = new Directives(this.yaml, this.tags);
+        switch (this.yaml.version) {
+            case '1.1':
+                this.atNextDocument = true;
+                break;
+            case '1.2':
+                this.atNextDocument = false;
+                this.yaml = {
+                    explicit: Directives.defaultYaml.explicit,
+                    version: '1.2'
+                };
+                this.tags = Object.assign({}, Directives.defaultTags);
+                break;
+        }
+        return res;
+    }
+    /**
+     * @param onError - May be called even if the action was successful
+     * @returns `true` on success
+     */
+    add(line, onError) {
+        if (this.atNextDocument) {
+            this.yaml = { explicit: Directives.defaultYaml.explicit, version: '1.1' };
+            this.tags = Object.assign({}, Directives.defaultTags);
+            this.atNextDocument = false;
+        }
+        const parts = line.trim().split(/[ \t]+/);
+        const name = parts.shift();
+        switch (name) {
+            case '%TAG': {
+                if (parts.length !== 2) {
+                    onError(0, '%TAG directive should contain exactly two parts');
+                    if (parts.length < 2)
+                        return false;
+                }
+                const [handle, prefix] = parts;
+                this.tags[handle] = prefix;
+                return true;
+            }
+            case '%YAML': {
+                this.yaml.explicit = true;
+                if (parts.length !== 1) {
+                    onError(0, '%YAML directive should contain exactly one part');
+                    return false;
+                }
+                const [version] = parts;
+                if (version === '1.1' || version === '1.2') {
+                    this.yaml.version = version;
+                    return true;
+                }
+                else {
+                    const isValid = /^\d+\.\d+$/.test(version);
+                    onError(6, `Unsupported YAML version ${version}`, isValid);
+                    return false;
+                }
+            }
+            default:
+                onError(0, `Unknown directive ${name}`, true);
+                return false;
+        }
+    }
+    /**
+     * Resolves a tag, matching handles to those defined in %TAG directives.
+     *
+     * @returns Resolved tag, which may also be the non-specific tag `'!'` or a
+     *   `'!local'` tag, or `null` if unresolvable.
+     */
+    tagName(source, onError) {
+        if (source === '!')
+            return '!'; // non-specific tag
+        if (source[0] !== '!') {
+            onError(`Not a valid tag: ${source}`);
+            return null;
+        }
+        if (source[1] === '<') {
+            const verbatim = source.slice(2, -1);
+            if (verbatim === '!' || verbatim === '!!') {
+                onError(`Verbatim tags aren't resolved, so ${source} is invalid.`);
+                return null;
+            }
+            if (source[source.length - 1] !== '>')
+                onError('Verbatim tags must end with a >');
+            return verbatim;
+        }
+        const [, handle, suffix] = source.match(/^(.*!)([^!]*)$/s);
+        if (!suffix)
+            onError(`The ${source} tag has no suffix`);
+        const prefix = this.tags[handle];
+        if (prefix) {
+            try {
+                return prefix + decodeURIComponent(suffix);
+            }
+            catch (error) {
+                onError(String(error));
+                return null;
+            }
+        }
+        if (handle === '!')
+            return source; // local tag
+        onError(`Could not resolve tag: ${source}`);
+        return null;
+    }
+    /**
+     * Given a fully resolved tag, returns its printable string form,
+     * taking into account current tag prefixes and defaults.
+     */
+    tagString(tag) {
+        for (const [handle, prefix] of Object.entries(this.tags)) {
+            if (tag.startsWith(prefix))
+                return handle + escapeTagName(tag.substring(prefix.length));
+        }
+        return tag[0] === '!' ? tag : `!<${tag}>`;
+    }
+    toString(doc) {
+        const lines = this.yaml.explicit
+            ? [`%YAML ${this.yaml.version || '1.2'}`]
+            : [];
+        const tagEntries = Object.entries(this.tags);
+        let tagNames;
+        if (doc && tagEntries.length > 0 && identity.isNode(doc.contents)) {
+            const tags = {};
+            visit.visit(doc.contents, (_key, node) => {
+                if (identity.isNode(node) && node.tag)
+                    tags[node.tag] = true;
+            });
+            tagNames = Object.keys(tags);
+        }
+        else
+            tagNames = [];
+        for (const [handle, prefix] of tagEntries) {
+            if (handle === '!!' && prefix === 'tag:yaml.org,2002:')
+                continue;
+            if (!doc || tagNames.some(tn => tn.startsWith(prefix)))
+                lines.push(`%TAG ${handle} ${prefix}`);
+        }
+        return lines.join('\n');
+    }
+}
+Directives.defaultYaml = { explicit: false, version: '1.2' };
+Directives.defaultTags = { '!!': 'tag:yaml.org,2002:' };
+
+exports.Directives = Directives;
+
+
+/***/ }),
+
+/***/ 1940:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+
+class YAMLError extends Error {
+    constructor(name, pos, code, message) {
+        super();
+        this.name = name;
+        this.code = code;
+        this.message = message;
+        this.pos = pos;
+    }
+}
+class YAMLParseError extends YAMLError {
+    constructor(pos, code, message) {
+        super('YAMLParseError', pos, code, message);
+    }
+}
+class YAMLWarning extends YAMLError {
+    constructor(pos, code, message) {
+        super('YAMLWarning', pos, code, message);
+    }
+}
+const prettifyError = (src, lc) => (error) => {
+    if (error.pos[0] === -1)
+        return;
+    error.linePos = error.pos.map(pos => lc.linePos(pos));
+    const { line, col } = error.linePos[0];
+    error.message += ` at line ${line}, column ${col}`;
+    let ci = col - 1;
+    let lineStr = src
+        .substring(lc.lineStarts[line - 1], lc.lineStarts[line])
+        .replace(/[\n\r]+$/, '');
+    // Trim to max 80 chars, keeping col position near the middle
+    if (ci >= 60 && lineStr.length > 80) {
+        const trimStart = Math.min(ci - 39, lineStr.length - 79);
+        lineStr = '…' + lineStr.substring(trimStart);
+        ci -= trimStart - 1;
+    }
+    if (lineStr.length > 80)
+        lineStr = lineStr.substring(0, 79) + '…';
+    // Include previous line in context if pointing at line start
+    if (line > 1 && /^ *$/.test(lineStr.substring(0, ci))) {
+        // Regexp won't match if start is trimmed
+        let prev = src.substring(lc.lineStarts[line - 2], lc.lineStarts[line - 1]);
+        if (prev.length > 80)
+            prev = prev.substring(0, 79) + '…\n';
+        lineStr = prev + lineStr;
+    }
+    if (/[^ ]/.test(lineStr)) {
+        let count = 1;
+        const end = error.linePos[1];
+        if (end?.line === line && end.col > col) {
+            count = Math.max(1, Math.min(end.col - col, 80 - ci));
+        }
+        const pointer = ' '.repeat(ci) + '^'.repeat(count);
+        error.message += `:\n\n${lineStr}\n${pointer}\n`;
+    }
+};
+
+exports.YAMLError = YAMLError;
+exports.YAMLParseError = YAMLParseError;
+exports.YAMLWarning = YAMLWarning;
+exports.prettifyError = prettifyError;
+
+
+/***/ }),
+
+/***/ 9611:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+var __webpack_unused_export__;
+
+
+var composer = __nccwpck_require__(3156);
+var Document = __nccwpck_require__(9097);
+var Schema = __nccwpck_require__(1516);
+var errors = __nccwpck_require__(1940);
+var Alias = __nccwpck_require__(709);
+var identity = __nccwpck_require__(1667);
+var Pair = __nccwpck_require__(6033);
+var Scalar = __nccwpck_require__(6129);
+var YAMLMap = __nccwpck_require__(6122);
+var YAMLSeq = __nccwpck_require__(5971);
+var cst = __nccwpck_require__(5553);
+var lexer = __nccwpck_require__(6101);
+var lineCounter = __nccwpck_require__(8376);
+var parser = __nccwpck_require__(8932);
+var publicApi = __nccwpck_require__(9123);
+var visit = __nccwpck_require__(9520);
+
+
+
+__webpack_unused_export__ = composer.Composer;
+__webpack_unused_export__ = Document.Document;
+__webpack_unused_export__ = Schema.Schema;
+__webpack_unused_export__ = errors.YAMLError;
+__webpack_unused_export__ = errors.YAMLParseError;
+__webpack_unused_export__ = errors.YAMLWarning;
+__webpack_unused_export__ = Alias.Alias;
+__webpack_unused_export__ = identity.isAlias;
+__webpack_unused_export__ = identity.isCollection;
+__webpack_unused_export__ = identity.isDocument;
+__webpack_unused_export__ = identity.isMap;
+__webpack_unused_export__ = identity.isNode;
+__webpack_unused_export__ = identity.isPair;
+__webpack_unused_export__ = identity.isScalar;
+__webpack_unused_export__ = identity.isSeq;
+__webpack_unused_export__ = Pair.Pair;
+__webpack_unused_export__ = Scalar.Scalar;
+__webpack_unused_export__ = YAMLMap.YAMLMap;
+__webpack_unused_export__ = YAMLSeq.YAMLSeq;
+__webpack_unused_export__ = cst;
+__webpack_unused_export__ = lexer.Lexer;
+__webpack_unused_export__ = lineCounter.LineCounter;
+__webpack_unused_export__ = parser.Parser;
+__webpack_unused_export__ = publicApi.parse;
+__webpack_unused_export__ = publicApi.parseAllDocuments;
+__webpack_unused_export__ = publicApi.parseDocument;
+__webpack_unused_export__ = publicApi.stringify;
+__webpack_unused_export__ = visit.visit;
+__webpack_unused_export__ = visit.visitAsync;
+
+
+/***/ }),
+
+/***/ 2285:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var node_process = __nccwpck_require__(932);
+
+function debug(logLevel, ...messages) {
+    if (logLevel === 'debug')
+        console.log(...messages);
+}
+function warn(logLevel, warning) {
+    if (logLevel === 'debug' || logLevel === 'warn') {
+        if (typeof node_process.emitWarning === 'function')
+            node_process.emitWarning(warning);
+        else
+            console.warn(warning);
+    }
+}
+
+exports.debug = debug;
+exports.warn = warn;
+
+
+/***/ }),
+
+/***/ 709:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var anchors = __nccwpck_require__(6840);
+var visit = __nccwpck_require__(9520);
+var identity = __nccwpck_require__(1667);
+var Node = __nccwpck_require__(9733);
+var toJS = __nccwpck_require__(3103);
+
+class Alias extends Node.NodeBase {
+    constructor(source) {
+        super(identity.ALIAS);
+        this.source = source;
+        Object.defineProperty(this, 'tag', {
+            set() {
+                throw new Error('Alias nodes cannot have tags');
+            }
+        });
+    }
+    /**
+     * Resolve the value of this alias within `doc`, finding the last
+     * instance of the `source` anchor before this node.
+     */
+    resolve(doc, ctx) {
+        let nodes;
+        if (ctx?.aliasResolveCache) {
+            nodes = ctx.aliasResolveCache;
+        }
+        else {
+            nodes = [];
+            visit.visit(doc, {
+                Node: (_key, node) => {
+                    if (identity.isAlias(node) || identity.hasAnchor(node))
+                        nodes.push(node);
+                }
+            });
+            if (ctx)
+                ctx.aliasResolveCache = nodes;
+        }
+        let found = undefined;
+        for (const node of nodes) {
+            if (node === this)
+                break;
+            if (node.anchor === this.source)
+                found = node;
+        }
+        return found;
+    }
+    toJSON(_arg, ctx) {
+        if (!ctx)
+            return { source: this.source };
+        const { anchors, doc, maxAliasCount } = ctx;
+        const source = this.resolve(doc, ctx);
+        if (!source) {
+            const msg = `Unresolved alias (the anchor must be set before the alias): ${this.source}`;
+            throw new ReferenceError(msg);
+        }
+        let data = anchors.get(source);
+        if (!data) {
+            // Resolve anchors for Node.prototype.toJS()
+            toJS.toJS(source, null, ctx);
+            data = anchors.get(source);
+        }
+        /* istanbul ignore if */
+        if (data?.res === undefined) {
+            const msg = 'This should not happen: Alias anchor was not resolved?';
+            throw new ReferenceError(msg);
+        }
+        if (maxAliasCount >= 0) {
+            data.count += 1;
+            if (data.aliasCount === 0)
+                data.aliasCount = getAliasCount(doc, source, anchors);
+            if (data.count * data.aliasCount > maxAliasCount) {
+                const msg = 'Excessive alias count indicates a resource exhaustion attack';
+                throw new ReferenceError(msg);
+            }
+        }
+        return data.res;
+    }
+    toString(ctx, _onComment, _onChompKeep) {
+        const src = `*${this.source}`;
+        if (ctx) {
+            anchors.anchorIsValid(this.source);
+            if (ctx.options.verifyAliasOrder && !ctx.anchors.has(this.source)) {
+                const msg = `Unresolved alias (the anchor must be set before the alias): ${this.source}`;
+                throw new Error(msg);
+            }
+            if (ctx.implicitKey)
+                return `${src} `;
+        }
+        return src;
+    }
+}
+function getAliasCount(doc, node, anchors) {
+    if (identity.isAlias(node)) {
+        const source = node.resolve(doc);
+        const anchor = anchors && source && anchors.get(source);
+        return anchor ? anchor.count * anchor.aliasCount : 0;
+    }
+    else if (identity.isCollection(node)) {
+        let count = 0;
+        for (const item of node.items) {
+            const c = getAliasCount(doc, item, anchors);
+            if (c > count)
+                count = c;
+        }
+        return count;
+    }
+    else if (identity.isPair(node)) {
+        const kc = getAliasCount(doc, node.key, anchors);
+        const vc = getAliasCount(doc, node.value, anchors);
+        return Math.max(kc, vc);
+    }
+    return 1;
+}
+
+exports.Alias = Alias;
+
+
+/***/ }),
+
+/***/ 9521:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var createNode = __nccwpck_require__(4592);
+var identity = __nccwpck_require__(1667);
+var Node = __nccwpck_require__(9733);
+
+function collectionFromPath(schema, path, value) {
+    let v = value;
+    for (let i = path.length - 1; i >= 0; --i) {
+        const k = path[i];
+        if (typeof k === 'number' && Number.isInteger(k) && k >= 0) {
+            const a = [];
+            a[k] = v;
+            v = a;
+        }
+        else {
+            v = new Map([[k, v]]);
+        }
+    }
+    return createNode.createNode(v, undefined, {
+        aliasDuplicateObjects: false,
+        keepUndefined: false,
+        onAnchor: () => {
+            throw new Error('This should not happen, please report a bug.');
+        },
+        schema,
+        sourceObjects: new Map()
+    });
+}
+// Type guard is intentionally a little wrong so as to be more useful,
+// as it does not cover untypable empty non-string iterables (e.g. []).
+const isEmptyPath = (path) => path == null ||
+    (typeof path === 'object' && !!path[Symbol.iterator]().next().done);
+class Collection extends Node.NodeBase {
+    constructor(type, schema) {
+        super(type);
+        Object.defineProperty(this, 'schema', {
+            value: schema,
+            configurable: true,
+            enumerable: false,
+            writable: true
+        });
+    }
+    /**
+     * Create a copy of this collection.
+     *
+     * @param schema - If defined, overwrites the original's schema
+     */
+    clone(schema) {
+        const copy = Object.create(Object.getPrototypeOf(this), Object.getOwnPropertyDescriptors(this));
+        if (schema)
+            copy.schema = schema;
+        copy.items = copy.items.map(it => identity.isNode(it) || identity.isPair(it) ? it.clone(schema) : it);
+        if (this.range)
+            copy.range = this.range.slice();
+        return copy;
+    }
+    /**
+     * Adds a value to the collection. For `!!map` and `!!omap` the value must
+     * be a Pair instance or a `{ key, value }` object, which may not have a key
+     * that already exists in the map.
+     */
+    addIn(path, value) {
+        if (isEmptyPath(path))
+            this.add(value);
+        else {
+            const [key, ...rest] = path;
+            const node = this.get(key, true);
+            if (identity.isCollection(node))
+                node.addIn(rest, value);
+            else if (node === undefined && this.schema)
+                this.set(key, collectionFromPath(this.schema, rest, value));
+            else
+                throw new Error(`Expected YAML collection at ${key}. Remaining path: ${rest}`);
+        }
+    }
+    /**
+     * Removes a value from the collection.
+     * @returns `true` if the item was found and removed.
+     */
+    deleteIn(path) {
+        const [key, ...rest] = path;
+        if (rest.length === 0)
+            return this.delete(key);
+        const node = this.get(key, true);
+        if (identity.isCollection(node))
+            return node.deleteIn(rest);
+        else
+            throw new Error(`Expected YAML collection at ${key}. Remaining path: ${rest}`);
+    }
+    /**
+     * Returns item at `key`, or `undefined` if not found. By default unwraps
+     * scalar values from their surrounding node; to disable set `keepScalar` to
+     * `true` (collections are always returned intact).
+     */
+    getIn(path, keepScalar) {
+        const [key, ...rest] = path;
+        const node = this.get(key, true);
+        if (rest.length === 0)
+            return !keepScalar && identity.isScalar(node) ? node.value : node;
+        else
+            return identity.isCollection(node) ? node.getIn(rest, keepScalar) : undefined;
+    }
+    hasAllNullValues(allowScalar) {
+        return this.items.every(node => {
+            if (!identity.isPair(node))
+                return false;
+            const n = node.value;
+            return (n == null ||
+                (allowScalar &&
+                    identity.isScalar(n) &&
+                    n.value == null &&
+                    !n.commentBefore &&
+                    !n.comment &&
+                    !n.tag));
+        });
+    }
+    /**
+     * Checks if the collection includes a value with the key `key`.
+     */
+    hasIn(path) {
+        const [key, ...rest] = path;
+        if (rest.length === 0)
+            return this.has(key);
+        const node = this.get(key, true);
+        return identity.isCollection(node) ? node.hasIn(rest) : false;
+    }
+    /**
+     * Sets a value in this collection. For `!!set`, `value` needs to be a
+     * boolean to add/remove the item from the set.
+     */
+    setIn(path, value) {
+        const [key, ...rest] = path;
+        if (rest.length === 0) {
+            this.set(key, value);
+        }
+        else {
+            const node = this.get(key, true);
+            if (identity.isCollection(node))
+                node.setIn(rest, value);
+            else if (node === undefined && this.schema)
+                this.set(key, collectionFromPath(this.schema, rest, value));
+            else
+                throw new Error(`Expected YAML collection at ${key}. Remaining path: ${rest}`);
+        }
+    }
+}
+
+exports.Collection = Collection;
+exports.collectionFromPath = collectionFromPath;
+exports.isEmptyPath = isEmptyPath;
+
+
+/***/ }),
+
+/***/ 9733:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var applyReviver = __nccwpck_require__(4009);
+var identity = __nccwpck_require__(1667);
+var toJS = __nccwpck_require__(3103);
+
+class NodeBase {
+    constructor(type) {
+        Object.defineProperty(this, identity.NODE_TYPE, { value: type });
+    }
+    /** Create a copy of this node.  */
+    clone() {
+        const copy = Object.create(Object.getPrototypeOf(this), Object.getOwnPropertyDescriptors(this));
+        if (this.range)
+            copy.range = this.range.slice();
+        return copy;
+    }
+    /** A plain JavaScript representation of this node. */
+    toJS(doc, { mapAsMap, maxAliasCount, onAnchor, reviver } = {}) {
+        if (!identity.isDocument(doc))
+            throw new TypeError('A document argument is required');
+        const ctx = {
+            anchors: new Map(),
+            doc,
+            keep: true,
+            mapAsMap: mapAsMap === true,
+            mapKeyWarned: false,
+            maxAliasCount: typeof maxAliasCount === 'number' ? maxAliasCount : 100
+        };
+        const res = toJS.toJS(this, '', ctx);
+        if (typeof onAnchor === 'function')
+            for (const { count, res } of ctx.anchors.values())
+                onAnchor(res, count);
+        return typeof reviver === 'function'
+            ? applyReviver.applyReviver(reviver, { '': res }, '', res)
+            : res;
+    }
+}
+
+exports.NodeBase = NodeBase;
+
+
+/***/ }),
+
+/***/ 6033:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var createNode = __nccwpck_require__(4592);
+var stringifyPair = __nccwpck_require__(8880);
+var addPairToJSMap = __nccwpck_require__(3311);
+var identity = __nccwpck_require__(1667);
+
+function createPair(key, value, ctx) {
+    const k = createNode.createNode(key, undefined, ctx);
+    const v = createNode.createNode(value, undefined, ctx);
+    return new Pair(k, v);
+}
+class Pair {
+    constructor(key, value = null) {
+        Object.defineProperty(this, identity.NODE_TYPE, { value: identity.PAIR });
+        this.key = key;
+        this.value = value;
+    }
+    clone(schema) {
+        let { key, value } = this;
+        if (identity.isNode(key))
+            key = key.clone(schema);
+        if (identity.isNode(value))
+            value = value.clone(schema);
+        return new Pair(key, value);
+    }
+    toJSON(_, ctx) {
+        const pair = ctx?.mapAsMap ? new Map() : {};
+        return addPairToJSMap.addPairToJSMap(ctx, pair, this);
+    }
+    toString(ctx, onComment, onChompKeep) {
+        return ctx?.doc
+            ? stringifyPair.stringifyPair(this, ctx, onComment, onChompKeep)
+            : JSON.stringify(this);
+    }
+}
+
+exports.Pair = Pair;
+exports.createPair = createPair;
+
+
+/***/ }),
+
+/***/ 6129:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+var Node = __nccwpck_require__(9733);
+var toJS = __nccwpck_require__(3103);
+
+const isScalarValue = (value) => !value || (typeof value !== 'function' && typeof value !== 'object');
+class Scalar extends Node.NodeBase {
+    constructor(value) {
+        super(identity.SCALAR);
+        this.value = value;
+    }
+    toJSON(arg, ctx) {
+        return ctx?.keep ? this.value : toJS.toJS(this.value, arg, ctx);
+    }
+    toString() {
+        return String(this.value);
+    }
+}
+Scalar.BLOCK_FOLDED = 'BLOCK_FOLDED';
+Scalar.BLOCK_LITERAL = 'BLOCK_LITERAL';
+Scalar.PLAIN = 'PLAIN';
+Scalar.QUOTE_DOUBLE = 'QUOTE_DOUBLE';
+Scalar.QUOTE_SINGLE = 'QUOTE_SINGLE';
+
+exports.Scalar = Scalar;
+exports.isScalarValue = isScalarValue;
+
+
+/***/ }),
+
+/***/ 6122:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var stringifyCollection = __nccwpck_require__(8864);
+var addPairToJSMap = __nccwpck_require__(3311);
+var Collection = __nccwpck_require__(9521);
+var identity = __nccwpck_require__(1667);
+var Pair = __nccwpck_require__(6033);
+var Scalar = __nccwpck_require__(6129);
+
+function findPair(items, key) {
+    const k = identity.isScalar(key) ? key.value : key;
+    for (const it of items) {
+        if (identity.isPair(it)) {
+            if (it.key === key || it.key === k)
+                return it;
+            if (identity.isScalar(it.key) && it.key.value === k)
+                return it;
+        }
+    }
+    return undefined;
+}
+class YAMLMap extends Collection.Collection {
+    static get tagName() {
+        return 'tag:yaml.org,2002:map';
+    }
+    constructor(schema) {
+        super(identity.MAP, schema);
+        this.items = [];
+    }
+    /**
+     * A generic collection parsing method that can be extended
+     * to other node classes that inherit from YAMLMap
+     */
+    static from(schema, obj, ctx) {
+        const { keepUndefined, replacer } = ctx;
+        const map = new this(schema);
+        const add = (key, value) => {
+            if (typeof replacer === 'function')
+                value = replacer.call(obj, key, value);
+            else if (Array.isArray(replacer) && !replacer.includes(key))
+                return;
+            if (value !== undefined || keepUndefined)
+                map.items.push(Pair.createPair(key, value, ctx));
+        };
+        if (obj instanceof Map) {
+            for (const [key, value] of obj)
+                add(key, value);
+        }
+        else if (obj && typeof obj === 'object') {
+            for (const key of Object.keys(obj))
+                add(key, obj[key]);
+        }
+        if (typeof schema.sortMapEntries === 'function') {
+            map.items.sort(schema.sortMapEntries);
+        }
+        return map;
+    }
+    /**
+     * Adds a value to the collection.
+     *
+     * @param overwrite - If not set `true`, using a key that is already in the
+     *   collection will throw. Otherwise, overwrites the previous value.
+     */
+    add(pair, overwrite) {
+        let _pair;
+        if (identity.isPair(pair))
+            _pair = pair;
+        else if (!pair || typeof pair !== 'object' || !('key' in pair)) {
+            // In TypeScript, this never happens.
+            _pair = new Pair.Pair(pair, pair?.value);
+        }
+        else
+            _pair = new Pair.Pair(pair.key, pair.value);
+        const prev = findPair(this.items, _pair.key);
+        const sortEntries = this.schema?.sortMapEntries;
+        if (prev) {
+            if (!overwrite)
+                throw new Error(`Key ${_pair.key} already set`);
+            // For scalars, keep the old node & its comments and anchors
+            if (identity.isScalar(prev.value) && Scalar.isScalarValue(_pair.value))
+                prev.value.value = _pair.value;
+            else
+                prev.value = _pair.value;
+        }
+        else if (sortEntries) {
+            const i = this.items.findIndex(item => sortEntries(_pair, item) < 0);
+            if (i === -1)
+                this.items.push(_pair);
+            else
+                this.items.splice(i, 0, _pair);
+        }
+        else {
+            this.items.push(_pair);
+        }
+    }
+    delete(key) {
+        const it = findPair(this.items, key);
+        if (!it)
+            return false;
+        const del = this.items.splice(this.items.indexOf(it), 1);
+        return del.length > 0;
+    }
+    get(key, keepScalar) {
+        const it = findPair(this.items, key);
+        const node = it?.value;
+        return (!keepScalar && identity.isScalar(node) ? node.value : node) ?? undefined;
+    }
+    has(key) {
+        return !!findPair(this.items, key);
+    }
+    set(key, value) {
+        this.add(new Pair.Pair(key, value), true);
+    }
+    /**
+     * @param ctx - Conversion context, originally set in Document#toJS()
+     * @param {Class} Type - If set, forces the returned collection type
+     * @returns Instance of Type, Map, or Object
+     */
+    toJSON(_, ctx, Type) {
+        const map = Type ? new Type() : ctx?.mapAsMap ? new Map() : {};
+        if (ctx?.onCreate)
+            ctx.onCreate(map);
+        for (const item of this.items)
+            addPairToJSMap.addPairToJSMap(ctx, map, item);
+        return map;
+    }
+    toString(ctx, onComment, onChompKeep) {
+        if (!ctx)
+            return JSON.stringify(this);
+        for (const item of this.items) {
+            if (!identity.isPair(item))
+                throw new Error(`Map items must all be pairs; found ${JSON.stringify(item)} instead`);
+        }
+        if (!ctx.allNullValues && this.hasAllNullValues(false))
+            ctx = Object.assign({}, ctx, { allNullValues: true });
+        return stringifyCollection.stringifyCollection(this, ctx, {
+            blockItemPrefix: '',
+            flowChars: { start: '{', end: '}' },
+            itemIndent: ctx.indent || '',
+            onChompKeep,
+            onComment
+        });
+    }
+}
+
+exports.YAMLMap = YAMLMap;
+exports.findPair = findPair;
+
+
+/***/ }),
+
+/***/ 5971:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var createNode = __nccwpck_require__(4592);
+var stringifyCollection = __nccwpck_require__(8864);
+var Collection = __nccwpck_require__(9521);
+var identity = __nccwpck_require__(1667);
+var Scalar = __nccwpck_require__(6129);
+var toJS = __nccwpck_require__(3103);
+
+class YAMLSeq extends Collection.Collection {
+    static get tagName() {
+        return 'tag:yaml.org,2002:seq';
+    }
+    constructor(schema) {
+        super(identity.SEQ, schema);
+        this.items = [];
+    }
+    add(value) {
+        this.items.push(value);
+    }
+    /**
+     * Removes a value from the collection.
+     *
+     * `key` must contain a representation of an integer for this to succeed.
+     * It may be wrapped in a `Scalar`.
+     *
+     * @returns `true` if the item was found and removed.
+     */
+    delete(key) {
+        const idx = asItemIndex(key);
+        if (typeof idx !== 'number')
+            return false;
+        const del = this.items.splice(idx, 1);
+        return del.length > 0;
+    }
+    get(key, keepScalar) {
+        const idx = asItemIndex(key);
+        if (typeof idx !== 'number')
+            return undefined;
+        const it = this.items[idx];
+        return !keepScalar && identity.isScalar(it) ? it.value : it;
+    }
+    /**
+     * Checks if the collection includes a value with the key `key`.
+     *
+     * `key` must contain a representation of an integer for this to succeed.
+     * It may be wrapped in a `Scalar`.
+     */
+    has(key) {
+        const idx = asItemIndex(key);
+        return typeof idx === 'number' && idx < this.items.length;
+    }
+    /**
+     * Sets a value in this collection. For `!!set`, `value` needs to be a
+     * boolean to add/remove the item from the set.
+     *
+     * If `key` does not contain a representation of an integer, this will throw.
+     * It may be wrapped in a `Scalar`.
+     */
+    set(key, value) {
+        const idx = asItemIndex(key);
+        if (typeof idx !== 'number')
+            throw new Error(`Expected a valid index, not ${key}.`);
+        const prev = this.items[idx];
+        if (identity.isScalar(prev) && Scalar.isScalarValue(value))
+            prev.value = value;
+        else
+            this.items[idx] = value;
+    }
+    toJSON(_, ctx) {
+        const seq = [];
+        if (ctx?.onCreate)
+            ctx.onCreate(seq);
+        let i = 0;
+        for (const item of this.items)
+            seq.push(toJS.toJS(item, String(i++), ctx));
+        return seq;
+    }
+    toString(ctx, onComment, onChompKeep) {
+        if (!ctx)
+            return JSON.stringify(this);
+        return stringifyCollection.stringifyCollection(this, ctx, {
+            blockItemPrefix: '- ',
+            flowChars: { start: '[', end: ']' },
+            itemIndent: (ctx.indent || '') + '  ',
+            onChompKeep,
+            onComment
+        });
+    }
+    static from(schema, obj, ctx) {
+        const { replacer } = ctx;
+        const seq = new this(schema);
+        if (obj && Symbol.iterator in Object(obj)) {
+            let i = 0;
+            for (let it of obj) {
+                if (typeof replacer === 'function') {
+                    const key = obj instanceof Set ? it : String(i++);
+                    it = replacer.call(obj, key, it);
+                }
+                seq.items.push(createNode.createNode(it, undefined, ctx));
+            }
+        }
+        return seq;
+    }
+}
+function asItemIndex(key) {
+    let idx = identity.isScalar(key) ? key.value : key;
+    if (idx && typeof idx === 'string')
+        idx = Number(idx);
+    return typeof idx === 'number' && Number.isInteger(idx) && idx >= 0
+        ? idx
+        : null;
+}
+
+exports.YAMLSeq = YAMLSeq;
+
+
+/***/ }),
+
+/***/ 3311:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var log = __nccwpck_require__(2285);
+var merge = __nccwpck_require__(7976);
+var stringify = __nccwpck_require__(7072);
+var identity = __nccwpck_require__(1667);
+var toJS = __nccwpck_require__(3103);
+
+function addPairToJSMap(ctx, map, { key, value }) {
+    if (identity.isNode(key) && key.addToJSMap)
+        key.addToJSMap(ctx, map, value);
+    // TODO: Should drop this special case for bare << handling
+    else if (merge.isMergeKey(ctx, key))
+        merge.addMergeToJSMap(ctx, map, value);
+    else {
+        const jsKey = toJS.toJS(key, '', ctx);
+        if (map instanceof Map) {
+            map.set(jsKey, toJS.toJS(value, jsKey, ctx));
+        }
+        else if (map instanceof Set) {
+            map.add(jsKey);
+        }
+        else {
+            const stringKey = stringifyKey(key, jsKey, ctx);
+            const jsValue = toJS.toJS(value, stringKey, ctx);
+            if (stringKey in map)
+                Object.defineProperty(map, stringKey, {
+                    value: jsValue,
+                    writable: true,
+                    enumerable: true,
+                    configurable: true
+                });
+            else
+                map[stringKey] = jsValue;
+        }
+    }
+    return map;
+}
+function stringifyKey(key, jsKey, ctx) {
+    if (jsKey === null)
+        return '';
+    // eslint-disable-next-line @typescript-eslint/no-base-to-string
+    if (typeof jsKey !== 'object')
+        return String(jsKey);
+    if (identity.isNode(key) && ctx?.doc) {
+        const strCtx = stringify.createStringifyContext(ctx.doc, {});
+        strCtx.anchors = new Set();
+        for (const node of ctx.anchors.keys())
+            strCtx.anchors.add(node.anchor);
+        strCtx.inFlow = true;
+        strCtx.inStringifyKey = true;
+        const strKey = key.toString(strCtx);
+        if (!ctx.mapKeyWarned) {
+            let jsonStr = JSON.stringify(strKey);
+            if (jsonStr.length > 40)
+                jsonStr = jsonStr.substring(0, 36) + '..."';
+            log.warn(ctx.doc.options.logLevel, `Keys with collection values will be stringified due to JS Object restrictions: ${jsonStr}. Set mapAsMap: true to use object keys.`);
+            ctx.mapKeyWarned = true;
+        }
+        return strKey;
+    }
+    return JSON.stringify(jsKey);
+}
+
+exports.addPairToJSMap = addPairToJSMap;
+
+
+/***/ }),
+
+/***/ 1667:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+
+const ALIAS = Symbol.for('yaml.alias');
+const DOC = Symbol.for('yaml.document');
+const MAP = Symbol.for('yaml.map');
+const PAIR = Symbol.for('yaml.pair');
+const SCALAR = Symbol.for('yaml.scalar');
+const SEQ = Symbol.for('yaml.seq');
+const NODE_TYPE = Symbol.for('yaml.node.type');
+const isAlias = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === ALIAS;
+const isDocument = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === DOC;
+const isMap = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === MAP;
+const isPair = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === PAIR;
+const isScalar = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === SCALAR;
+const isSeq = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === SEQ;
+function isCollection(node) {
+    if (node && typeof node === 'object')
+        switch (node[NODE_TYPE]) {
+            case MAP:
+            case SEQ:
+                return true;
+        }
+    return false;
+}
+function isNode(node) {
+    if (node && typeof node === 'object')
+        switch (node[NODE_TYPE]) {
+            case ALIAS:
+            case MAP:
+            case SCALAR:
+            case SEQ:
+                return true;
+        }
+    return false;
+}
+const hasAnchor = (node) => (isScalar(node) || isCollection(node)) && !!node.anchor;
+
+exports.ALIAS = ALIAS;
+exports.DOC = DOC;
+exports.MAP = MAP;
+exports.NODE_TYPE = NODE_TYPE;
+exports.PAIR = PAIR;
+exports.SCALAR = SCALAR;
+exports.SEQ = SEQ;
+exports.hasAnchor = hasAnchor;
+exports.isAlias = isAlias;
+exports.isCollection = isCollection;
+exports.isDocument = isDocument;
+exports.isMap = isMap;
+exports.isNode = isNode;
+exports.isPair = isPair;
+exports.isScalar = isScalar;
+exports.isSeq = isSeq;
+
+
+/***/ }),
+
+/***/ 3103:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+
+/**
+ * Recursively convert any node or its contents to native JavaScript
+ *
+ * @param value - The input value
+ * @param arg - If `value` defines a `toJSON()` method, use this
+ *   as its first argument
+ * @param ctx - Conversion context, originally set in Document#toJS(). If
+ *   `{ keep: true }` is not set, output should be suitable for JSON
+ *   stringification.
+ */
+function toJS(value, arg, ctx) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    if (Array.isArray(value))
+        return value.map((v, i) => toJS(v, String(i), ctx));
+    if (value && typeof value.toJSON === 'function') {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+        if (!ctx || !identity.hasAnchor(value))
+            return value.toJSON(arg, ctx);
+        const data = { aliasCount: 0, count: 1, res: undefined };
+        ctx.anchors.set(value, data);
+        ctx.onCreate = res => {
+            data.res = res;
+            delete ctx.onCreate;
+        };
+        const res = value.toJSON(arg, ctx);
+        if (ctx.onCreate)
+            ctx.onCreate(res);
+        return res;
+    }
+    if (typeof value === 'bigint' && !ctx?.keep)
+        return Number(value);
+    return value;
+}
+
+exports.toJS = toJS;
+
+
+/***/ }),
+
+/***/ 2562:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var resolveBlockScalar = __nccwpck_require__(117);
+var resolveFlowScalar = __nccwpck_require__(9382);
+var errors = __nccwpck_require__(1940);
+var stringifyString = __nccwpck_require__(81);
+
+function resolveAsScalar(token, strict = true, onError) {
+    if (token) {
+        const _onError = (pos, code, message) => {
+            const offset = typeof pos === 'number' ? pos : Array.isArray(pos) ? pos[0] : pos.offset;
+            if (onError)
+                onError(offset, code, message);
+            else
+                throw new errors.YAMLParseError([offset, offset + 1], code, message);
+        };
+        switch (token.type) {
+            case 'scalar':
+            case 'single-quoted-scalar':
+            case 'double-quoted-scalar':
+                return resolveFlowScalar.resolveFlowScalar(token, strict, _onError);
+            case 'block-scalar':
+                return resolveBlockScalar.resolveBlockScalar({ options: { strict } }, token, _onError);
+        }
+    }
+    return null;
+}
+/**
+ * Create a new scalar token with `value`
+ *
+ * Values that represent an actual string but may be parsed as a different type should use a `type` other than `'PLAIN'`,
+ * as this function does not support any schema operations and won't check for such conflicts.
+ *
+ * @param value The string representation of the value, which will have its content properly indented.
+ * @param context.end Comments and whitespace after the end of the value, or after the block scalar header. If undefined, a newline will be added.
+ * @param context.implicitKey Being within an implicit key may affect the resolved type of the token's value.
+ * @param context.indent The indent level of the token.
+ * @param context.inFlow Is this scalar within a flow collection? This may affect the resolved type of the token's value.
+ * @param context.offset The offset position of the token.
+ * @param context.type The preferred type of the scalar token. If undefined, the previous type of the `token` will be used, defaulting to `'PLAIN'`.
+ */
+function createScalarToken(value, context) {
+    const { implicitKey = false, indent, inFlow = false, offset = -1, type = 'PLAIN' } = context;
+    const source = stringifyString.stringifyString({ type, value }, {
+        implicitKey,
+        indent: indent > 0 ? ' '.repeat(indent) : '',
+        inFlow,
+        options: { blockQuote: true, lineWidth: -1 }
+    });
+    const end = context.end ?? [
+        { type: 'newline', offset: -1, indent, source: '\n' }
+    ];
+    switch (source[0]) {
+        case '|':
+        case '>': {
+            const he = source.indexOf('\n');
+            const head = source.substring(0, he);
+            const body = source.substring(he + 1) + '\n';
+            const props = [
+                { type: 'block-scalar-header', offset, indent, source: head }
+            ];
+            if (!addEndtoBlockProps(props, end))
+                props.push({ type: 'newline', offset: -1, indent, source: '\n' });
+            return { type: 'block-scalar', offset, indent, props, source: body };
+        }
+        case '"':
+            return { type: 'double-quoted-scalar', offset, indent, source, end };
+        case "'":
+            return { type: 'single-quoted-scalar', offset, indent, source, end };
+        default:
+            return { type: 'scalar', offset, indent, source, end };
+    }
+}
+/**
+ * Set the value of `token` to the given string `value`, overwriting any previous contents and type that it may have.
+ *
+ * Best efforts are made to retain any comments previously associated with the `token`,
+ * though all contents within a collection's `items` will be overwritten.
+ *
+ * Values that represent an actual string but may be parsed as a different type should use a `type` other than `'PLAIN'`,
+ * as this function does not support any schema operations and won't check for such conflicts.
+ *
+ * @param token Any token. If it does not include an `indent` value, the value will be stringified as if it were an implicit key.
+ * @param value The string representation of the value, which will have its content properly indented.
+ * @param context.afterKey In most cases, values after a key should have an additional level of indentation.
+ * @param context.implicitKey Being within an implicit key may affect the resolved type of the token's value.
+ * @param context.inFlow Being within a flow collection may affect the resolved type of the token's value.
+ * @param context.type The preferred type of the scalar token. If undefined, the previous type of the `token` will be used, defaulting to `'PLAIN'`.
+ */
+function setScalarValue(token, value, context = {}) {
+    let { afterKey = false, implicitKey = false, inFlow = false, type } = context;
+    let indent = 'indent' in token ? token.indent : null;
+    if (afterKey && typeof indent === 'number')
+        indent += 2;
+    if (!type)
+        switch (token.type) {
+            case 'single-quoted-scalar':
+                type = 'QUOTE_SINGLE';
+                break;
+            case 'double-quoted-scalar':
+                type = 'QUOTE_DOUBLE';
+                break;
+            case 'block-scalar': {
+                const header = token.props[0];
+                if (header.type !== 'block-scalar-header')
+                    throw new Error('Invalid block scalar header');
+                type = header.source[0] === '>' ? 'BLOCK_FOLDED' : 'BLOCK_LITERAL';
+                break;
+            }
+            default:
+                type = 'PLAIN';
+        }
+    const source = stringifyString.stringifyString({ type, value }, {
+        implicitKey: implicitKey || indent === null,
+        indent: indent !== null && indent > 0 ? ' '.repeat(indent) : '',
+        inFlow,
+        options: { blockQuote: true, lineWidth: -1 }
+    });
+    switch (source[0]) {
+        case '|':
+        case '>':
+            setBlockScalarValue(token, source);
+            break;
+        case '"':
+            setFlowScalarValue(token, source, 'double-quoted-scalar');
+            break;
+        case "'":
+            setFlowScalarValue(token, source, 'single-quoted-scalar');
+            break;
+        default:
+            setFlowScalarValue(token, source, 'scalar');
+    }
+}
+function setBlockScalarValue(token, source) {
+    const he = source.indexOf('\n');
+    const head = source.substring(0, he);
+    const body = source.substring(he + 1) + '\n';
+    if (token.type === 'block-scalar') {
+        const header = token.props[0];
+        if (header.type !== 'block-scalar-header')
+            throw new Error('Invalid block scalar header');
+        header.source = head;
+        token.source = body;
+    }
+    else {
+        const { offset } = token;
+        const indent = 'indent' in token ? token.indent : -1;
+        const props = [
+            { type: 'block-scalar-header', offset, indent, source: head }
+        ];
+        if (!addEndtoBlockProps(props, 'end' in token ? token.end : undefined))
+            props.push({ type: 'newline', offset: -1, indent, source: '\n' });
+        for (const key of Object.keys(token))
+            if (key !== 'type' && key !== 'offset')
+                delete token[key];
+        Object.assign(token, { type: 'block-scalar', indent, props, source: body });
+    }
+}
+/** @returns `true` if last token is a newline */
+function addEndtoBlockProps(props, end) {
+    if (end)
+        for (const st of end)
+            switch (st.type) {
+                case 'space':
+                case 'comment':
+                    props.push(st);
+                    break;
+                case 'newline':
+                    props.push(st);
+                    return true;
+            }
+    return false;
+}
+function setFlowScalarValue(token, source, type) {
+    switch (token.type) {
+        case 'scalar':
+        case 'double-quoted-scalar':
+        case 'single-quoted-scalar':
+            token.type = type;
+            token.source = source;
+            break;
+        case 'block-scalar': {
+            const end = token.props.slice(1);
+            let oa = source.length;
+            if (token.props[0].type === 'block-scalar-header')
+                oa -= token.props[0].source.length;
+            for (const tok of end)
+                tok.offset += oa;
+            delete token.props;
+            Object.assign(token, { type, source, end });
+            break;
+        }
+        case 'block-map':
+        case 'block-seq': {
+            const offset = token.offset + source.length;
+            const nl = { type: 'newline', offset, indent: token.indent, source: '\n' };
+            delete token.items;
+            Object.assign(token, { type, source, end: [nl] });
+            break;
+        }
+        default: {
+            const indent = 'indent' in token ? token.indent : -1;
+            const end = 'end' in token && Array.isArray(token.end)
+                ? token.end.filter(st => st.type === 'space' ||
+                    st.type === 'comment' ||
+                    st.type === 'newline')
+                : [];
+            for (const key of Object.keys(token))
+                if (key !== 'type' && key !== 'offset')
+                    delete token[key];
+            Object.assign(token, { type, indent, source, end });
+        }
+    }
+}
+
+exports.createScalarToken = createScalarToken;
+exports.resolveAsScalar = resolveAsScalar;
+exports.setScalarValue = setScalarValue;
+
+
+/***/ }),
+
+/***/ 4297:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+
+/**
+ * Stringify a CST document, token, or collection item
+ *
+ * Fair warning: This applies no validation whatsoever, and
+ * simply concatenates the sources in their logical order.
+ */
+const stringify = (cst) => 'type' in cst ? stringifyToken(cst) : stringifyItem(cst);
+function stringifyToken(token) {
+    switch (token.type) {
+        case 'block-scalar': {
+            let res = '';
+            for (const tok of token.props)
+                res += stringifyToken(tok);
+            return res + token.source;
+        }
+        case 'block-map':
+        case 'block-seq': {
+            let res = '';
+            for (const item of token.items)
+                res += stringifyItem(item);
+            return res;
+        }
+        case 'flow-collection': {
+            let res = token.start.source;
+            for (const item of token.items)
+                res += stringifyItem(item);
+            for (const st of token.end)
+                res += st.source;
+            return res;
+        }
+        case 'document': {
+            let res = stringifyItem(token);
+            if (token.end)
+                for (const st of token.end)
+                    res += st.source;
+            return res;
+        }
+        default: {
+            let res = token.source;
+            if ('end' in token && token.end)
+                for (const st of token.end)
+                    res += st.source;
+            return res;
+        }
+    }
+}
+function stringifyItem({ start, key, sep, value }) {
+    let res = '';
+    for (const st of start)
+        res += st.source;
+    if (key)
+        res += stringifyToken(key);
+    if (sep)
+        for (const st of sep)
+            res += st.source;
+    if (value)
+        res += stringifyToken(value);
+    return res;
+}
+
+exports.stringify = stringify;
+
+
+/***/ }),
+
+/***/ 4903:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+
+const BREAK = Symbol('break visit');
+const SKIP = Symbol('skip children');
+const REMOVE = Symbol('remove item');
+/**
+ * Apply a visitor to a CST document or item.
+ *
+ * Walks through the tree (depth-first) starting from the root, calling a
+ * `visitor` function with two arguments when entering each item:
+ *   - `item`: The current item, which included the following members:
+ *     - `start: SourceToken[]` – Source tokens before the key or value,
+ *       possibly including its anchor or tag.
+ *     - `key?: Token | null` – Set for pair values. May then be `null`, if
+ *       the key before the `:` separator is empty.
+ *     - `sep?: SourceToken[]` – Source tokens between the key and the value,
+ *       which should include the `:` map value indicator if `value` is set.
+ *     - `value?: Token` – The value of a sequence item, or of a map pair.
+ *   - `path`: The steps from the root to the current node, as an array of
+ *     `['key' | 'value', number]` tuples.
+ *
+ * The return value of the visitor may be used to control the traversal:
+ *   - `undefined` (default): Do nothing and continue
+ *   - `visit.SKIP`: Do not visit the children of this token, continue with
+ *      next sibling
+ *   - `visit.BREAK`: Terminate traversal completely
+ *   - `visit.REMOVE`: Remove the current item, then continue with the next one
+ *   - `number`: Set the index of the next step. This is useful especially if
+ *     the index of the current token has changed.
+ *   - `function`: Define the next visitor for this item. After the original
+ *     visitor is called on item entry, next visitors are called after handling
+ *     a non-empty `key` and when exiting the item.
+ */
+function visit(cst, visitor) {
+    if ('type' in cst && cst.type === 'document')
+        cst = { start: cst.start, value: cst.value };
+    _visit(Object.freeze([]), cst, visitor);
+}
+// Without the `as symbol` casts, TS declares these in the `visit`
+// namespace using `var`, but then complains about that because
+// `unique symbol` must be `const`.
+/** Terminate visit traversal completely */
+visit.BREAK = BREAK;
+/** Do not visit the children of the current item */
+visit.SKIP = SKIP;
+/** Remove the current item */
+visit.REMOVE = REMOVE;
+/** Find the item at `path` from `cst` as the root */
+visit.itemAtPath = (cst, path) => {
+    let item = cst;
+    for (const [field, index] of path) {
+        const tok = item?.[field];
+        if (tok && 'items' in tok) {
+            item = tok.items[index];
+        }
+        else
+            return undefined;
+    }
+    return item;
+};
+/**
+ * Get the immediate parent collection of the item at `path` from `cst` as the root.
+ *
+ * Throws an error if the collection is not found, which should never happen if the item itself exists.
+ */
+visit.parentCollection = (cst, path) => {
+    const parent = visit.itemAtPath(cst, path.slice(0, -1));
+    const field = path[path.length - 1][0];
+    const coll = parent?.[field];
+    if (coll && 'items' in coll)
+        return coll;
+    throw new Error('Parent collection not found');
+};
+function _visit(path, item, visitor) {
+    let ctrl = visitor(item, path);
+    if (typeof ctrl === 'symbol')
+        return ctrl;
+    for (const field of ['key', 'value']) {
+        const token = item[field];
+        if (token && 'items' in token) {
+            for (let i = 0; i < token.items.length; ++i) {
+                const ci = _visit(Object.freeze(path.concat([[field, i]])), token.items[i], visitor);
+                if (typeof ci === 'number')
+                    i = ci - 1;
+                else if (ci === BREAK)
+                    return BREAK;
+                else if (ci === REMOVE) {
+                    token.items.splice(i, 1);
+                    i -= 1;
+                }
+            }
+            if (typeof ctrl === 'function' && field === 'key')
+                ctrl = ctrl(item, path);
+        }
+    }
+    return typeof ctrl === 'function' ? ctrl(item, path) : ctrl;
+}
+
+exports.visit = visit;
+
+
+/***/ }),
+
+/***/ 5553:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var cstScalar = __nccwpck_require__(2562);
+var cstStringify = __nccwpck_require__(4297);
+var cstVisit = __nccwpck_require__(4903);
+
+/** The byte order mark */
+const BOM = '\u{FEFF}';
+/** Start of doc-mode */
+const DOCUMENT = '\x02'; // C0: Start of Text
+/** Unexpected end of flow-mode */
+const FLOW_END = '\x18'; // C0: Cancel
+/** Next token is a scalar value */
+const SCALAR = '\x1f'; // C0: Unit Separator
+/** @returns `true` if `token` is a flow or block collection */
+const isCollection = (token) => !!token && 'items' in token;
+/** @returns `true` if `token` is a flow or block scalar; not an alias */
+const isScalar = (token) => !!token &&
+    (token.type === 'scalar' ||
+        token.type === 'single-quoted-scalar' ||
+        token.type === 'double-quoted-scalar' ||
+        token.type === 'block-scalar');
+/* istanbul ignore next */
+/** Get a printable representation of a lexer token */
+function prettyToken(token) {
+    switch (token) {
+        case BOM:
+            return '<BOM>';
+        case DOCUMENT:
+            return '<DOC>';
+        case FLOW_END:
+            return '<FLOW_END>';
+        case SCALAR:
+            return '<SCALAR>';
+        default:
+            return JSON.stringify(token);
+    }
+}
+/** Identify the type of a lexer token. May return `null` for unknown tokens. */
+function tokenType(source) {
+    switch (source) {
+        case BOM:
+            return 'byte-order-mark';
+        case DOCUMENT:
+            return 'doc-mode';
+        case FLOW_END:
+            return 'flow-error-end';
+        case SCALAR:
+            return 'scalar';
+        case '---':
+            return 'doc-start';
+        case '...':
+            return 'doc-end';
+        case '':
+        case '\n':
+        case '\r\n':
+            return 'newline';
+        case '-':
+            return 'seq-item-ind';
+        case '?':
+            return 'explicit-key-ind';
+        case ':':
+            return 'map-value-ind';
+        case '{':
+            return 'flow-map-start';
+        case '}':
+            return 'flow-map-end';
+        case '[':
+            return 'flow-seq-start';
+        case ']':
+            return 'flow-seq-end';
+        case ',':
+            return 'comma';
+    }
+    switch (source[0]) {
+        case ' ':
+        case '\t':
+            return 'space';
+        case '#':
+            return 'comment';
+        case '%':
+            return 'directive-line';
+        case '*':
+            return 'alias';
+        case '&':
+            return 'anchor';
+        case '!':
+            return 'tag';
+        case "'":
+            return 'single-quoted-scalar';
+        case '"':
+            return 'double-quoted-scalar';
+        case '|':
+        case '>':
+            return 'block-scalar-header';
+    }
+    return null;
+}
+
+exports.createScalarToken = cstScalar.createScalarToken;
+exports.resolveAsScalar = cstScalar.resolveAsScalar;
+exports.setScalarValue = cstScalar.setScalarValue;
+exports.stringify = cstStringify.stringify;
+exports.visit = cstVisit.visit;
+exports.BOM = BOM;
+exports.DOCUMENT = DOCUMENT;
+exports.FLOW_END = FLOW_END;
+exports.SCALAR = SCALAR;
+exports.isCollection = isCollection;
+exports.isScalar = isScalar;
+exports.prettyToken = prettyToken;
+exports.tokenType = tokenType;
+
+
+/***/ }),
+
+/***/ 6101:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var cst = __nccwpck_require__(5553);
+
+/*
+START -> stream
+
+stream
+  directive -> line-end -> stream
+  indent + line-end -> stream
+  [else] -> line-start
+
+line-end
+  comment -> line-end
+  newline -> .
+  input-end -> END
+
+line-start
+  doc-start -> doc
+  doc-end -> stream
+  [else] -> indent -> block-start
+
+block-start
+  seq-item-start -> block-start
+  explicit-key-start -> block-start
+  map-value-start -> block-start
+  [else] -> doc
+
+doc
+  line-end -> line-start
+  spaces -> doc
+  anchor -> doc
+  tag -> doc
+  flow-start -> flow -> doc
+  flow-end -> error -> doc
+  seq-item-start -> error -> doc
+  explicit-key-start -> error -> doc
+  map-value-start -> doc
+  alias -> doc
+  quote-start -> quoted-scalar -> doc
+  block-scalar-header -> line-end -> block-scalar(min) -> line-start
+  [else] -> plain-scalar(false, min) -> doc
+
+flow
+  line-end -> flow
+  spaces -> flow
+  anchor -> flow
+  tag -> flow
+  flow-start -> flow -> flow
+  flow-end -> .
+  seq-item-start -> error -> flow
+  explicit-key-start -> flow
+  map-value-start -> flow
+  alias -> flow
+  quote-start -> quoted-scalar -> flow
+  comma -> flow
+  [else] -> plain-scalar(true, 0) -> flow
+
+quoted-scalar
+  quote-end -> .
+  [else] -> quoted-scalar
+
+block-scalar(min)
+  newline + peek(indent < min) -> .
+  [else] -> block-scalar(min)
+
+plain-scalar(is-flow, min)
+  scalar-end(is-flow) -> .
+  peek(newline + (indent < min)) -> .
+  [else] -> plain-scalar(min)
+*/
+function isEmpty(ch) {
+    switch (ch) {
+        case undefined:
+        case ' ':
+        case '\n':
+        case '\r':
+        case '\t':
+            return true;
+        default:
+            return false;
+    }
+}
+const hexDigits = new Set('0123456789ABCDEFabcdef');
+const tagChars = new Set("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-#;/?:@&=+$_.!~*'()");
+const flowIndicatorChars = new Set(',[]{}');
+const invalidAnchorChars = new Set(' ,[]{}\n\r\t');
+const isNotAnchorChar = (ch) => !ch || invalidAnchorChars.has(ch);
+/**
+ * Splits an input string into lexical tokens, i.e. smaller strings that are
+ * easily identifiable by `tokens.tokenType()`.
+ *
+ * Lexing starts always in a "stream" context. Incomplete input may be buffered
+ * until a complete token can be emitted.
+ *
+ * In addition to slices of the original input, the following control characters
+ * may also be emitted:
+ *
+ * - `\x02` (Start of Text): A document starts with the next token
+ * - `\x18` (Cancel): Unexpected end of flow-mode (indicates an error)
+ * - `\x1f` (Unit Separator): Next token is a scalar value
+ * - `\u{FEFF}` (Byte order mark): Emitted separately outside documents
+ */
+class Lexer {
+    constructor() {
+        /**
+         * Flag indicating whether the end of the current buffer marks the end of
+         * all input
+         */
+        this.atEnd = false;
+        /**
+         * Explicit indent set in block scalar header, as an offset from the current
+         * minimum indent, so e.g. set to 1 from a header `|2+`. Set to -1 if not
+         * explicitly set.
+         */
+        this.blockScalarIndent = -1;
+        /**
+         * Block scalars that include a + (keep) chomping indicator in their header
+         * include trailing empty lines, which are otherwise excluded from the
+         * scalar's contents.
+         */
+        this.blockScalarKeep = false;
+        /** Current input */
+        this.buffer = '';
+        /**
+         * Flag noting whether the map value indicator : can immediately follow this
+         * node within a flow context.
+         */
+        this.flowKey = false;
+        /** Count of surrounding flow collection levels. */
+        this.flowLevel = 0;
+        /**
+         * Minimum level of indentation required for next lines to be parsed as a
+         * part of the current scalar value.
+         */
+        this.indentNext = 0;
+        /** Indentation level of the current line. */
+        this.indentValue = 0;
+        /** Position of the next \n character. */
+        this.lineEndPos = null;
+        /** Stores the state of the lexer if reaching the end of incpomplete input */
+        this.next = null;
+        /** A pointer to `buffer`; the current position of the lexer. */
+        this.pos = 0;
+    }
+    /**
+     * Generate YAML tokens from the `source` string. If `incomplete`,
+     * a part of the last line may be left as a buffer for the next call.
+     *
+     * @returns A generator of lexical tokens
+     */
+    *lex(source, incomplete = false) {
+        if (source) {
+            if (typeof source !== 'string')
+                throw TypeError('source is not a string');
+            this.buffer = this.buffer ? this.buffer + source : source;
+            this.lineEndPos = null;
+        }
+        this.atEnd = !incomplete;
+        let next = this.next ?? 'stream';
+        while (next && (incomplete || this.hasChars(1)))
+            next = yield* this.parseNext(next);
+    }
+    atLineEnd() {
+        let i = this.pos;
+        let ch = this.buffer[i];
+        while (ch === ' ' || ch === '\t')
+            ch = this.buffer[++i];
+        if (!ch || ch === '#' || ch === '\n')
+            return true;
+        if (ch === '\r')
+            return this.buffer[i + 1] === '\n';
+        return false;
+    }
+    charAt(n) {
+        return this.buffer[this.pos + n];
+    }
+    continueScalar(offset) {
+        let ch = this.buffer[offset];
+        if (this.indentNext > 0) {
+            let indent = 0;
+            while (ch === ' ')
+                ch = this.buffer[++indent + offset];
+            if (ch === '\r') {
+                const next = this.buffer[indent + offset + 1];
+                if (next === '\n' || (!next && !this.atEnd))
+                    return offset + indent + 1;
+            }
+            return ch === '\n' || indent >= this.indentNext || (!ch && !this.atEnd)
+                ? offset + indent
+                : -1;
+        }
+        if (ch === '-' || ch === '.') {
+            const dt = this.buffer.substr(offset, 3);
+            if ((dt === '---' || dt === '...') && isEmpty(this.buffer[offset + 3]))
+                return -1;
+        }
+        return offset;
+    }
+    getLine() {
+        let end = this.lineEndPos;
+        if (typeof end !== 'number' || (end !== -1 && end < this.pos)) {
+            end = this.buffer.indexOf('\n', this.pos);
+            this.lineEndPos = end;
+        }
+        if (end === -1)
+            return this.atEnd ? this.buffer.substring(this.pos) : null;
+        if (this.buffer[end - 1] === '\r')
+            end -= 1;
+        return this.buffer.substring(this.pos, end);
+    }
+    hasChars(n) {
+        return this.pos + n <= this.buffer.length;
+    }
+    setNext(state) {
+        this.buffer = this.buffer.substring(this.pos);
+        this.pos = 0;
+        this.lineEndPos = null;
+        this.next = state;
+        return null;
+    }
+    peek(n) {
+        return this.buffer.substr(this.pos, n);
+    }
+    *parseNext(next) {
+        switch (next) {
+            case 'stream':
+                return yield* this.parseStream();
+            case 'line-start':
+                return yield* this.parseLineStart();
+            case 'block-start':
+                return yield* this.parseBlockStart();
+            case 'doc':
+                return yield* this.parseDocument();
+            case 'flow':
+                return yield* this.parseFlowCollection();
+            case 'quoted-scalar':
+                return yield* this.parseQuotedScalar();
+            case 'block-scalar':
+                return yield* this.parseBlockScalar();
+            case 'plain-scalar':
+                return yield* this.parsePlainScalar();
+        }
+    }
+    *parseStream() {
+        let line = this.getLine();
+        if (line === null)
+            return this.setNext('stream');
+        if (line[0] === cst.BOM) {
+            yield* this.pushCount(1);
+            line = line.substring(1);
+        }
+        if (line[0] === '%') {
+            let dirEnd = line.length;
+            let cs = line.indexOf('#');
+            while (cs !== -1) {
+                const ch = line[cs - 1];
+                if (ch === ' ' || ch === '\t') {
+                    dirEnd = cs - 1;
+                    break;
+                }
+                else {
+                    cs = line.indexOf('#', cs + 1);
+                }
+            }
+            while (true) {
+                const ch = line[dirEnd - 1];
+                if (ch === ' ' || ch === '\t')
+                    dirEnd -= 1;
+                else
+                    break;
+            }
+            const n = (yield* this.pushCount(dirEnd)) + (yield* this.pushSpaces(true));
+            yield* this.pushCount(line.length - n); // possible comment
+            this.pushNewline();
+            return 'stream';
+        }
+        if (this.atLineEnd()) {
+            const sp = yield* this.pushSpaces(true);
+            yield* this.pushCount(line.length - sp);
+            yield* this.pushNewline();
+            return 'stream';
+        }
+        yield cst.DOCUMENT;
+        return yield* this.parseLineStart();
+    }
+    *parseLineStart() {
+        const ch = this.charAt(0);
+        if (!ch && !this.atEnd)
+            return this.setNext('line-start');
+        if (ch === '-' || ch === '.') {
+            if (!this.atEnd && !this.hasChars(4))
+                return this.setNext('line-start');
+            const s = this.peek(3);
+            if ((s === '---' || s === '...') && isEmpty(this.charAt(3))) {
+                yield* this.pushCount(3);
+                this.indentValue = 0;
+                this.indentNext = 0;
+                return s === '---' ? 'doc' : 'stream';
+            }
+        }
+        this.indentValue = yield* this.pushSpaces(false);
+        if (this.indentNext > this.indentValue && !isEmpty(this.charAt(1)))
+            this.indentNext = this.indentValue;
+        return yield* this.parseBlockStart();
+    }
+    *parseBlockStart() {
+        const [ch0, ch1] = this.peek(2);
+        if (!ch1 && !this.atEnd)
+            return this.setNext('block-start');
+        if ((ch0 === '-' || ch0 === '?' || ch0 === ':') && isEmpty(ch1)) {
+            const n = (yield* this.pushCount(1)) + (yield* this.pushSpaces(true));
+            this.indentNext = this.indentValue + 1;
+            this.indentValue += n;
+            return yield* this.parseBlockStart();
+        }
+        return 'doc';
+    }
+    *parseDocument() {
+        yield* this.pushSpaces(true);
+        const line = this.getLine();
+        if (line === null)
+            return this.setNext('doc');
+        let n = yield* this.pushIndicators();
+        switch (line[n]) {
+            case '#':
+                yield* this.pushCount(line.length - n);
+            // fallthrough
+            case undefined:
+                yield* this.pushNewline();
+                return yield* this.parseLineStart();
+            case '{':
+            case '[':
+                yield* this.pushCount(1);
+                this.flowKey = false;
+                this.flowLevel = 1;
+                return 'flow';
+            case '}':
+            case ']':
+                // this is an error
+                yield* this.pushCount(1);
+                return 'doc';
+            case '*':
+                yield* this.pushUntil(isNotAnchorChar);
+                return 'doc';
+            case '"':
+            case "'":
+                return yield* this.parseQuotedScalar();
+            case '|':
+            case '>':
+                n += yield* this.parseBlockScalarHeader();
+                n += yield* this.pushSpaces(true);
+                yield* this.pushCount(line.length - n);
+                yield* this.pushNewline();
+                return yield* this.parseBlockScalar();
+            default:
+                return yield* this.parsePlainScalar();
+        }
+    }
+    *parseFlowCollection() {
+        let nl, sp;
+        let indent = -1;
+        do {
+            nl = yield* this.pushNewline();
+            if (nl > 0) {
+                sp = yield* this.pushSpaces(false);
+                this.indentValue = indent = sp;
+            }
+            else {
+                sp = 0;
+            }
+            sp += yield* this.pushSpaces(true);
+        } while (nl + sp > 0);
+        const line = this.getLine();
+        if (line === null)
+            return this.setNext('flow');
+        if ((indent !== -1 && indent < this.indentNext && line[0] !== '#') ||
+            (indent === 0 &&
+                (line.startsWith('---') || line.startsWith('...')) &&
+                isEmpty(line[3]))) {
+            // Allowing for the terminal ] or } at the same (rather than greater)
+            // indent level as the initial [ or { is technically invalid, but
+            // failing here would be surprising to users.
+            const atFlowEndMarker = indent === this.indentNext - 1 &&
+                this.flowLevel === 1 &&
+                (line[0] === ']' || line[0] === '}');
+            if (!atFlowEndMarker) {
+                // this is an error
+                this.flowLevel = 0;
+                yield cst.FLOW_END;
+                return yield* this.parseLineStart();
+            }
+        }
+        let n = 0;
+        while (line[n] === ',') {
+            n += yield* this.pushCount(1);
+            n += yield* this.pushSpaces(true);
+            this.flowKey = false;
+        }
+        n += yield* this.pushIndicators();
+        switch (line[n]) {
+            case undefined:
+                return 'flow';
+            case '#':
+                yield* this.pushCount(line.length - n);
+                return 'flow';
+            case '{':
+            case '[':
+                yield* this.pushCount(1);
+                this.flowKey = false;
+                this.flowLevel += 1;
+                return 'flow';
+            case '}':
+            case ']':
+                yield* this.pushCount(1);
+                this.flowKey = true;
+                this.flowLevel -= 1;
+                return this.flowLevel ? 'flow' : 'doc';
+            case '*':
+                yield* this.pushUntil(isNotAnchorChar);
+                return 'flow';
+            case '"':
+            case "'":
+                this.flowKey = true;
+                return yield* this.parseQuotedScalar();
+            case ':': {
+                const next = this.charAt(1);
+                if (this.flowKey || isEmpty(next) || next === ',') {
+                    this.flowKey = false;
+                    yield* this.pushCount(1);
+                    yield* this.pushSpaces(true);
+                    return 'flow';
+                }
+            }
+            // fallthrough
+            default:
+                this.flowKey = false;
+                return yield* this.parsePlainScalar();
+        }
+    }
+    *parseQuotedScalar() {
+        const quote = this.charAt(0);
+        let end = this.buffer.indexOf(quote, this.pos + 1);
+        if (quote === "'") {
+            while (end !== -1 && this.buffer[end + 1] === "'")
+                end = this.buffer.indexOf("'", end + 2);
+        }
+        else {
+            // double-quote
+            while (end !== -1) {
+                let n = 0;
+                while (this.buffer[end - 1 - n] === '\\')
+                    n += 1;
+                if (n % 2 === 0)
+                    break;
+                end = this.buffer.indexOf('"', end + 1);
+            }
+        }
+        // Only looking for newlines within the quotes
+        const qb = this.buffer.substring(0, end);
+        let nl = qb.indexOf('\n', this.pos);
+        if (nl !== -1) {
+            while (nl !== -1) {
+                const cs = this.continueScalar(nl + 1);
+                if (cs === -1)
+                    break;
+                nl = qb.indexOf('\n', cs);
+            }
+            if (nl !== -1) {
+                // this is an error caused by an unexpected unindent
+                end = nl - (qb[nl - 1] === '\r' ? 2 : 1);
+            }
+        }
+        if (end === -1) {
+            if (!this.atEnd)
+                return this.setNext('quoted-scalar');
+            end = this.buffer.length;
+        }
+        yield* this.pushToIndex(end + 1, false);
+        return this.flowLevel ? 'flow' : 'doc';
+    }
+    *parseBlockScalarHeader() {
+        this.blockScalarIndent = -1;
+        this.blockScalarKeep = false;
+        let i = this.pos;
+        while (true) {
+            const ch = this.buffer[++i];
+            if (ch === '+')
+                this.blockScalarKeep = true;
+            else if (ch > '0' && ch <= '9')
+                this.blockScalarIndent = Number(ch) - 1;
+            else if (ch !== '-')
+                break;
+        }
+        return yield* this.pushUntil(ch => isEmpty(ch) || ch === '#');
+    }
+    *parseBlockScalar() {
+        let nl = this.pos - 1; // may be -1 if this.pos === 0
+        let indent = 0;
+        let ch;
+        loop: for (let i = this.pos; (ch = this.buffer[i]); ++i) {
+            switch (ch) {
+                case ' ':
+                    indent += 1;
+                    break;
+                case '\n':
+                    nl = i;
+                    indent = 0;
+                    break;
+                case '\r': {
+                    const next = this.buffer[i + 1];
+                    if (!next && !this.atEnd)
+                        return this.setNext('block-scalar');
+                    if (next === '\n')
+                        break;
+                } // fallthrough
+                default:
+                    break loop;
+            }
+        }
+        if (!ch && !this.atEnd)
+            return this.setNext('block-scalar');
+        if (indent >= this.indentNext) {
+            if (this.blockScalarIndent === -1)
+                this.indentNext = indent;
+            else {
+                this.indentNext =
+                    this.blockScalarIndent + (this.indentNext === 0 ? 1 : this.indentNext);
+            }
+            do {
+                const cs = this.continueScalar(nl + 1);
+                if (cs === -1)
+                    break;
+                nl = this.buffer.indexOf('\n', cs);
+            } while (nl !== -1);
+            if (nl === -1) {
+                if (!this.atEnd)
+                    return this.setNext('block-scalar');
+                nl = this.buffer.length;
+            }
+        }
+        // Trailing insufficiently indented tabs are invalid.
+        // To catch that during parsing, we include them in the block scalar value.
+        let i = nl + 1;
+        ch = this.buffer[i];
+        while (ch === ' ')
+            ch = this.buffer[++i];
+        if (ch === '\t') {
+            while (ch === '\t' || ch === ' ' || ch === '\r' || ch === '\n')
+                ch = this.buffer[++i];
+            nl = i - 1;
+        }
+        else if (!this.blockScalarKeep) {
+            do {
+                let i = nl - 1;
+                let ch = this.buffer[i];
+                if (ch === '\r')
+                    ch = this.buffer[--i];
+                const lastChar = i; // Drop the line if last char not more indented
+                while (ch === ' ')
+                    ch = this.buffer[--i];
+                if (ch === '\n' && i >= this.pos && i + 1 + indent > lastChar)
+                    nl = i;
+                else
+                    break;
+            } while (true);
+        }
+        yield cst.SCALAR;
+        yield* this.pushToIndex(nl + 1, true);
+        return yield* this.parseLineStart();
+    }
+    *parsePlainScalar() {
+        const inFlow = this.flowLevel > 0;
+        let end = this.pos - 1;
+        let i = this.pos - 1;
+        let ch;
+        while ((ch = this.buffer[++i])) {
+            if (ch === ':') {
+                const next = this.buffer[i + 1];
+                if (isEmpty(next) || (inFlow && flowIndicatorChars.has(next)))
+                    break;
+                end = i;
+            }
+            else if (isEmpty(ch)) {
+                let next = this.buffer[i + 1];
+                if (ch === '\r') {
+                    if (next === '\n') {
+                        i += 1;
+                        ch = '\n';
+                        next = this.buffer[i + 1];
+                    }
+                    else
+                        end = i;
+                }
+                if (next === '#' || (inFlow && flowIndicatorChars.has(next)))
+                    break;
+                if (ch === '\n') {
+                    const cs = this.continueScalar(i + 1);
+                    if (cs === -1)
+                        break;
+                    i = Math.max(i, cs - 2); // to advance, but still account for ' #'
+                }
+            }
+            else {
+                if (inFlow && flowIndicatorChars.has(ch))
+                    break;
+                end = i;
+            }
+        }
+        if (!ch && !this.atEnd)
+            return this.setNext('plain-scalar');
+        yield cst.SCALAR;
+        yield* this.pushToIndex(end + 1, true);
+        return inFlow ? 'flow' : 'doc';
+    }
+    *pushCount(n) {
+        if (n > 0) {
+            yield this.buffer.substr(this.pos, n);
+            this.pos += n;
+            return n;
+        }
+        return 0;
+    }
+    *pushToIndex(i, allowEmpty) {
+        const s = this.buffer.slice(this.pos, i);
+        if (s) {
+            yield s;
+            this.pos += s.length;
+            return s.length;
+        }
+        else if (allowEmpty)
+            yield '';
+        return 0;
+    }
+    *pushIndicators() {
+        switch (this.charAt(0)) {
+            case '!':
+                return ((yield* this.pushTag()) +
+                    (yield* this.pushSpaces(true)) +
+                    (yield* this.pushIndicators()));
+            case '&':
+                return ((yield* this.pushUntil(isNotAnchorChar)) +
+                    (yield* this.pushSpaces(true)) +
+                    (yield* this.pushIndicators()));
+            case '-': // this is an error
+            case '?': // this is an error outside flow collections
+            case ':': {
+                const inFlow = this.flowLevel > 0;
+                const ch1 = this.charAt(1);
+                if (isEmpty(ch1) || (inFlow && flowIndicatorChars.has(ch1))) {
+                    if (!inFlow)
+                        this.indentNext = this.indentValue + 1;
+                    else if (this.flowKey)
+                        this.flowKey = false;
+                    return ((yield* this.pushCount(1)) +
+                        (yield* this.pushSpaces(true)) +
+                        (yield* this.pushIndicators()));
+                }
+            }
+        }
+        return 0;
+    }
+    *pushTag() {
+        if (this.charAt(1) === '<') {
+            let i = this.pos + 2;
+            let ch = this.buffer[i];
+            while (!isEmpty(ch) && ch !== '>')
+                ch = this.buffer[++i];
+            return yield* this.pushToIndex(ch === '>' ? i + 1 : i, false);
+        }
+        else {
+            let i = this.pos + 1;
+            let ch = this.buffer[i];
+            while (ch) {
+                if (tagChars.has(ch))
+                    ch = this.buffer[++i];
+                else if (ch === '%' &&
+                    hexDigits.has(this.buffer[i + 1]) &&
+                    hexDigits.has(this.buffer[i + 2])) {
+                    ch = this.buffer[(i += 3)];
+                }
+                else
+                    break;
+            }
+            return yield* this.pushToIndex(i, false);
+        }
+    }
+    *pushNewline() {
+        const ch = this.buffer[this.pos];
+        if (ch === '\n')
+            return yield* this.pushCount(1);
+        else if (ch === '\r' && this.charAt(1) === '\n')
+            return yield* this.pushCount(2);
+        else
+            return 0;
+    }
+    *pushSpaces(allowTabs) {
+        let i = this.pos - 1;
+        let ch;
+        do {
+            ch = this.buffer[++i];
+        } while (ch === ' ' || (allowTabs && ch === '\t'));
+        const n = i - this.pos;
+        if (n > 0) {
+            yield this.buffer.substr(this.pos, n);
+            this.pos = i;
+        }
+        return n;
+    }
+    *pushUntil(test) {
+        let i = this.pos;
+        let ch = this.buffer[i];
+        while (!test(ch))
+            ch = this.buffer[++i];
+        return yield* this.pushToIndex(i, false);
+    }
+}
+
+exports.Lexer = Lexer;
+
+
+/***/ }),
+
+/***/ 8376:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+
+/**
+ * Tracks newlines during parsing in order to provide an efficient API for
+ * determining the one-indexed `{ line, col }` position for any offset
+ * within the input.
+ */
+class LineCounter {
+    constructor() {
+        this.lineStarts = [];
+        /**
+         * Should be called in ascending order. Otherwise, call
+         * `lineCounter.lineStarts.sort()` before calling `linePos()`.
+         */
+        this.addNewLine = (offset) => this.lineStarts.push(offset);
+        /**
+         * Performs a binary search and returns the 1-indexed { line, col }
+         * position of `offset`. If `line === 0`, `addNewLine` has never been
+         * called or `offset` is before the first known newline.
+         */
+        this.linePos = (offset) => {
+            let low = 0;
+            let high = this.lineStarts.length;
+            while (low < high) {
+                const mid = (low + high) >> 1; // Math.floor((low + high) / 2)
+                if (this.lineStarts[mid] < offset)
+                    low = mid + 1;
+                else
+                    high = mid;
+            }
+            if (this.lineStarts[low] === offset)
+                return { line: low + 1, col: 1 };
+            if (low === 0)
+                return { line: 0, col: offset };
+            const start = this.lineStarts[low - 1];
+            return { line: low, col: offset - start + 1 };
+        };
+    }
+}
+
+exports.LineCounter = LineCounter;
+
+
+/***/ }),
+
+/***/ 8932:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var node_process = __nccwpck_require__(932);
+var cst = __nccwpck_require__(5553);
+var lexer = __nccwpck_require__(6101);
+
+function includesToken(list, type) {
+    for (let i = 0; i < list.length; ++i)
+        if (list[i].type === type)
+            return true;
+    return false;
+}
+function findNonEmptyIndex(list) {
+    for (let i = 0; i < list.length; ++i) {
+        switch (list[i].type) {
+            case 'space':
+            case 'comment':
+            case 'newline':
+                break;
+            default:
+                return i;
+        }
+    }
+    return -1;
+}
+function isFlowToken(token) {
+    switch (token?.type) {
+        case 'alias':
+        case 'scalar':
+        case 'single-quoted-scalar':
+        case 'double-quoted-scalar':
+        case 'flow-collection':
+            return true;
+        default:
+            return false;
+    }
+}
+function getPrevProps(parent) {
+    switch (parent.type) {
+        case 'document':
+            return parent.start;
+        case 'block-map': {
+            const it = parent.items[parent.items.length - 1];
+            return it.sep ?? it.start;
+        }
+        case 'block-seq':
+            return parent.items[parent.items.length - 1].start;
+        /* istanbul ignore next should not happen */
+        default:
+            return [];
+    }
+}
+/** Note: May modify input array */
+function getFirstKeyStartProps(prev) {
+    if (prev.length === 0)
+        return [];
+    let i = prev.length;
+    loop: while (--i >= 0) {
+        switch (prev[i].type) {
+            case 'doc-start':
+            case 'explicit-key-ind':
+            case 'map-value-ind':
+            case 'seq-item-ind':
+            case 'newline':
+                break loop;
+        }
+    }
+    while (prev[++i]?.type === 'space') {
+        /* loop */
+    }
+    return prev.splice(i, prev.length);
+}
+function fixFlowSeqItems(fc) {
+    if (fc.start.type === 'flow-seq-start') {
+        for (const it of fc.items) {
+            if (it.sep &&
+                !it.value &&
+                !includesToken(it.start, 'explicit-key-ind') &&
+                !includesToken(it.sep, 'map-value-ind')) {
+                if (it.key)
+                    it.value = it.key;
+                delete it.key;
+                if (isFlowToken(it.value)) {
+                    if (it.value.end)
+                        Array.prototype.push.apply(it.value.end, it.sep);
+                    else
+                        it.value.end = it.sep;
+                }
+                else
+                    Array.prototype.push.apply(it.start, it.sep);
+                delete it.sep;
+            }
+        }
+    }
+}
+/**
+ * A YAML concrete syntax tree (CST) parser
+ *
+ * ```ts
+ * const src: string = ...
+ * for (const token of new Parser().parse(src)) {
+ *   // token: Token
+ * }
+ * ```
+ *
+ * To use the parser with a user-provided lexer:
+ *
+ * ```ts
+ * function* parse(source: string, lexer: Lexer) {
+ *   const parser = new Parser()
+ *   for (const lexeme of lexer.lex(source))
+ *     yield* parser.next(lexeme)
+ *   yield* parser.end()
+ * }
+ *
+ * const src: string = ...
+ * const lexer = new Lexer()
+ * for (const token of parse(src, lexer)) {
+ *   // token: Token
+ * }
+ * ```
+ */
+class Parser {
+    /**
+     * @param onNewLine - If defined, called separately with the start position of
+     *   each new line (in `parse()`, including the start of input).
+     */
+    constructor(onNewLine) {
+        /** If true, space and sequence indicators count as indentation */
+        this.atNewLine = true;
+        /** If true, next token is a scalar value */
+        this.atScalar = false;
+        /** Current indentation level */
+        this.indent = 0;
+        /** Current offset since the start of parsing */
+        this.offset = 0;
+        /** On the same line with a block map key */
+        this.onKeyLine = false;
+        /** Top indicates the node that's currently being built */
+        this.stack = [];
+        /** The source of the current token, set in parse() */
+        this.source = '';
+        /** The type of the current token, set in parse() */
+        this.type = '';
+        // Must be defined after `next()`
+        this.lexer = new lexer.Lexer();
+        this.onNewLine = onNewLine;
+    }
+    /**
+     * Parse `source` as a YAML stream.
+     * If `incomplete`, a part of the last line may be left as a buffer for the next call.
+     *
+     * Errors are not thrown, but yielded as `{ type: 'error', message }` tokens.
+     *
+     * @returns A generator of tokens representing each directive, document, and other structure.
+     */
+    *parse(source, incomplete = false) {
+        if (this.onNewLine && this.offset === 0)
+            this.onNewLine(0);
+        for (const lexeme of this.lexer.lex(source, incomplete))
+            yield* this.next(lexeme);
+        if (!incomplete)
+            yield* this.end();
+    }
+    /**
+     * Advance the parser by the `source` of one lexical token.
+     */
+    *next(source) {
+        this.source = source;
+        if (node_process.env.LOG_TOKENS)
+            console.log('|', cst.prettyToken(source));
+        if (this.atScalar) {
+            this.atScalar = false;
+            yield* this.step();
+            this.offset += source.length;
+            return;
+        }
+        const type = cst.tokenType(source);
+        if (!type) {
+            const message = `Not a YAML token: ${source}`;
+            yield* this.pop({ type: 'error', offset: this.offset, message, source });
+            this.offset += source.length;
+        }
+        else if (type === 'scalar') {
+            this.atNewLine = false;
+            this.atScalar = true;
+            this.type = 'scalar';
+        }
+        else {
+            this.type = type;
+            yield* this.step();
+            switch (type) {
+                case 'newline':
+                    this.atNewLine = true;
+                    this.indent = 0;
+                    if (this.onNewLine)
+                        this.onNewLine(this.offset + source.length);
+                    break;
+                case 'space':
+                    if (this.atNewLine && source[0] === ' ')
+                        this.indent += source.length;
+                    break;
+                case 'explicit-key-ind':
+                case 'map-value-ind':
+                case 'seq-item-ind':
+                    if (this.atNewLine)
+                        this.indent += source.length;
+                    break;
+                case 'doc-mode':
+                case 'flow-error-end':
+                    return;
+                default:
+                    this.atNewLine = false;
+            }
+            this.offset += source.length;
+        }
+    }
+    /** Call at end of input to push out any remaining constructions */
+    *end() {
+        while (this.stack.length > 0)
+            yield* this.pop();
+    }
+    get sourceToken() {
+        const st = {
+            type: this.type,
+            offset: this.offset,
+            indent: this.indent,
+            source: this.source
+        };
+        return st;
+    }
+    *step() {
+        const top = this.peek(1);
+        if (this.type === 'doc-end' && top?.type !== 'doc-end') {
+            while (this.stack.length > 0)
+                yield* this.pop();
+            this.stack.push({
+                type: 'doc-end',
+                offset: this.offset,
+                source: this.source
+            });
+            return;
+        }
+        if (!top)
+            return yield* this.stream();
+        switch (top.type) {
+            case 'document':
+                return yield* this.document(top);
+            case 'alias':
+            case 'scalar':
+            case 'single-quoted-scalar':
+            case 'double-quoted-scalar':
+                return yield* this.scalar(top);
+            case 'block-scalar':
+                return yield* this.blockScalar(top);
+            case 'block-map':
+                return yield* this.blockMap(top);
+            case 'block-seq':
+                return yield* this.blockSequence(top);
+            case 'flow-collection':
+                return yield* this.flowCollection(top);
+            case 'doc-end':
+                return yield* this.documentEnd(top);
+        }
+        /* istanbul ignore next should not happen */
+        yield* this.pop();
+    }
+    peek(n) {
+        return this.stack[this.stack.length - n];
+    }
+    *pop(error) {
+        const token = error ?? this.stack.pop();
+        /* istanbul ignore if should not happen */
+        if (!token) {
+            const message = 'Tried to pop an empty stack';
+            yield { type: 'error', offset: this.offset, source: '', message };
+        }
+        else if (this.stack.length === 0) {
+            yield token;
+        }
+        else {
+            const top = this.peek(1);
+            if (token.type === 'block-scalar') {
+                // Block scalars use their parent rather than header indent
+                token.indent = 'indent' in top ? top.indent : 0;
+            }
+            else if (token.type === 'flow-collection' && top.type === 'document') {
+                // Ignore all indent for top-level flow collections
+                token.indent = 0;
+            }
+            if (token.type === 'flow-collection')
+                fixFlowSeqItems(token);
+            switch (top.type) {
+                case 'document':
+                    top.value = token;
+                    break;
+                case 'block-scalar':
+                    top.props.push(token); // error
+                    break;
+                case 'block-map': {
+                    const it = top.items[top.items.length - 1];
+                    if (it.value) {
+                        top.items.push({ start: [], key: token, sep: [] });
+                        this.onKeyLine = true;
+                        return;
+                    }
+                    else if (it.sep) {
+                        it.value = token;
+                    }
+                    else {
+                        Object.assign(it, { key: token, sep: [] });
+                        this.onKeyLine = !it.explicitKey;
+                        return;
+                    }
+                    break;
+                }
+                case 'block-seq': {
+                    const it = top.items[top.items.length - 1];
+                    if (it.value)
+                        top.items.push({ start: [], value: token });
+                    else
+                        it.value = token;
+                    break;
+                }
+                case 'flow-collection': {
+                    const it = top.items[top.items.length - 1];
+                    if (!it || it.value)
+                        top.items.push({ start: [], key: token, sep: [] });
+                    else if (it.sep)
+                        it.value = token;
+                    else
+                        Object.assign(it, { key: token, sep: [] });
+                    return;
+                }
+                /* istanbul ignore next should not happen */
+                default:
+                    yield* this.pop();
+                    yield* this.pop(token);
+            }
+            if ((top.type === 'document' ||
+                top.type === 'block-map' ||
+                top.type === 'block-seq') &&
+                (token.type === 'block-map' || token.type === 'block-seq')) {
+                const last = token.items[token.items.length - 1];
+                if (last &&
+                    !last.sep &&
+                    !last.value &&
+                    last.start.length > 0 &&
+                    findNonEmptyIndex(last.start) === -1 &&
+                    (token.indent === 0 ||
+                        last.start.every(st => st.type !== 'comment' || st.indent < token.indent))) {
+                    if (top.type === 'document')
+                        top.end = last.start;
+                    else
+                        top.items.push({ start: last.start });
+                    token.items.splice(-1, 1);
+                }
+            }
+        }
+    }
+    *stream() {
+        switch (this.type) {
+            case 'directive-line':
+                yield { type: 'directive', offset: this.offset, source: this.source };
+                return;
+            case 'byte-order-mark':
+            case 'space':
+            case 'comment':
+            case 'newline':
+                yield this.sourceToken;
+                return;
+            case 'doc-mode':
+            case 'doc-start': {
+                const doc = {
+                    type: 'document',
+                    offset: this.offset,
+                    start: []
+                };
+                if (this.type === 'doc-start')
+                    doc.start.push(this.sourceToken);
+                this.stack.push(doc);
+                return;
+            }
+        }
+        yield {
+            type: 'error',
+            offset: this.offset,
+            message: `Unexpected ${this.type} token in YAML stream`,
+            source: this.source
+        };
+    }
+    *document(doc) {
+        if (doc.value)
+            return yield* this.lineEnd(doc);
+        switch (this.type) {
+            case 'doc-start': {
+                if (findNonEmptyIndex(doc.start) !== -1) {
+                    yield* this.pop();
+                    yield* this.step();
+                }
+                else
+                    doc.start.push(this.sourceToken);
+                return;
+            }
+            case 'anchor':
+            case 'tag':
+            case 'space':
+            case 'comment':
+            case 'newline':
+                doc.start.push(this.sourceToken);
+                return;
+        }
+        const bv = this.startBlockValue(doc);
+        if (bv)
+            this.stack.push(bv);
+        else {
+            yield {
+                type: 'error',
+                offset: this.offset,
+                message: `Unexpected ${this.type} token in YAML document`,
+                source: this.source
+            };
+        }
+    }
+    *scalar(scalar) {
+        if (this.type === 'map-value-ind') {
+            const prev = getPrevProps(this.peek(2));
+            const start = getFirstKeyStartProps(prev);
+            let sep;
+            if (scalar.end) {
+                sep = scalar.end;
+                sep.push(this.sourceToken);
+                delete scalar.end;
+            }
+            else
+                sep = [this.sourceToken];
+            const map = {
+                type: 'block-map',
+                offset: scalar.offset,
+                indent: scalar.indent,
+                items: [{ start, key: scalar, sep }]
+            };
+            this.onKeyLine = true;
+            this.stack[this.stack.length - 1] = map;
+        }
+        else
+            yield* this.lineEnd(scalar);
+    }
+    *blockScalar(scalar) {
+        switch (this.type) {
+            case 'space':
+            case 'comment':
+            case 'newline':
+                scalar.props.push(this.sourceToken);
+                return;
+            case 'scalar':
+                scalar.source = this.source;
+                // block-scalar source includes trailing newline
+                this.atNewLine = true;
+                this.indent = 0;
+                if (this.onNewLine) {
+                    let nl = this.source.indexOf('\n') + 1;
+                    while (nl !== 0) {
+                        this.onNewLine(this.offset + nl);
+                        nl = this.source.indexOf('\n', nl) + 1;
+                    }
+                }
+                yield* this.pop();
+                break;
+            /* istanbul ignore next should not happen */
+            default:
+                yield* this.pop();
+                yield* this.step();
+        }
+    }
+    *blockMap(map) {
+        const it = map.items[map.items.length - 1];
+        // it.sep is true-ish if pair already has key or : separator
+        switch (this.type) {
+            case 'newline':
+                this.onKeyLine = false;
+                if (it.value) {
+                    const end = 'end' in it.value ? it.value.end : undefined;
+                    const last = Array.isArray(end) ? end[end.length - 1] : undefined;
+                    if (last?.type === 'comment')
+                        end?.push(this.sourceToken);
+                    else
+                        map.items.push({ start: [this.sourceToken] });
+                }
+                else if (it.sep) {
+                    it.sep.push(this.sourceToken);
+                }
+                else {
+                    it.start.push(this.sourceToken);
+                }
+                return;
+            case 'space':
+            case 'comment':
+                if (it.value) {
+                    map.items.push({ start: [this.sourceToken] });
+                }
+                else if (it.sep) {
+                    it.sep.push(this.sourceToken);
+                }
+                else {
+                    if (this.atIndentedComment(it.start, map.indent)) {
+                        const prev = map.items[map.items.length - 2];
+                        const end = prev?.value?.end;
+                        if (Array.isArray(end)) {
+                            Array.prototype.push.apply(end, it.start);
+                            end.push(this.sourceToken);
+                            map.items.pop();
+                            return;
+                        }
+                    }
+                    it.start.push(this.sourceToken);
+                }
+                return;
+        }
+        if (this.indent >= map.indent) {
+            const atMapIndent = !this.onKeyLine && this.indent === map.indent;
+            const atNextItem = atMapIndent &&
+                (it.sep || it.explicitKey) &&
+                this.type !== 'seq-item-ind';
+            // For empty nodes, assign newline-separated not indented empty tokens to following node
+            let start = [];
+            if (atNextItem && it.sep && !it.value) {
+                const nl = [];
+                for (let i = 0; i < it.sep.length; ++i) {
+                    const st = it.sep[i];
+                    switch (st.type) {
+                        case 'newline':
+                            nl.push(i);
+                            break;
+                        case 'space':
+                            break;
+                        case 'comment':
+                            if (st.indent > map.indent)
+                                nl.length = 0;
+                            break;
+                        default:
+                            nl.length = 0;
+                    }
+                }
+                if (nl.length >= 2)
+                    start = it.sep.splice(nl[1]);
+            }
+            switch (this.type) {
+                case 'anchor':
+                case 'tag':
+                    if (atNextItem || it.value) {
+                        start.push(this.sourceToken);
+                        map.items.push({ start });
+                        this.onKeyLine = true;
+                    }
+                    else if (it.sep) {
+                        it.sep.push(this.sourceToken);
+                    }
+                    else {
+                        it.start.push(this.sourceToken);
+                    }
+                    return;
+                case 'explicit-key-ind':
+                    if (!it.sep && !it.explicitKey) {
+                        it.start.push(this.sourceToken);
+                        it.explicitKey = true;
+                    }
+                    else if (atNextItem || it.value) {
+                        start.push(this.sourceToken);
+                        map.items.push({ start, explicitKey: true });
+                    }
+                    else {
+                        this.stack.push({
+                            type: 'block-map',
+                            offset: this.offset,
+                            indent: this.indent,
+                            items: [{ start: [this.sourceToken], explicitKey: true }]
+                        });
+                    }
+                    this.onKeyLine = true;
+                    return;
+                case 'map-value-ind':
+                    if (it.explicitKey) {
+                        if (!it.sep) {
+                            if (includesToken(it.start, 'newline')) {
+                                Object.assign(it, { key: null, sep: [this.sourceToken] });
+                            }
+                            else {
+                                const start = getFirstKeyStartProps(it.start);
+                                this.stack.push({
+                                    type: 'block-map',
+                                    offset: this.offset,
+                                    indent: this.indent,
+                                    items: [{ start, key: null, sep: [this.sourceToken] }]
+                                });
+                            }
+                        }
+                        else if (it.value) {
+                            map.items.push({ start: [], key: null, sep: [this.sourceToken] });
+                        }
+                        else if (includesToken(it.sep, 'map-value-ind')) {
+                            this.stack.push({
+                                type: 'block-map',
+                                offset: this.offset,
+                                indent: this.indent,
+                                items: [{ start, key: null, sep: [this.sourceToken] }]
+                            });
+                        }
+                        else if (isFlowToken(it.key) &&
+                            !includesToken(it.sep, 'newline')) {
+                            const start = getFirstKeyStartProps(it.start);
+                            const key = it.key;
+                            const sep = it.sep;
+                            sep.push(this.sourceToken);
+                            // @ts-expect-error type guard is wrong here
+                            delete it.key;
+                            // @ts-expect-error type guard is wrong here
+                            delete it.sep;
+                            this.stack.push({
+                                type: 'block-map',
+                                offset: this.offset,
+                                indent: this.indent,
+                                items: [{ start, key, sep }]
+                            });
+                        }
+                        else if (start.length > 0) {
+                            // Not actually at next item
+                            it.sep = it.sep.concat(start, this.sourceToken);
+                        }
+                        else {
+                            it.sep.push(this.sourceToken);
+                        }
+                    }
+                    else {
+                        if (!it.sep) {
+                            Object.assign(it, { key: null, sep: [this.sourceToken] });
+                        }
+                        else if (it.value || atNextItem) {
+                            map.items.push({ start, key: null, sep: [this.sourceToken] });
+                        }
+                        else if (includesToken(it.sep, 'map-value-ind')) {
+                            this.stack.push({
+                                type: 'block-map',
+                                offset: this.offset,
+                                indent: this.indent,
+                                items: [{ start: [], key: null, sep: [this.sourceToken] }]
+                            });
+                        }
+                        else {
+                            it.sep.push(this.sourceToken);
+                        }
+                    }
+                    this.onKeyLine = true;
+                    return;
+                case 'alias':
+                case 'scalar':
+                case 'single-quoted-scalar':
+                case 'double-quoted-scalar': {
+                    const fs = this.flowScalar(this.type);
+                    if (atNextItem || it.value) {
+                        map.items.push({ start, key: fs, sep: [] });
+                        this.onKeyLine = true;
+                    }
+                    else if (it.sep) {
+                        this.stack.push(fs);
+                    }
+                    else {
+                        Object.assign(it, { key: fs, sep: [] });
+                        this.onKeyLine = true;
+                    }
+                    return;
+                }
+                default: {
+                    const bv = this.startBlockValue(map);
+                    if (bv) {
+                        if (bv.type === 'block-seq') {
+                            if (!it.explicitKey &&
+                                it.sep &&
+                                !includesToken(it.sep, 'newline')) {
+                                yield* this.pop({
+                                    type: 'error',
+                                    offset: this.offset,
+                                    message: 'Unexpected block-seq-ind on same line with key',
+                                    source: this.source
+                                });
+                                return;
+                            }
+                        }
+                        else if (atMapIndent) {
+                            map.items.push({ start });
+                        }
+                        this.stack.push(bv);
+                        return;
+                    }
+                }
+            }
+        }
+        yield* this.pop();
+        yield* this.step();
+    }
+    *blockSequence(seq) {
+        const it = seq.items[seq.items.length - 1];
+        switch (this.type) {
+            case 'newline':
+                if (it.value) {
+                    const end = 'end' in it.value ? it.value.end : undefined;
+                    const last = Array.isArray(end) ? end[end.length - 1] : undefined;
+                    if (last?.type === 'comment')
+                        end?.push(this.sourceToken);
+                    else
+                        seq.items.push({ start: [this.sourceToken] });
+                }
+                else
+                    it.start.push(this.sourceToken);
+                return;
+            case 'space':
+            case 'comment':
+                if (it.value)
+                    seq.items.push({ start: [this.sourceToken] });
+                else {
+                    if (this.atIndentedComment(it.start, seq.indent)) {
+                        const prev = seq.items[seq.items.length - 2];
+                        const end = prev?.value?.end;
+                        if (Array.isArray(end)) {
+                            Array.prototype.push.apply(end, it.start);
+                            end.push(this.sourceToken);
+                            seq.items.pop();
+                            return;
+                        }
+                    }
+                    it.start.push(this.sourceToken);
+                }
+                return;
+            case 'anchor':
+            case 'tag':
+                if (it.value || this.indent <= seq.indent)
+                    break;
+                it.start.push(this.sourceToken);
+                return;
+            case 'seq-item-ind':
+                if (this.indent !== seq.indent)
+                    break;
+                if (it.value || includesToken(it.start, 'seq-item-ind'))
+                    seq.items.push({ start: [this.sourceToken] });
+                else
+                    it.start.push(this.sourceToken);
+                return;
+        }
+        if (this.indent > seq.indent) {
+            const bv = this.startBlockValue(seq);
+            if (bv) {
+                this.stack.push(bv);
+                return;
+            }
+        }
+        yield* this.pop();
+        yield* this.step();
+    }
+    *flowCollection(fc) {
+        const it = fc.items[fc.items.length - 1];
+        if (this.type === 'flow-error-end') {
+            let top;
+            do {
+                yield* this.pop();
+                top = this.peek(1);
+            } while (top?.type === 'flow-collection');
+        }
+        else if (fc.end.length === 0) {
+            switch (this.type) {
+                case 'comma':
+                case 'explicit-key-ind':
+                    if (!it || it.sep)
+                        fc.items.push({ start: [this.sourceToken] });
+                    else
+                        it.start.push(this.sourceToken);
+                    return;
+                case 'map-value-ind':
+                    if (!it || it.value)
+                        fc.items.push({ start: [], key: null, sep: [this.sourceToken] });
+                    else if (it.sep)
+                        it.sep.push(this.sourceToken);
+                    else
+                        Object.assign(it, { key: null, sep: [this.sourceToken] });
+                    return;
+                case 'space':
+                case 'comment':
+                case 'newline':
+                case 'anchor':
+                case 'tag':
+                    if (!it || it.value)
+                        fc.items.push({ start: [this.sourceToken] });
+                    else if (it.sep)
+                        it.sep.push(this.sourceToken);
+                    else
+                        it.start.push(this.sourceToken);
+                    return;
+                case 'alias':
+                case 'scalar':
+                case 'single-quoted-scalar':
+                case 'double-quoted-scalar': {
+                    const fs = this.flowScalar(this.type);
+                    if (!it || it.value)
+                        fc.items.push({ start: [], key: fs, sep: [] });
+                    else if (it.sep)
+                        this.stack.push(fs);
+                    else
+                        Object.assign(it, { key: fs, sep: [] });
+                    return;
+                }
+                case 'flow-map-end':
+                case 'flow-seq-end':
+                    fc.end.push(this.sourceToken);
+                    return;
+            }
+            const bv = this.startBlockValue(fc);
+            /* istanbul ignore else should not happen */
+            if (bv)
+                this.stack.push(bv);
+            else {
+                yield* this.pop();
+                yield* this.step();
+            }
+        }
+        else {
+            const parent = this.peek(2);
+            if (parent.type === 'block-map' &&
+                ((this.type === 'map-value-ind' && parent.indent === fc.indent) ||
+                    (this.type === 'newline' &&
+                        !parent.items[parent.items.length - 1].sep))) {
+                yield* this.pop();
+                yield* this.step();
+            }
+            else if (this.type === 'map-value-ind' &&
+                parent.type !== 'flow-collection') {
+                const prev = getPrevProps(parent);
+                const start = getFirstKeyStartProps(prev);
+                fixFlowSeqItems(fc);
+                const sep = fc.end.splice(1, fc.end.length);
+                sep.push(this.sourceToken);
+                const map = {
+                    type: 'block-map',
+                    offset: fc.offset,
+                    indent: fc.indent,
+                    items: [{ start, key: fc, sep }]
+                };
+                this.onKeyLine = true;
+                this.stack[this.stack.length - 1] = map;
+            }
+            else {
+                yield* this.lineEnd(fc);
+            }
+        }
+    }
+    flowScalar(type) {
+        if (this.onNewLine) {
+            let nl = this.source.indexOf('\n') + 1;
+            while (nl !== 0) {
+                this.onNewLine(this.offset + nl);
+                nl = this.source.indexOf('\n', nl) + 1;
+            }
+        }
+        return {
+            type,
+            offset: this.offset,
+            indent: this.indent,
+            source: this.source
+        };
+    }
+    startBlockValue(parent) {
+        switch (this.type) {
+            case 'alias':
+            case 'scalar':
+            case 'single-quoted-scalar':
+            case 'double-quoted-scalar':
+                return this.flowScalar(this.type);
+            case 'block-scalar-header':
+                return {
+                    type: 'block-scalar',
+                    offset: this.offset,
+                    indent: this.indent,
+                    props: [this.sourceToken],
+                    source: ''
+                };
+            case 'flow-map-start':
+            case 'flow-seq-start':
+                return {
+                    type: 'flow-collection',
+                    offset: this.offset,
+                    indent: this.indent,
+                    start: this.sourceToken,
+                    items: [],
+                    end: []
+                };
+            case 'seq-item-ind':
+                return {
+                    type: 'block-seq',
+                    offset: this.offset,
+                    indent: this.indent,
+                    items: [{ start: [this.sourceToken] }]
+                };
+            case 'explicit-key-ind': {
+                this.onKeyLine = true;
+                const prev = getPrevProps(parent);
+                const start = getFirstKeyStartProps(prev);
+                start.push(this.sourceToken);
+                return {
+                    type: 'block-map',
+                    offset: this.offset,
+                    indent: this.indent,
+                    items: [{ start, explicitKey: true }]
+                };
+            }
+            case 'map-value-ind': {
+                this.onKeyLine = true;
+                const prev = getPrevProps(parent);
+                const start = getFirstKeyStartProps(prev);
+                return {
+                    type: 'block-map',
+                    offset: this.offset,
+                    indent: this.indent,
+                    items: [{ start, key: null, sep: [this.sourceToken] }]
+                };
+            }
+        }
+        return null;
+    }
+    atIndentedComment(start, indent) {
+        if (this.type !== 'comment')
+            return false;
+        if (this.indent <= indent)
+            return false;
+        return start.every(st => st.type === 'newline' || st.type === 'space');
+    }
+    *documentEnd(docEnd) {
+        if (this.type !== 'doc-mode') {
+            if (docEnd.end)
+                docEnd.end.push(this.sourceToken);
+            else
+                docEnd.end = [this.sourceToken];
+            if (this.type === 'newline')
+                yield* this.pop();
+        }
+    }
+    *lineEnd(token) {
+        switch (this.type) {
+            case 'comma':
+            case 'doc-start':
+            case 'doc-end':
+            case 'flow-seq-end':
+            case 'flow-map-end':
+            case 'map-value-ind':
+                yield* this.pop();
+                yield* this.step();
+                break;
+            case 'newline':
+                this.onKeyLine = false;
+            // fallthrough
+            case 'space':
+            case 'comment':
+            default:
+                // all other values are errors
+                if (token.end)
+                    token.end.push(this.sourceToken);
+                else
+                    token.end = [this.sourceToken];
+                if (this.type === 'newline')
+                    yield* this.pop();
+        }
+    }
+}
+
+exports.Parser = Parser;
+
+
+/***/ }),
+
+/***/ 9123:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var composer = __nccwpck_require__(3156);
+var Document = __nccwpck_require__(9097);
+var errors = __nccwpck_require__(1940);
+var log = __nccwpck_require__(2285);
+var identity = __nccwpck_require__(1667);
+var lineCounter = __nccwpck_require__(8376);
+var parser = __nccwpck_require__(8932);
+
+function parseOptions(options) {
+    const prettyErrors = options.prettyErrors !== false;
+    const lineCounter$1 = options.lineCounter || (prettyErrors && new lineCounter.LineCounter()) || null;
+    return { lineCounter: lineCounter$1, prettyErrors };
+}
+/**
+ * Parse the input as a stream of YAML documents.
+ *
+ * Documents should be separated from each other by `...` or `---` marker lines.
+ *
+ * @returns If an empty `docs` array is returned, it will be of type
+ *   EmptyStream and contain additional stream information. In
+ *   TypeScript, you should use `'empty' in docs` as a type guard for it.
+ */
+function parseAllDocuments(source, options = {}) {
+    const { lineCounter, prettyErrors } = parseOptions(options);
+    const parser$1 = new parser.Parser(lineCounter?.addNewLine);
+    const composer$1 = new composer.Composer(options);
+    const docs = Array.from(composer$1.compose(parser$1.parse(source)));
+    if (prettyErrors && lineCounter)
+        for (const doc of docs) {
+            doc.errors.forEach(errors.prettifyError(source, lineCounter));
+            doc.warnings.forEach(errors.prettifyError(source, lineCounter));
+        }
+    if (docs.length > 0)
+        return docs;
+    return Object.assign([], { empty: true }, composer$1.streamInfo());
+}
+/** Parse an input string into a single YAML.Document */
+function parseDocument(source, options = {}) {
+    const { lineCounter, prettyErrors } = parseOptions(options);
+    const parser$1 = new parser.Parser(lineCounter?.addNewLine);
+    const composer$1 = new composer.Composer(options);
+    // `doc` is always set by compose.end(true) at the very latest
+    let doc = null;
+    for (const _doc of composer$1.compose(parser$1.parse(source), true, source.length)) {
+        if (!doc)
+            doc = _doc;
+        else if (doc.options.logLevel !== 'silent') {
+            doc.errors.push(new errors.YAMLParseError(_doc.range.slice(0, 2), 'MULTIPLE_DOCS', 'Source contains multiple documents; please use YAML.parseAllDocuments()'));
+            break;
+        }
+    }
+    if (prettyErrors && lineCounter) {
+        doc.errors.forEach(errors.prettifyError(source, lineCounter));
+        doc.warnings.forEach(errors.prettifyError(source, lineCounter));
+    }
+    return doc;
+}
+function parse(src, reviver, options) {
+    let _reviver = undefined;
+    if (typeof reviver === 'function') {
+        _reviver = reviver;
+    }
+    else if (options === undefined && reviver && typeof reviver === 'object') {
+        options = reviver;
+    }
+    const doc = parseDocument(src, options);
+    if (!doc)
+        return null;
+    doc.warnings.forEach(warning => log.warn(doc.options.logLevel, warning));
+    if (doc.errors.length > 0) {
+        if (doc.options.logLevel !== 'silent')
+            throw doc.errors[0];
+        else
+            doc.errors = [];
+    }
+    return doc.toJS(Object.assign({ reviver: _reviver }, options));
+}
+function stringify(value, replacer, options) {
+    let _replacer = null;
+    if (typeof replacer === 'function' || Array.isArray(replacer)) {
+        _replacer = replacer;
+    }
+    else if (options === undefined && replacer) {
+        options = replacer;
+    }
+    if (typeof options === 'string')
+        options = options.length;
+    if (typeof options === 'number') {
+        const indent = Math.round(options);
+        options = indent < 1 ? undefined : indent > 8 ? { indent: 8 } : { indent };
+    }
+    if (value === undefined) {
+        const { keepUndefined } = options ?? replacer ?? {};
+        if (!keepUndefined)
+            return undefined;
+    }
+    if (identity.isDocument(value) && !_replacer)
+        return value.toString(options);
+    return new Document.Document(value, _replacer, options).toString(options);
+}
+
+exports.parse = parse;
+exports.parseAllDocuments = parseAllDocuments;
+exports.parseDocument = parseDocument;
+exports.stringify = stringify;
+
+
+/***/ }),
+
+/***/ 1516:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+var map = __nccwpck_require__(4783);
+var seq = __nccwpck_require__(3166);
+var string = __nccwpck_require__(828);
+var tags = __nccwpck_require__(1278);
+
+const sortMapEntriesByKey = (a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
+class Schema {
+    constructor({ compat, customTags, merge, resolveKnownTags, schema, sortMapEntries, toStringDefaults }) {
+        this.compat = Array.isArray(compat)
+            ? tags.getTags(compat, 'compat')
+            : compat
+                ? tags.getTags(null, compat)
+                : null;
+        this.name = (typeof schema === 'string' && schema) || 'core';
+        this.knownTags = resolveKnownTags ? tags.coreKnownTags : {};
+        this.tags = tags.getTags(customTags, this.name, merge);
+        this.toStringOptions = toStringDefaults ?? null;
+        Object.defineProperty(this, identity.MAP, { value: map.map });
+        Object.defineProperty(this, identity.SCALAR, { value: string.string });
+        Object.defineProperty(this, identity.SEQ, { value: seq.seq });
+        // Used by createMap()
+        this.sortMapEntries =
+            typeof sortMapEntries === 'function'
+                ? sortMapEntries
+                : sortMapEntries === true
+                    ? sortMapEntriesByKey
+                    : null;
+    }
+    clone() {
+        const copy = Object.create(Schema.prototype, Object.getOwnPropertyDescriptors(this));
+        copy.tags = this.tags.slice();
+        return copy;
+    }
+}
+
+exports.Schema = Schema;
+
+
+/***/ }),
+
+/***/ 4783:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+var YAMLMap = __nccwpck_require__(6122);
+
+const map = {
+    collection: 'map',
+    default: true,
+    nodeClass: YAMLMap.YAMLMap,
+    tag: 'tag:yaml.org,2002:map',
+    resolve(map, onError) {
+        if (!identity.isMap(map))
+            onError('Expected a mapping for this tag');
+        return map;
+    },
+    createNode: (schema, obj, ctx) => YAMLMap.YAMLMap.from(schema, obj, ctx)
+};
+
+exports.map = map;
+
+
+/***/ }),
+
+/***/ 7316:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var Scalar = __nccwpck_require__(6129);
+
+const nullTag = {
+    identify: value => value == null,
+    createNode: () => new Scalar.Scalar(null),
+    default: true,
+    tag: 'tag:yaml.org,2002:null',
+    test: /^(?:~|[Nn]ull|NULL)?$/,
+    resolve: () => new Scalar.Scalar(null),
+    stringify: ({ source }, ctx) => typeof source === 'string' && nullTag.test.test(source)
+        ? source
+        : ctx.options.nullStr
+};
+
+exports.nullTag = nullTag;
+
+
+/***/ }),
+
+/***/ 3166:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+var YAMLSeq = __nccwpck_require__(5971);
+
+const seq = {
+    collection: 'seq',
+    default: true,
+    nodeClass: YAMLSeq.YAMLSeq,
+    tag: 'tag:yaml.org,2002:seq',
+    resolve(seq, onError) {
+        if (!identity.isSeq(seq))
+            onError('Expected a sequence for this tag');
+        return seq;
+    },
+    createNode: (schema, obj, ctx) => YAMLSeq.YAMLSeq.from(schema, obj, ctx)
+};
+
+exports.seq = seq;
+
+
+/***/ }),
+
+/***/ 828:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var stringifyString = __nccwpck_require__(81);
+
+const string = {
+    identify: value => typeof value === 'string',
+    default: true,
+    tag: 'tag:yaml.org,2002:str',
+    resolve: str => str,
+    stringify(item, ctx, onComment, onChompKeep) {
+        ctx = Object.assign({ actualString: true }, ctx);
+        return stringifyString.stringifyString(item, ctx, onComment, onChompKeep);
+    }
+};
+
+exports.string = string;
+
+
+/***/ }),
+
+/***/ 4971:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var Scalar = __nccwpck_require__(6129);
+
+const boolTag = {
+    identify: value => typeof value === 'boolean',
+    default: true,
+    tag: 'tag:yaml.org,2002:bool',
+    test: /^(?:[Tt]rue|TRUE|[Ff]alse|FALSE)$/,
+    resolve: str => new Scalar.Scalar(str[0] === 't' || str[0] === 'T'),
+    stringify({ source, value }, ctx) {
+        if (source && boolTag.test.test(source)) {
+            const sv = source[0] === 't' || source[0] === 'T';
+            if (value === sv)
+                return source;
+        }
+        return value ? ctx.options.trueStr : ctx.options.falseStr;
+    }
+};
+
+exports.boolTag = boolTag;
+
+
+/***/ }),
+
+/***/ 8409:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var Scalar = __nccwpck_require__(6129);
+var stringifyNumber = __nccwpck_require__(4813);
+
+const floatNaN = {
+    identify: value => typeof value === 'number',
+    default: true,
+    tag: 'tag:yaml.org,2002:float',
+    test: /^(?:[-+]?\.(?:inf|Inf|INF)|\.nan|\.NaN|\.NAN)$/,
+    resolve: str => str.slice(-3).toLowerCase() === 'nan'
+        ? NaN
+        : str[0] === '-'
+            ? Number.NEGATIVE_INFINITY
+            : Number.POSITIVE_INFINITY,
+    stringify: stringifyNumber.stringifyNumber
+};
+const floatExp = {
+    identify: value => typeof value === 'number',
+    default: true,
+    tag: 'tag:yaml.org,2002:float',
+    format: 'EXP',
+    test: /^[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)[eE][-+]?[0-9]+$/,
+    resolve: str => parseFloat(str),
+    stringify(node) {
+        const num = Number(node.value);
+        return isFinite(num) ? num.toExponential() : stringifyNumber.stringifyNumber(node);
+    }
+};
+const float = {
+    identify: value => typeof value === 'number',
+    default: true,
+    tag: 'tag:yaml.org,2002:float',
+    test: /^[-+]?(?:\.[0-9]+|[0-9]+\.[0-9]*)$/,
+    resolve(str) {
+        const node = new Scalar.Scalar(parseFloat(str));
+        const dot = str.indexOf('.');
+        if (dot !== -1 && str[str.length - 1] === '0')
+            node.minFractionDigits = str.length - dot - 1;
+        return node;
+    },
+    stringify: stringifyNumber.stringifyNumber
+};
+
+exports.float = float;
+exports.floatExp = floatExp;
+exports.floatNaN = floatNaN;
+
+
+/***/ }),
+
+/***/ 3142:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var stringifyNumber = __nccwpck_require__(4813);
+
+const intIdentify = (value) => typeof value === 'bigint' || Number.isInteger(value);
+const intResolve = (str, offset, radix, { intAsBigInt }) => (intAsBigInt ? BigInt(str) : parseInt(str.substring(offset), radix));
+function intStringify(node, radix, prefix) {
+    const { value } = node;
+    if (intIdentify(value) && value >= 0)
+        return prefix + value.toString(radix);
+    return stringifyNumber.stringifyNumber(node);
+}
+const intOct = {
+    identify: value => intIdentify(value) && value >= 0,
+    default: true,
+    tag: 'tag:yaml.org,2002:int',
+    format: 'OCT',
+    test: /^0o[0-7]+$/,
+    resolve: (str, _onError, opt) => intResolve(str, 2, 8, opt),
+    stringify: node => intStringify(node, 8, '0o')
+};
+const int = {
+    identify: intIdentify,
+    default: true,
+    tag: 'tag:yaml.org,2002:int',
+    test: /^[-+]?[0-9]+$/,
+    resolve: (str, _onError, opt) => intResolve(str, 0, 10, opt),
+    stringify: stringifyNumber.stringifyNumber
+};
+const intHex = {
+    identify: value => intIdentify(value) && value >= 0,
+    default: true,
+    tag: 'tag:yaml.org,2002:int',
+    format: 'HEX',
+    test: /^0x[0-9a-fA-F]+$/,
+    resolve: (str, _onError, opt) => intResolve(str, 2, 16, opt),
+    stringify: node => intStringify(node, 16, '0x')
+};
+
+exports.int = int;
+exports.intHex = intHex;
+exports.intOct = intOct;
+
+
+/***/ }),
+
+/***/ 4284:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var map = __nccwpck_require__(4783);
+var _null = __nccwpck_require__(7316);
+var seq = __nccwpck_require__(3166);
+var string = __nccwpck_require__(828);
+var bool = __nccwpck_require__(4971);
+var float = __nccwpck_require__(8409);
+var int = __nccwpck_require__(3142);
+
+const schema = [
+    map.map,
+    seq.seq,
+    string.string,
+    _null.nullTag,
+    bool.boolTag,
+    int.intOct,
+    int.int,
+    int.intHex,
+    float.floatNaN,
+    float.floatExp,
+    float.float
+];
+
+exports.schema = schema;
+
+
+/***/ }),
+
+/***/ 2451:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var Scalar = __nccwpck_require__(6129);
+var map = __nccwpck_require__(4783);
+var seq = __nccwpck_require__(3166);
+
+function intIdentify(value) {
+    return typeof value === 'bigint' || Number.isInteger(value);
+}
+const stringifyJSON = ({ value }) => JSON.stringify(value);
+const jsonScalars = [
+    {
+        identify: value => typeof value === 'string',
+        default: true,
+        tag: 'tag:yaml.org,2002:str',
+        resolve: str => str,
+        stringify: stringifyJSON
+    },
+    {
+        identify: value => value == null,
+        createNode: () => new Scalar.Scalar(null),
+        default: true,
+        tag: 'tag:yaml.org,2002:null',
+        test: /^null$/,
+        resolve: () => null,
+        stringify: stringifyJSON
+    },
+    {
+        identify: value => typeof value === 'boolean',
+        default: true,
+        tag: 'tag:yaml.org,2002:bool',
+        test: /^true$|^false$/,
+        resolve: str => str === 'true',
+        stringify: stringifyJSON
+    },
+    {
+        identify: intIdentify,
+        default: true,
+        tag: 'tag:yaml.org,2002:int',
+        test: /^-?(?:0|[1-9][0-9]*)$/,
+        resolve: (str, _onError, { intAsBigInt }) => intAsBigInt ? BigInt(str) : parseInt(str, 10),
+        stringify: ({ value }) => intIdentify(value) ? value.toString() : JSON.stringify(value)
+    },
+    {
+        identify: value => typeof value === 'number',
+        default: true,
+        tag: 'tag:yaml.org,2002:float',
+        test: /^-?(?:0|[1-9][0-9]*)(?:\.[0-9]*)?(?:[eE][-+]?[0-9]+)?$/,
+        resolve: str => parseFloat(str),
+        stringify: stringifyJSON
+    }
+];
+const jsonError = {
+    default: true,
+    tag: '',
+    test: /^/,
+    resolve(str, onError) {
+        onError(`Unresolved plain scalar ${JSON.stringify(str)}`);
+        return str;
+    }
+};
+const schema = [map.map, seq.seq].concat(jsonScalars, jsonError);
+
+exports.schema = schema;
+
+
+/***/ }),
+
+/***/ 1278:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var map = __nccwpck_require__(4783);
+var _null = __nccwpck_require__(7316);
+var seq = __nccwpck_require__(3166);
+var string = __nccwpck_require__(828);
+var bool = __nccwpck_require__(4971);
+var float = __nccwpck_require__(8409);
+var int = __nccwpck_require__(3142);
+var schema = __nccwpck_require__(4284);
+var schema$1 = __nccwpck_require__(2451);
+var binary = __nccwpck_require__(5559);
+var merge = __nccwpck_require__(7976);
+var omap = __nccwpck_require__(7083);
+var pairs = __nccwpck_require__(8309);
+var schema$2 = __nccwpck_require__(7493);
+var set = __nccwpck_require__(6348);
+var timestamp = __nccwpck_require__(2908);
+
+const schemas = new Map([
+    ['core', schema.schema],
+    ['failsafe', [map.map, seq.seq, string.string]],
+    ['json', schema$1.schema],
+    ['yaml11', schema$2.schema],
+    ['yaml-1.1', schema$2.schema]
+]);
+const tagsByName = {
+    binary: binary.binary,
+    bool: bool.boolTag,
+    float: float.float,
+    floatExp: float.floatExp,
+    floatNaN: float.floatNaN,
+    floatTime: timestamp.floatTime,
+    int: int.int,
+    intHex: int.intHex,
+    intOct: int.intOct,
+    intTime: timestamp.intTime,
+    map: map.map,
+    merge: merge.merge,
+    null: _null.nullTag,
+    omap: omap.omap,
+    pairs: pairs.pairs,
+    seq: seq.seq,
+    set: set.set,
+    timestamp: timestamp.timestamp
+};
+const coreKnownTags = {
+    'tag:yaml.org,2002:binary': binary.binary,
+    'tag:yaml.org,2002:merge': merge.merge,
+    'tag:yaml.org,2002:omap': omap.omap,
+    'tag:yaml.org,2002:pairs': pairs.pairs,
+    'tag:yaml.org,2002:set': set.set,
+    'tag:yaml.org,2002:timestamp': timestamp.timestamp
+};
+function getTags(customTags, schemaName, addMergeTag) {
+    const schemaTags = schemas.get(schemaName);
+    if (schemaTags && !customTags) {
+        return addMergeTag && !schemaTags.includes(merge.merge)
+            ? schemaTags.concat(merge.merge)
+            : schemaTags.slice();
+    }
+    let tags = schemaTags;
+    if (!tags) {
+        if (Array.isArray(customTags))
+            tags = [];
+        else {
+            const keys = Array.from(schemas.keys())
+                .filter(key => key !== 'yaml11')
+                .map(key => JSON.stringify(key))
+                .join(', ');
+            throw new Error(`Unknown schema "${schemaName}"; use one of ${keys} or define customTags array`);
+        }
+    }
+    if (Array.isArray(customTags)) {
+        for (const tag of customTags)
+            tags = tags.concat(tag);
+    }
+    else if (typeof customTags === 'function') {
+        tags = customTags(tags.slice());
+    }
+    if (addMergeTag)
+        tags = tags.concat(merge.merge);
+    return tags.reduce((tags, tag) => {
+        const tagObj = typeof tag === 'string' ? tagsByName[tag] : tag;
+        if (!tagObj) {
+            const tagName = JSON.stringify(tag);
+            const keys = Object.keys(tagsByName)
+                .map(key => JSON.stringify(key))
+                .join(', ');
+            throw new Error(`Unknown custom tag ${tagName}; use one of ${keys}`);
+        }
+        if (!tags.includes(tagObj))
+            tags.push(tagObj);
+        return tags;
+    }, []);
+}
+
+exports.coreKnownTags = coreKnownTags;
+exports.getTags = getTags;
+
+
+/***/ }),
+
+/***/ 5559:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var node_buffer = __nccwpck_require__(181);
+var Scalar = __nccwpck_require__(6129);
+var stringifyString = __nccwpck_require__(81);
+
+const binary = {
+    identify: value => value instanceof Uint8Array, // Buffer inherits from Uint8Array
+    default: false,
+    tag: 'tag:yaml.org,2002:binary',
+    /**
+     * Returns a Buffer in node and an Uint8Array in browsers
+     *
+     * To use the resulting buffer as an image, you'll want to do something like:
+     *
+     *   const blob = new Blob([buffer], { type: 'image/jpeg' })
+     *   document.querySelector('#photo').src = URL.createObjectURL(blob)
+     */
+    resolve(src, onError) {
+        if (typeof node_buffer.Buffer === 'function') {
+            return node_buffer.Buffer.from(src, 'base64');
+        }
+        else if (typeof atob === 'function') {
+            // On IE 11, atob() can't handle newlines
+            const str = atob(src.replace(/[\n\r]/g, ''));
+            const buffer = new Uint8Array(str.length);
+            for (let i = 0; i < str.length; ++i)
+                buffer[i] = str.charCodeAt(i);
+            return buffer;
+        }
+        else {
+            onError('This environment does not support reading binary tags; either Buffer or atob is required');
+            return src;
+        }
+    },
+    stringify({ comment, type, value }, ctx, onComment, onChompKeep) {
+        if (!value)
+            return '';
+        const buf = value; // checked earlier by binary.identify()
+        let str;
+        if (typeof node_buffer.Buffer === 'function') {
+            str =
+                buf instanceof node_buffer.Buffer
+                    ? buf.toString('base64')
+                    : node_buffer.Buffer.from(buf.buffer).toString('base64');
+        }
+        else if (typeof btoa === 'function') {
+            let s = '';
+            for (let i = 0; i < buf.length; ++i)
+                s += String.fromCharCode(buf[i]);
+            str = btoa(s);
+        }
+        else {
+            throw new Error('This environment does not support writing binary tags; either Buffer or btoa is required');
+        }
+        type ?? (type = Scalar.Scalar.BLOCK_LITERAL);
+        if (type !== Scalar.Scalar.QUOTE_DOUBLE) {
+            const lineWidth = Math.max(ctx.options.lineWidth - ctx.indent.length, ctx.options.minContentWidth);
+            const n = Math.ceil(str.length / lineWidth);
+            const lines = new Array(n);
+            for (let i = 0, o = 0; i < n; ++i, o += lineWidth) {
+                lines[i] = str.substr(o, lineWidth);
+            }
+            str = lines.join(type === Scalar.Scalar.BLOCK_LITERAL ? '\n' : ' ');
+        }
+        return stringifyString.stringifyString({ comment, type, value: str }, ctx, onComment, onChompKeep);
+    }
+};
+
+exports.binary = binary;
+
+
+/***/ }),
+
+/***/ 2130:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var Scalar = __nccwpck_require__(6129);
+
+function boolStringify({ value, source }, ctx) {
+    const boolObj = value ? trueTag : falseTag;
+    if (source && boolObj.test.test(source))
+        return source;
+    return value ? ctx.options.trueStr : ctx.options.falseStr;
+}
+const trueTag = {
+    identify: value => value === true,
+    default: true,
+    tag: 'tag:yaml.org,2002:bool',
+    test: /^(?:Y|y|[Yy]es|YES|[Tt]rue|TRUE|[Oo]n|ON)$/,
+    resolve: () => new Scalar.Scalar(true),
+    stringify: boolStringify
+};
+const falseTag = {
+    identify: value => value === false,
+    default: true,
+    tag: 'tag:yaml.org,2002:bool',
+    test: /^(?:N|n|[Nn]o|NO|[Ff]alse|FALSE|[Oo]ff|OFF)$/,
+    resolve: () => new Scalar.Scalar(false),
+    stringify: boolStringify
+};
+
+exports.falseTag = falseTag;
+exports.trueTag = trueTag;
+
+
+/***/ }),
+
+/***/ 6314:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var Scalar = __nccwpck_require__(6129);
+var stringifyNumber = __nccwpck_require__(4813);
+
+const floatNaN = {
+    identify: value => typeof value === 'number',
+    default: true,
+    tag: 'tag:yaml.org,2002:float',
+    test: /^(?:[-+]?\.(?:inf|Inf|INF)|\.nan|\.NaN|\.NAN)$/,
+    resolve: (str) => str.slice(-3).toLowerCase() === 'nan'
+        ? NaN
+        : str[0] === '-'
+            ? Number.NEGATIVE_INFINITY
+            : Number.POSITIVE_INFINITY,
+    stringify: stringifyNumber.stringifyNumber
+};
+const floatExp = {
+    identify: value => typeof value === 'number',
+    default: true,
+    tag: 'tag:yaml.org,2002:float',
+    format: 'EXP',
+    test: /^[-+]?(?:[0-9][0-9_]*)?(?:\.[0-9_]*)?[eE][-+]?[0-9]+$/,
+    resolve: (str) => parseFloat(str.replace(/_/g, '')),
+    stringify(node) {
+        const num = Number(node.value);
+        return isFinite(num) ? num.toExponential() : stringifyNumber.stringifyNumber(node);
+    }
+};
+const float = {
+    identify: value => typeof value === 'number',
+    default: true,
+    tag: 'tag:yaml.org,2002:float',
+    test: /^[-+]?(?:[0-9][0-9_]*)?\.[0-9_]*$/,
+    resolve(str) {
+        const node = new Scalar.Scalar(parseFloat(str.replace(/_/g, '')));
+        const dot = str.indexOf('.');
+        if (dot !== -1) {
+            const f = str.substring(dot + 1).replace(/_/g, '');
+            if (f[f.length - 1] === '0')
+                node.minFractionDigits = f.length;
+        }
+        return node;
+    },
+    stringify: stringifyNumber.stringifyNumber
+};
+
+exports.float = float;
+exports.floatExp = floatExp;
+exports.floatNaN = floatNaN;
+
+
+/***/ }),
+
+/***/ 5165:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var stringifyNumber = __nccwpck_require__(4813);
+
+const intIdentify = (value) => typeof value === 'bigint' || Number.isInteger(value);
+function intResolve(str, offset, radix, { intAsBigInt }) {
+    const sign = str[0];
+    if (sign === '-' || sign === '+')
+        offset += 1;
+    str = str.substring(offset).replace(/_/g, '');
+    if (intAsBigInt) {
+        switch (radix) {
+            case 2:
+                str = `0b${str}`;
+                break;
+            case 8:
+                str = `0o${str}`;
+                break;
+            case 16:
+                str = `0x${str}`;
+                break;
+        }
+        const n = BigInt(str);
+        return sign === '-' ? BigInt(-1) * n : n;
+    }
+    const n = parseInt(str, radix);
+    return sign === '-' ? -1 * n : n;
+}
+function intStringify(node, radix, prefix) {
+    const { value } = node;
+    if (intIdentify(value)) {
+        const str = value.toString(radix);
+        return value < 0 ? '-' + prefix + str.substr(1) : prefix + str;
+    }
+    return stringifyNumber.stringifyNumber(node);
+}
+const intBin = {
+    identify: intIdentify,
+    default: true,
+    tag: 'tag:yaml.org,2002:int',
+    format: 'BIN',
+    test: /^[-+]?0b[0-1_]+$/,
+    resolve: (str, _onError, opt) => intResolve(str, 2, 2, opt),
+    stringify: node => intStringify(node, 2, '0b')
+};
+const intOct = {
+    identify: intIdentify,
+    default: true,
+    tag: 'tag:yaml.org,2002:int',
+    format: 'OCT',
+    test: /^[-+]?0[0-7_]+$/,
+    resolve: (str, _onError, opt) => intResolve(str, 1, 8, opt),
+    stringify: node => intStringify(node, 8, '0')
+};
+const int = {
+    identify: intIdentify,
+    default: true,
+    tag: 'tag:yaml.org,2002:int',
+    test: /^[-+]?[0-9][0-9_]*$/,
+    resolve: (str, _onError, opt) => intResolve(str, 0, 10, opt),
+    stringify: stringifyNumber.stringifyNumber
+};
+const intHex = {
+    identify: intIdentify,
+    default: true,
+    tag: 'tag:yaml.org,2002:int',
+    format: 'HEX',
+    test: /^[-+]?0x[0-9a-fA-F_]+$/,
+    resolve: (str, _onError, opt) => intResolve(str, 2, 16, opt),
+    stringify: node => intStringify(node, 16, '0x')
+};
+
+exports.int = int;
+exports.intBin = intBin;
+exports.intHex = intHex;
+exports.intOct = intOct;
+
+
+/***/ }),
+
+/***/ 7976:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+var Scalar = __nccwpck_require__(6129);
+
+// If the value associated with a merge key is a single mapping node, each of
+// its key/value pairs is inserted into the current mapping, unless the key
+// already exists in it. If the value associated with the merge key is a
+// sequence, then this sequence is expected to contain mapping nodes and each
+// of these nodes is merged in turn according to its order in the sequence.
+// Keys in mapping nodes earlier in the sequence override keys specified in
+// later mapping nodes. -- http://yaml.org/type/merge.html
+const MERGE_KEY = '<<';
+const merge = {
+    identify: value => value === MERGE_KEY ||
+        (typeof value === 'symbol' && value.description === MERGE_KEY),
+    default: 'key',
+    tag: 'tag:yaml.org,2002:merge',
+    test: /^<<$/,
+    resolve: () => Object.assign(new Scalar.Scalar(Symbol(MERGE_KEY)), {
+        addToJSMap: addMergeToJSMap
+    }),
+    stringify: () => MERGE_KEY
+};
+const isMergeKey = (ctx, key) => (merge.identify(key) ||
+    (identity.isScalar(key) &&
+        (!key.type || key.type === Scalar.Scalar.PLAIN) &&
+        merge.identify(key.value))) &&
+    ctx?.doc.schema.tags.some(tag => tag.tag === merge.tag && tag.default);
+function addMergeToJSMap(ctx, map, value) {
+    value = ctx && identity.isAlias(value) ? value.resolve(ctx.doc) : value;
+    if (identity.isSeq(value))
+        for (const it of value.items)
+            mergeValue(ctx, map, it);
+    else if (Array.isArray(value))
+        for (const it of value)
+            mergeValue(ctx, map, it);
+    else
+        mergeValue(ctx, map, value);
+}
+function mergeValue(ctx, map, value) {
+    const source = ctx && identity.isAlias(value) ? value.resolve(ctx.doc) : value;
+    if (!identity.isMap(source))
+        throw new Error('Merge sources must be maps or map aliases');
+    const srcMap = source.toJSON(null, ctx, Map);
+    for (const [key, value] of srcMap) {
+        if (map instanceof Map) {
+            if (!map.has(key))
+                map.set(key, value);
+        }
+        else if (map instanceof Set) {
+            map.add(key);
+        }
+        else if (!Object.prototype.hasOwnProperty.call(map, key)) {
+            Object.defineProperty(map, key, {
+                value,
+                writable: true,
+                enumerable: true,
+                configurable: true
+            });
+        }
+    }
+    return map;
+}
+
+exports.addMergeToJSMap = addMergeToJSMap;
+exports.isMergeKey = isMergeKey;
+exports.merge = merge;
+
+
+/***/ }),
+
+/***/ 7083:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+var toJS = __nccwpck_require__(3103);
+var YAMLMap = __nccwpck_require__(6122);
+var YAMLSeq = __nccwpck_require__(5971);
+var pairs = __nccwpck_require__(8309);
+
+class YAMLOMap extends YAMLSeq.YAMLSeq {
+    constructor() {
+        super();
+        this.add = YAMLMap.YAMLMap.prototype.add.bind(this);
+        this.delete = YAMLMap.YAMLMap.prototype.delete.bind(this);
+        this.get = YAMLMap.YAMLMap.prototype.get.bind(this);
+        this.has = YAMLMap.YAMLMap.prototype.has.bind(this);
+        this.set = YAMLMap.YAMLMap.prototype.set.bind(this);
+        this.tag = YAMLOMap.tag;
+    }
+    /**
+     * If `ctx` is given, the return type is actually `Map<unknown, unknown>`,
+     * but TypeScript won't allow widening the signature of a child method.
+     */
+    toJSON(_, ctx) {
+        if (!ctx)
+            return super.toJSON(_);
+        const map = new Map();
+        if (ctx?.onCreate)
+            ctx.onCreate(map);
+        for (const pair of this.items) {
+            let key, value;
+            if (identity.isPair(pair)) {
+                key = toJS.toJS(pair.key, '', ctx);
+                value = toJS.toJS(pair.value, key, ctx);
+            }
+            else {
+                key = toJS.toJS(pair, '', ctx);
+            }
+            if (map.has(key))
+                throw new Error('Ordered maps must not include duplicate keys');
+            map.set(key, value);
+        }
+        return map;
+    }
+    static from(schema, iterable, ctx) {
+        const pairs$1 = pairs.createPairs(schema, iterable, ctx);
+        const omap = new this();
+        omap.items = pairs$1.items;
+        return omap;
+    }
+}
+YAMLOMap.tag = 'tag:yaml.org,2002:omap';
+const omap = {
+    collection: 'seq',
+    identify: value => value instanceof Map,
+    nodeClass: YAMLOMap,
+    default: false,
+    tag: 'tag:yaml.org,2002:omap',
+    resolve(seq, onError) {
+        const pairs$1 = pairs.resolvePairs(seq, onError);
+        const seenKeys = [];
+        for (const { key } of pairs$1.items) {
+            if (identity.isScalar(key)) {
+                if (seenKeys.includes(key.value)) {
+                    onError(`Ordered maps must not include duplicate keys: ${key.value}`);
+                }
+                else {
+                    seenKeys.push(key.value);
+                }
+            }
+        }
+        return Object.assign(new YAMLOMap(), pairs$1);
+    },
+    createNode: (schema, iterable, ctx) => YAMLOMap.from(schema, iterable, ctx)
+};
+
+exports.YAMLOMap = YAMLOMap;
+exports.omap = omap;
+
+
+/***/ }),
+
+/***/ 8309:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+var Pair = __nccwpck_require__(6033);
+var Scalar = __nccwpck_require__(6129);
+var YAMLSeq = __nccwpck_require__(5971);
+
+function resolvePairs(seq, onError) {
+    if (identity.isSeq(seq)) {
+        for (let i = 0; i < seq.items.length; ++i) {
+            let item = seq.items[i];
+            if (identity.isPair(item))
+                continue;
+            else if (identity.isMap(item)) {
+                if (item.items.length > 1)
+                    onError('Each pair must have its own sequence indicator');
+                const pair = item.items[0] || new Pair.Pair(new Scalar.Scalar(null));
+                if (item.commentBefore)
+                    pair.key.commentBefore = pair.key.commentBefore
+                        ? `${item.commentBefore}\n${pair.key.commentBefore}`
+                        : item.commentBefore;
+                if (item.comment) {
+                    const cn = pair.value ?? pair.key;
+                    cn.comment = cn.comment
+                        ? `${item.comment}\n${cn.comment}`
+                        : item.comment;
+                }
+                item = pair;
+            }
+            seq.items[i] = identity.isPair(item) ? item : new Pair.Pair(item);
+        }
+    }
+    else
+        onError('Expected a sequence for this tag');
+    return seq;
+}
+function createPairs(schema, iterable, ctx) {
+    const { replacer } = ctx;
+    const pairs = new YAMLSeq.YAMLSeq(schema);
+    pairs.tag = 'tag:yaml.org,2002:pairs';
+    let i = 0;
+    if (iterable && Symbol.iterator in Object(iterable))
+        for (let it of iterable) {
+            if (typeof replacer === 'function')
+                it = replacer.call(iterable, String(i++), it);
+            let key, value;
+            if (Array.isArray(it)) {
+                if (it.length === 2) {
+                    key = it[0];
+                    value = it[1];
+                }
+                else
+                    throw new TypeError(`Expected [key, value] tuple: ${it}`);
+            }
+            else if (it && it instanceof Object) {
+                const keys = Object.keys(it);
+                if (keys.length === 1) {
+                    key = keys[0];
+                    value = it[key];
+                }
+                else {
+                    throw new TypeError(`Expected tuple with one key, not ${keys.length} keys`);
+                }
+            }
+            else {
+                key = it;
+            }
+            pairs.items.push(Pair.createPair(key, value, ctx));
+        }
+    return pairs;
+}
+const pairs = {
+    collection: 'seq',
+    default: false,
+    tag: 'tag:yaml.org,2002:pairs',
+    resolve: resolvePairs,
+    createNode: createPairs
+};
+
+exports.createPairs = createPairs;
+exports.pairs = pairs;
+exports.resolvePairs = resolvePairs;
+
+
+/***/ }),
+
+/***/ 7493:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var map = __nccwpck_require__(4783);
+var _null = __nccwpck_require__(7316);
+var seq = __nccwpck_require__(3166);
+var string = __nccwpck_require__(828);
+var binary = __nccwpck_require__(5559);
+var bool = __nccwpck_require__(2130);
+var float = __nccwpck_require__(6314);
+var int = __nccwpck_require__(5165);
+var merge = __nccwpck_require__(7976);
+var omap = __nccwpck_require__(7083);
+var pairs = __nccwpck_require__(8309);
+var set = __nccwpck_require__(6348);
+var timestamp = __nccwpck_require__(2908);
+
+const schema = [
+    map.map,
+    seq.seq,
+    string.string,
+    _null.nullTag,
+    bool.trueTag,
+    bool.falseTag,
+    int.intBin,
+    int.intOct,
+    int.int,
+    int.intHex,
+    float.floatNaN,
+    float.floatExp,
+    float.float,
+    binary.binary,
+    merge.merge,
+    omap.omap,
+    pairs.pairs,
+    set.set,
+    timestamp.intTime,
+    timestamp.floatTime,
+    timestamp.timestamp
+];
+
+exports.schema = schema;
+
+
+/***/ }),
+
+/***/ 6348:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+var Pair = __nccwpck_require__(6033);
+var YAMLMap = __nccwpck_require__(6122);
+
+class YAMLSet extends YAMLMap.YAMLMap {
+    constructor(schema) {
+        super(schema);
+        this.tag = YAMLSet.tag;
+    }
+    add(key) {
+        let pair;
+        if (identity.isPair(key))
+            pair = key;
+        else if (key &&
+            typeof key === 'object' &&
+            'key' in key &&
+            'value' in key &&
+            key.value === null)
+            pair = new Pair.Pair(key.key, null);
+        else
+            pair = new Pair.Pair(key, null);
+        const prev = YAMLMap.findPair(this.items, pair.key);
+        if (!prev)
+            this.items.push(pair);
+    }
+    /**
+     * If `keepPair` is `true`, returns the Pair matching `key`.
+     * Otherwise, returns the value of that Pair's key.
+     */
+    get(key, keepPair) {
+        const pair = YAMLMap.findPair(this.items, key);
+        return !keepPair && identity.isPair(pair)
+            ? identity.isScalar(pair.key)
+                ? pair.key.value
+                : pair.key
+            : pair;
+    }
+    set(key, value) {
+        if (typeof value !== 'boolean')
+            throw new Error(`Expected boolean value for set(key, value) in a YAML set, not ${typeof value}`);
+        const prev = YAMLMap.findPair(this.items, key);
+        if (prev && !value) {
+            this.items.splice(this.items.indexOf(prev), 1);
+        }
+        else if (!prev && value) {
+            this.items.push(new Pair.Pair(key));
+        }
+    }
+    toJSON(_, ctx) {
+        return super.toJSON(_, ctx, Set);
+    }
+    toString(ctx, onComment, onChompKeep) {
+        if (!ctx)
+            return JSON.stringify(this);
+        if (this.hasAllNullValues(true))
+            return super.toString(Object.assign({}, ctx, { allNullValues: true }), onComment, onChompKeep);
+        else
+            throw new Error('Set items must all have null values');
+    }
+    static from(schema, iterable, ctx) {
+        const { replacer } = ctx;
+        const set = new this(schema);
+        if (iterable && Symbol.iterator in Object(iterable))
+            for (let value of iterable) {
+                if (typeof replacer === 'function')
+                    value = replacer.call(iterable, value, value);
+                set.items.push(Pair.createPair(value, null, ctx));
+            }
+        return set;
+    }
+}
+YAMLSet.tag = 'tag:yaml.org,2002:set';
+const set = {
+    collection: 'map',
+    identify: value => value instanceof Set,
+    nodeClass: YAMLSet,
+    default: false,
+    tag: 'tag:yaml.org,2002:set',
+    createNode: (schema, iterable, ctx) => YAMLSet.from(schema, iterable, ctx),
+    resolve(map, onError) {
+        if (identity.isMap(map)) {
+            if (map.hasAllNullValues(true))
+                return Object.assign(new YAMLSet(), map);
+            else
+                onError('Set items must all have null values');
+        }
+        else
+            onError('Expected a mapping for this tag');
+        return map;
+    }
+};
+
+exports.YAMLSet = YAMLSet;
+exports.set = set;
+
+
+/***/ }),
+
+/***/ 2908:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var stringifyNumber = __nccwpck_require__(4813);
+
+/** Internal types handle bigint as number, because TS can't figure it out. */
+function parseSexagesimal(str, asBigInt) {
+    const sign = str[0];
+    const parts = sign === '-' || sign === '+' ? str.substring(1) : str;
+    const num = (n) => asBigInt ? BigInt(n) : Number(n);
+    const res = parts
+        .replace(/_/g, '')
+        .split(':')
+        .reduce((res, p) => res * num(60) + num(p), num(0));
+    return (sign === '-' ? num(-1) * res : res);
+}
+/**
+ * hhhh:mm:ss.sss
+ *
+ * Internal types handle bigint as number, because TS can't figure it out.
+ */
+function stringifySexagesimal(node) {
+    let { value } = node;
+    let num = (n) => n;
+    if (typeof value === 'bigint')
+        num = n => BigInt(n);
+    else if (isNaN(value) || !isFinite(value))
+        return stringifyNumber.stringifyNumber(node);
+    let sign = '';
+    if (value < 0) {
+        sign = '-';
+        value *= num(-1);
+    }
+    const _60 = num(60);
+    const parts = [value % _60]; // seconds, including ms
+    if (value < 60) {
+        parts.unshift(0); // at least one : is required
+    }
+    else {
+        value = (value - parts[0]) / _60;
+        parts.unshift(value % _60); // minutes
+        if (value >= 60) {
+            value = (value - parts[0]) / _60;
+            parts.unshift(value); // hours
+        }
+    }
+    return (sign +
+        parts
+            .map(n => String(n).padStart(2, '0'))
+            .join(':')
+            .replace(/000000\d*$/, '') // % 60 may introduce error
+    );
+}
+const intTime = {
+    identify: value => typeof value === 'bigint' || Number.isInteger(value),
+    default: true,
+    tag: 'tag:yaml.org,2002:int',
+    format: 'TIME',
+    test: /^[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+$/,
+    resolve: (str, _onError, { intAsBigInt }) => parseSexagesimal(str, intAsBigInt),
+    stringify: stringifySexagesimal
+};
+const floatTime = {
+    identify: value => typeof value === 'number',
+    default: true,
+    tag: 'tag:yaml.org,2002:float',
+    format: 'TIME',
+    test: /^[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\.[0-9_]*$/,
+    resolve: str => parseSexagesimal(str, false),
+    stringify: stringifySexagesimal
+};
+const timestamp = {
+    identify: value => value instanceof Date,
+    default: true,
+    tag: 'tag:yaml.org,2002:timestamp',
+    // If the time zone is omitted, the timestamp is assumed to be specified in UTC. The time part
+    // may be omitted altogether, resulting in a date format. In such a case, the time part is
+    // assumed to be 00:00:00Z (start of day, UTC).
+    test: RegExp('^([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})' + // YYYY-Mm-Dd
+        '(?:' + // time is optional
+        '(?:t|T|[ \\t]+)' + // t | T | whitespace
+        '([0-9]{1,2}):([0-9]{1,2}):([0-9]{1,2}(\\.[0-9]+)?)' + // Hh:Mm:Ss(.ss)?
+        '(?:[ \\t]*(Z|[-+][012]?[0-9](?::[0-9]{2})?))?' + // Z | +5 | -03:30
+        ')?$'),
+    resolve(str) {
+        const match = str.match(timestamp.test);
+        if (!match)
+            throw new Error('!!timestamp expects a date, starting with yyyy-mm-dd');
+        const [, year, month, day, hour, minute, second] = match.map(Number);
+        const millisec = match[7] ? Number((match[7] + '00').substr(1, 3)) : 0;
+        let date = Date.UTC(year, month - 1, day, hour || 0, minute || 0, second || 0, millisec);
+        const tz = match[8];
+        if (tz && tz !== 'Z') {
+            let d = parseSexagesimal(tz, false);
+            if (Math.abs(d) < 30)
+                d *= 60;
+            date -= 60000 * d;
+        }
+        return new Date(date);
+    },
+    stringify: ({ value }) => value?.toISOString().replace(/(T00:00:00)?\.000Z$/, '') ?? ''
+};
+
+exports.floatTime = floatTime;
+exports.intTime = intTime;
+exports.timestamp = timestamp;
+
+
+/***/ }),
+
+/***/ 2383:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+
+const FOLD_FLOW = 'flow';
+const FOLD_BLOCK = 'block';
+const FOLD_QUOTED = 'quoted';
+/**
+ * Tries to keep input at up to `lineWidth` characters, splitting only on spaces
+ * not followed by newlines or spaces unless `mode` is `'quoted'`. Lines are
+ * terminated with `\n` and started with `indent`.
+ */
+function foldFlowLines(text, indent, mode = 'flow', { indentAtStart, lineWidth = 80, minContentWidth = 20, onFold, onOverflow } = {}) {
+    if (!lineWidth || lineWidth < 0)
+        return text;
+    if (lineWidth < minContentWidth)
+        minContentWidth = 0;
+    const endStep = Math.max(1 + minContentWidth, 1 + lineWidth - indent.length);
+    if (text.length <= endStep)
+        return text;
+    const folds = [];
+    const escapedFolds = {};
+    let end = lineWidth - indent.length;
+    if (typeof indentAtStart === 'number') {
+        if (indentAtStart > lineWidth - Math.max(2, minContentWidth))
+            folds.push(0);
+        else
+            end = lineWidth - indentAtStart;
+    }
+    let split = undefined;
+    let prev = undefined;
+    let overflow = false;
+    let i = -1;
+    let escStart = -1;
+    let escEnd = -1;
+    if (mode === FOLD_BLOCK) {
+        i = consumeMoreIndentedLines(text, i, indent.length);
+        if (i !== -1)
+            end = i + endStep;
+    }
+    for (let ch; (ch = text[(i += 1)]);) {
+        if (mode === FOLD_QUOTED && ch === '\\') {
+            escStart = i;
+            switch (text[i + 1]) {
+                case 'x':
+                    i += 3;
+                    break;
+                case 'u':
+                    i += 5;
+                    break;
+                case 'U':
+                    i += 9;
+                    break;
+                default:
+                    i += 1;
+            }
+            escEnd = i;
+        }
+        if (ch === '\n') {
+            if (mode === FOLD_BLOCK)
+                i = consumeMoreIndentedLines(text, i, indent.length);
+            end = i + indent.length + endStep;
+            split = undefined;
+        }
+        else {
+            if (ch === ' ' &&
+                prev &&
+                prev !== ' ' &&
+                prev !== '\n' &&
+                prev !== '\t') {
+                // space surrounded by non-space can be replaced with newline + indent
+                const next = text[i + 1];
+                if (next && next !== ' ' && next !== '\n' && next !== '\t')
+                    split = i;
+            }
+            if (i >= end) {
+                if (split) {
+                    folds.push(split);
+                    end = split + endStep;
+                    split = undefined;
+                }
+                else if (mode === FOLD_QUOTED) {
+                    // white-space collected at end may stretch past lineWidth
+                    while (prev === ' ' || prev === '\t') {
+                        prev = ch;
+                        ch = text[(i += 1)];
+                        overflow = true;
+                    }
+                    // Account for newline escape, but don't break preceding escape
+                    const j = i > escEnd + 1 ? i - 2 : escStart - 1;
+                    // Bail out if lineWidth & minContentWidth are shorter than an escape string
+                    if (escapedFolds[j])
+                        return text;
+                    folds.push(j);
+                    escapedFolds[j] = true;
+                    end = j + endStep;
+                    split = undefined;
+                }
+                else {
+                    overflow = true;
+                }
+            }
+        }
+        prev = ch;
+    }
+    if (overflow && onOverflow)
+        onOverflow();
+    if (folds.length === 0)
+        return text;
+    if (onFold)
+        onFold();
+    let res = text.slice(0, folds[0]);
+    for (let i = 0; i < folds.length; ++i) {
+        const fold = folds[i];
+        const end = folds[i + 1] || text.length;
+        if (fold === 0)
+            res = `\n${indent}${text.slice(0, end)}`;
+        else {
+            if (mode === FOLD_QUOTED && escapedFolds[fold])
+                res += `${text[fold]}\\`;
+            res += `\n${indent}${text.slice(fold + 1, end)}`;
+        }
+    }
+    return res;
+}
+/**
+ * Presumes `i + 1` is at the start of a line
+ * @returns index of last newline in more-indented block
+ */
+function consumeMoreIndentedLines(text, i, indent) {
+    let end = i;
+    let start = i + 1;
+    let ch = text[start];
+    while (ch === ' ' || ch === '\t') {
+        if (i < start + indent) {
+            ch = text[++i];
+        }
+        else {
+            do {
+                ch = text[++i];
+            } while (ch && ch !== '\n');
+            end = i;
+            start = i + 1;
+            ch = text[start];
+        }
+    }
+    return end;
+}
+
+exports.FOLD_BLOCK = FOLD_BLOCK;
+exports.FOLD_FLOW = FOLD_FLOW;
+exports.FOLD_QUOTED = FOLD_QUOTED;
+exports.foldFlowLines = foldFlowLines;
+
+
+/***/ }),
+
+/***/ 7072:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var anchors = __nccwpck_require__(6840);
+var identity = __nccwpck_require__(1667);
+var stringifyComment = __nccwpck_require__(7067);
+var stringifyString = __nccwpck_require__(81);
+
+function createStringifyContext(doc, options) {
+    const opt = Object.assign({
+        blockQuote: true,
+        commentString: stringifyComment.stringifyComment,
+        defaultKeyType: null,
+        defaultStringType: 'PLAIN',
+        directives: null,
+        doubleQuotedAsJSON: false,
+        doubleQuotedMinMultiLineLength: 40,
+        falseStr: 'false',
+        flowCollectionPadding: true,
+        indentSeq: true,
+        lineWidth: 80,
+        minContentWidth: 20,
+        nullStr: 'null',
+        simpleKeys: false,
+        singleQuote: null,
+        trueStr: 'true',
+        verifyAliasOrder: true
+    }, doc.schema.toStringOptions, options);
+    let inFlow;
+    switch (opt.collectionStyle) {
+        case 'block':
+            inFlow = false;
+            break;
+        case 'flow':
+            inFlow = true;
+            break;
+        default:
+            inFlow = null;
+    }
+    return {
+        anchors: new Set(),
+        doc,
+        flowCollectionPadding: opt.flowCollectionPadding ? ' ' : '',
+        indent: '',
+        indentStep: typeof opt.indent === 'number' ? ' '.repeat(opt.indent) : '  ',
+        inFlow,
+        options: opt
+    };
+}
+function getTagObject(tags, item) {
+    if (item.tag) {
+        const match = tags.filter(t => t.tag === item.tag);
+        if (match.length > 0)
+            return match.find(t => t.format === item.format) ?? match[0];
+    }
+    let tagObj = undefined;
+    let obj;
+    if (identity.isScalar(item)) {
+        obj = item.value;
+        let match = tags.filter(t => t.identify?.(obj));
+        if (match.length > 1) {
+            const testMatch = match.filter(t => t.test);
+            if (testMatch.length > 0)
+                match = testMatch;
+        }
+        tagObj =
+            match.find(t => t.format === item.format) ?? match.find(t => !t.format);
+    }
+    else {
+        obj = item;
+        tagObj = tags.find(t => t.nodeClass && obj instanceof t.nodeClass);
+    }
+    if (!tagObj) {
+        const name = obj?.constructor?.name ?? (obj === null ? 'null' : typeof obj);
+        throw new Error(`Tag not resolved for ${name} value`);
+    }
+    return tagObj;
+}
+// needs to be called before value stringifier to allow for circular anchor refs
+function stringifyProps(node, tagObj, { anchors: anchors$1, doc }) {
+    if (!doc.directives)
+        return '';
+    const props = [];
+    const anchor = (identity.isScalar(node) || identity.isCollection(node)) && node.anchor;
+    if (anchor && anchors.anchorIsValid(anchor)) {
+        anchors$1.add(anchor);
+        props.push(`&${anchor}`);
+    }
+    const tag = node.tag ?? (tagObj.default ? null : tagObj.tag);
+    if (tag)
+        props.push(doc.directives.tagString(tag));
+    return props.join(' ');
+}
+function stringify(item, ctx, onComment, onChompKeep) {
+    if (identity.isPair(item))
+        return item.toString(ctx, onComment, onChompKeep);
+    if (identity.isAlias(item)) {
+        if (ctx.doc.directives)
+            return item.toString(ctx);
+        if (ctx.resolvedAliases?.has(item)) {
+            throw new TypeError(`Cannot stringify circular structure without alias nodes`);
+        }
+        else {
+            if (ctx.resolvedAliases)
+                ctx.resolvedAliases.add(item);
+            else
+                ctx.resolvedAliases = new Set([item]);
+            item = item.resolve(ctx.doc);
+        }
+    }
+    let tagObj = undefined;
+    const node = identity.isNode(item)
+        ? item
+        : ctx.doc.createNode(item, { onTagObj: o => (tagObj = o) });
+    tagObj ?? (tagObj = getTagObject(ctx.doc.schema.tags, node));
+    const props = stringifyProps(node, tagObj, ctx);
+    if (props.length > 0)
+        ctx.indentAtStart = (ctx.indentAtStart ?? 0) + props.length + 1;
+    const str = typeof tagObj.stringify === 'function'
+        ? tagObj.stringify(node, ctx, onComment, onChompKeep)
+        : identity.isScalar(node)
+            ? stringifyString.stringifyString(node, ctx, onComment, onChompKeep)
+            : node.toString(ctx, onComment, onChompKeep);
+    if (!props)
+        return str;
+    return identity.isScalar(node) || str[0] === '{' || str[0] === '['
+        ? `${props} ${str}`
+        : `${props}\n${ctx.indent}${str}`;
+}
+
+exports.createStringifyContext = createStringifyContext;
+exports.stringify = stringify;
+
+
+/***/ }),
+
+/***/ 8864:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+var stringify = __nccwpck_require__(7072);
+var stringifyComment = __nccwpck_require__(7067);
+
+function stringifyCollection(collection, ctx, options) {
+    const flow = ctx.inFlow ?? collection.flow;
+    const stringify = flow ? stringifyFlowCollection : stringifyBlockCollection;
+    return stringify(collection, ctx, options);
+}
+function stringifyBlockCollection({ comment, items }, ctx, { blockItemPrefix, flowChars, itemIndent, onChompKeep, onComment }) {
+    const { indent, options: { commentString } } = ctx;
+    const itemCtx = Object.assign({}, ctx, { indent: itemIndent, type: null });
+    let chompKeep = false; // flag for the preceding node's status
+    const lines = [];
+    for (let i = 0; i < items.length; ++i) {
+        const item = items[i];
+        let comment = null;
+        if (identity.isNode(item)) {
+            if (!chompKeep && item.spaceBefore)
+                lines.push('');
+            addCommentBefore(ctx, lines, item.commentBefore, chompKeep);
+            if (item.comment)
+                comment = item.comment;
+        }
+        else if (identity.isPair(item)) {
+            const ik = identity.isNode(item.key) ? item.key : null;
+            if (ik) {
+                if (!chompKeep && ik.spaceBefore)
+                    lines.push('');
+                addCommentBefore(ctx, lines, ik.commentBefore, chompKeep);
+            }
+        }
+        chompKeep = false;
+        let str = stringify.stringify(item, itemCtx, () => (comment = null), () => (chompKeep = true));
+        if (comment)
+            str += stringifyComment.lineComment(str, itemIndent, commentString(comment));
+        if (chompKeep && comment)
+            chompKeep = false;
+        lines.push(blockItemPrefix + str);
+    }
+    let str;
+    if (lines.length === 0) {
+        str = flowChars.start + flowChars.end;
+    }
+    else {
+        str = lines[0];
+        for (let i = 1; i < lines.length; ++i) {
+            const line = lines[i];
+            str += line ? `\n${indent}${line}` : '\n';
+        }
+    }
+    if (comment) {
+        str += '\n' + stringifyComment.indentComment(commentString(comment), indent);
+        if (onComment)
+            onComment();
+    }
+    else if (chompKeep && onChompKeep)
+        onChompKeep();
+    return str;
+}
+function stringifyFlowCollection({ items }, ctx, { flowChars, itemIndent }) {
+    const { indent, indentStep, flowCollectionPadding: fcPadding, options: { commentString } } = ctx;
+    itemIndent += indentStep;
+    const itemCtx = Object.assign({}, ctx, {
+        indent: itemIndent,
+        inFlow: true,
+        type: null
+    });
+    let reqNewline = false;
+    let linesAtValue = 0;
+    const lines = [];
+    for (let i = 0; i < items.length; ++i) {
+        const item = items[i];
+        let comment = null;
+        if (identity.isNode(item)) {
+            if (item.spaceBefore)
+                lines.push('');
+            addCommentBefore(ctx, lines, item.commentBefore, false);
+            if (item.comment)
+                comment = item.comment;
+        }
+        else if (identity.isPair(item)) {
+            const ik = identity.isNode(item.key) ? item.key : null;
+            if (ik) {
+                if (ik.spaceBefore)
+                    lines.push('');
+                addCommentBefore(ctx, lines, ik.commentBefore, false);
+                if (ik.comment)
+                    reqNewline = true;
+            }
+            const iv = identity.isNode(item.value) ? item.value : null;
+            if (iv) {
+                if (iv.comment)
+                    comment = iv.comment;
+                if (iv.commentBefore)
+                    reqNewline = true;
+            }
+            else if (item.value == null && ik?.comment) {
+                comment = ik.comment;
+            }
+        }
+        if (comment)
+            reqNewline = true;
+        let str = stringify.stringify(item, itemCtx, () => (comment = null));
+        if (i < items.length - 1)
+            str += ',';
+        if (comment)
+            str += stringifyComment.lineComment(str, itemIndent, commentString(comment));
+        if (!reqNewline && (lines.length > linesAtValue || str.includes('\n')))
+            reqNewline = true;
+        lines.push(str);
+        linesAtValue = lines.length;
+    }
+    const { start, end } = flowChars;
+    if (lines.length === 0) {
+        return start + end;
+    }
+    else {
+        if (!reqNewline) {
+            const len = lines.reduce((sum, line) => sum + line.length + 2, 2);
+            reqNewline = ctx.options.lineWidth > 0 && len > ctx.options.lineWidth;
+        }
+        if (reqNewline) {
+            let str = start;
+            for (const line of lines)
+                str += line ? `\n${indentStep}${indent}${line}` : '\n';
+            return `${str}\n${indent}${end}`;
+        }
+        else {
+            return `${start}${fcPadding}${lines.join(' ')}${fcPadding}${end}`;
+        }
+    }
+}
+function addCommentBefore({ indent, options: { commentString } }, lines, comment, chompKeep) {
+    if (comment && chompKeep)
+        comment = comment.replace(/^\n+/, '');
+    if (comment) {
+        const ic = stringifyComment.indentComment(commentString(comment), indent);
+        lines.push(ic.trimStart()); // Avoid double indent on first line
+    }
+}
+
+exports.stringifyCollection = stringifyCollection;
+
+
+/***/ }),
+
+/***/ 7067:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+
+/**
+ * Stringifies a comment.
+ *
+ * Empty comment lines are left empty,
+ * lines consisting of a single space are replaced by `#`,
+ * and all other lines are prefixed with a `#`.
+ */
+const stringifyComment = (str) => str.replace(/^(?!$)(?: $)?/gm, '#');
+function indentComment(comment, indent) {
+    if (/^\n+$/.test(comment))
+        return comment.substring(1);
+    return indent ? comment.replace(/^(?! *$)/gm, indent) : comment;
+}
+const lineComment = (str, indent, comment) => str.endsWith('\n')
+    ? indentComment(comment, indent)
+    : comment.includes('\n')
+        ? '\n' + indentComment(comment, indent)
+        : (str.endsWith(' ') ? '' : ' ') + comment;
+
+exports.indentComment = indentComment;
+exports.lineComment = lineComment;
+exports.stringifyComment = stringifyComment;
+
+
+/***/ }),
+
+/***/ 2577:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+var stringify = __nccwpck_require__(7072);
+var stringifyComment = __nccwpck_require__(7067);
+
+function stringifyDocument(doc, options) {
+    const lines = [];
+    let hasDirectives = options.directives === true;
+    if (options.directives !== false && doc.directives) {
+        const dir = doc.directives.toString(doc);
+        if (dir) {
+            lines.push(dir);
+            hasDirectives = true;
+        }
+        else if (doc.directives.docStart)
+            hasDirectives = true;
+    }
+    if (hasDirectives)
+        lines.push('---');
+    const ctx = stringify.createStringifyContext(doc, options);
+    const { commentString } = ctx.options;
+    if (doc.commentBefore) {
+        if (lines.length !== 1)
+            lines.unshift('');
+        const cs = commentString(doc.commentBefore);
+        lines.unshift(stringifyComment.indentComment(cs, ''));
+    }
+    let chompKeep = false;
+    let contentComment = null;
+    if (doc.contents) {
+        if (identity.isNode(doc.contents)) {
+            if (doc.contents.spaceBefore && hasDirectives)
+                lines.push('');
+            if (doc.contents.commentBefore) {
+                const cs = commentString(doc.contents.commentBefore);
+                lines.push(stringifyComment.indentComment(cs, ''));
+            }
+            // top-level block scalars need to be indented if followed by a comment
+            ctx.forceBlockIndent = !!doc.comment;
+            contentComment = doc.contents.comment;
+        }
+        const onChompKeep = contentComment ? undefined : () => (chompKeep = true);
+        let body = stringify.stringify(doc.contents, ctx, () => (contentComment = null), onChompKeep);
+        if (contentComment)
+            body += stringifyComment.lineComment(body, '', commentString(contentComment));
+        if ((body[0] === '|' || body[0] === '>') &&
+            lines[lines.length - 1] === '---') {
+            // Top-level block scalars with a preceding doc marker ought to use the
+            // same line for their header.
+            lines[lines.length - 1] = `--- ${body}`;
+        }
+        else
+            lines.push(body);
+    }
+    else {
+        lines.push(stringify.stringify(doc.contents, ctx));
+    }
+    if (doc.directives?.docEnd) {
+        if (doc.comment) {
+            const cs = commentString(doc.comment);
+            if (cs.includes('\n')) {
+                lines.push('...');
+                lines.push(stringifyComment.indentComment(cs, ''));
+            }
+            else {
+                lines.push(`... ${cs}`);
+            }
+        }
+        else {
+            lines.push('...');
+        }
+    }
+    else {
+        let dc = doc.comment;
+        if (dc && chompKeep)
+            dc = dc.replace(/^\n+/, '');
+        if (dc) {
+            if ((!chompKeep || contentComment) && lines[lines.length - 1] !== '')
+                lines.push('');
+            lines.push(stringifyComment.indentComment(commentString(dc), ''));
+        }
+    }
+    return lines.join('\n') + '\n';
+}
+
+exports.stringifyDocument = stringifyDocument;
+
+
+/***/ }),
+
+/***/ 4813:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+
+function stringifyNumber({ format, minFractionDigits, tag, value }) {
+    if (typeof value === 'bigint')
+        return String(value);
+    const num = typeof value === 'number' ? value : Number(value);
+    if (!isFinite(num))
+        return isNaN(num) ? '.nan' : num < 0 ? '-.inf' : '.inf';
+    let n = Object.is(value, -0) ? '-0' : JSON.stringify(value);
+    if (!format &&
+        minFractionDigits &&
+        (!tag || tag === 'tag:yaml.org,2002:float') &&
+        /^\d/.test(n)) {
+        let i = n.indexOf('.');
+        if (i < 0) {
+            i = n.length;
+            n += '.';
+        }
+        let d = minFractionDigits - (n.length - i - 1);
+        while (d-- > 0)
+            n += '0';
+    }
+    return n;
+}
+
+exports.stringifyNumber = stringifyNumber;
+
+
+/***/ }),
+
+/***/ 8880:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+var Scalar = __nccwpck_require__(6129);
+var stringify = __nccwpck_require__(7072);
+var stringifyComment = __nccwpck_require__(7067);
+
+function stringifyPair({ key, value }, ctx, onComment, onChompKeep) {
+    const { allNullValues, doc, indent, indentStep, options: { commentString, indentSeq, simpleKeys } } = ctx;
+    let keyComment = (identity.isNode(key) && key.comment) || null;
+    if (simpleKeys) {
+        if (keyComment) {
+            throw new Error('With simple keys, key nodes cannot have comments');
+        }
+        if (identity.isCollection(key) || (!identity.isNode(key) && typeof key === 'object')) {
+            const msg = 'With simple keys, collection cannot be used as a key value';
+            throw new Error(msg);
+        }
+    }
+    let explicitKey = !simpleKeys &&
+        (!key ||
+            (keyComment && value == null && !ctx.inFlow) ||
+            identity.isCollection(key) ||
+            (identity.isScalar(key)
+                ? key.type === Scalar.Scalar.BLOCK_FOLDED || key.type === Scalar.Scalar.BLOCK_LITERAL
+                : typeof key === 'object'));
+    ctx = Object.assign({}, ctx, {
+        allNullValues: false,
+        implicitKey: !explicitKey && (simpleKeys || !allNullValues),
+        indent: indent + indentStep
+    });
+    let keyCommentDone = false;
+    let chompKeep = false;
+    let str = stringify.stringify(key, ctx, () => (keyCommentDone = true), () => (chompKeep = true));
+    if (!explicitKey && !ctx.inFlow && str.length > 1024) {
+        if (simpleKeys)
+            throw new Error('With simple keys, single line scalar must not span more than 1024 characters');
+        explicitKey = true;
+    }
+    if (ctx.inFlow) {
+        if (allNullValues || value == null) {
+            if (keyCommentDone && onComment)
+                onComment();
+            return str === '' ? '?' : explicitKey ? `? ${str}` : str;
+        }
+    }
+    else if ((allNullValues && !simpleKeys) || (value == null && explicitKey)) {
+        str = `? ${str}`;
+        if (keyComment && !keyCommentDone) {
+            str += stringifyComment.lineComment(str, ctx.indent, commentString(keyComment));
+        }
+        else if (chompKeep && onChompKeep)
+            onChompKeep();
+        return str;
+    }
+    if (keyCommentDone)
+        keyComment = null;
+    if (explicitKey) {
+        if (keyComment)
+            str += stringifyComment.lineComment(str, ctx.indent, commentString(keyComment));
+        str = `? ${str}\n${indent}:`;
+    }
+    else {
+        str = `${str}:`;
+        if (keyComment)
+            str += stringifyComment.lineComment(str, ctx.indent, commentString(keyComment));
+    }
+    let vsb, vcb, valueComment;
+    if (identity.isNode(value)) {
+        vsb = !!value.spaceBefore;
+        vcb = value.commentBefore;
+        valueComment = value.comment;
+    }
+    else {
+        vsb = false;
+        vcb = null;
+        valueComment = null;
+        if (value && typeof value === 'object')
+            value = doc.createNode(value);
+    }
+    ctx.implicitKey = false;
+    if (!explicitKey && !keyComment && identity.isScalar(value))
+        ctx.indentAtStart = str.length + 1;
+    chompKeep = false;
+    if (!indentSeq &&
+        indentStep.length >= 2 &&
+        !ctx.inFlow &&
+        !explicitKey &&
+        identity.isSeq(value) &&
+        !value.flow &&
+        !value.tag &&
+        !value.anchor) {
+        // If indentSeq === false, consider '- ' as part of indentation where possible
+        ctx.indent = ctx.indent.substring(2);
+    }
+    let valueCommentDone = false;
+    const valueStr = stringify.stringify(value, ctx, () => (valueCommentDone = true), () => (chompKeep = true));
+    let ws = ' ';
+    if (keyComment || vsb || vcb) {
+        ws = vsb ? '\n' : '';
+        if (vcb) {
+            const cs = commentString(vcb);
+            ws += `\n${stringifyComment.indentComment(cs, ctx.indent)}`;
+        }
+        if (valueStr === '' && !ctx.inFlow) {
+            if (ws === '\n' && valueComment)
+                ws = '\n\n';
+        }
+        else {
+            ws += `\n${ctx.indent}`;
+        }
+    }
+    else if (!explicitKey && identity.isCollection(value)) {
+        const vs0 = valueStr[0];
+        const nl0 = valueStr.indexOf('\n');
+        const hasNewline = nl0 !== -1;
+        const flow = ctx.inFlow ?? value.flow ?? value.items.length === 0;
+        if (hasNewline || !flow) {
+            let hasPropsLine = false;
+            if (hasNewline && (vs0 === '&' || vs0 === '!')) {
+                let sp0 = valueStr.indexOf(' ');
+                if (vs0 === '&' &&
+                    sp0 !== -1 &&
+                    sp0 < nl0 &&
+                    valueStr[sp0 + 1] === '!') {
+                    sp0 = valueStr.indexOf(' ', sp0 + 1);
+                }
+                if (sp0 === -1 || nl0 < sp0)
+                    hasPropsLine = true;
+            }
+            if (!hasPropsLine)
+                ws = `\n${ctx.indent}`;
+        }
+    }
+    else if (valueStr === '' || valueStr[0] === '\n') {
+        ws = '';
+    }
+    str += ws + valueStr;
+    if (ctx.inFlow) {
+        if (valueCommentDone && onComment)
+            onComment();
+    }
+    else if (valueComment && !valueCommentDone) {
+        str += stringifyComment.lineComment(str, ctx.indent, commentString(valueComment));
+    }
+    else if (chompKeep && onChompKeep) {
+        onChompKeep();
+    }
+    return str;
+}
+
+exports.stringifyPair = stringifyPair;
+
+
+/***/ }),
+
+/***/ 81:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var Scalar = __nccwpck_require__(6129);
+var foldFlowLines = __nccwpck_require__(2383);
+
+const getFoldOptions = (ctx, isBlock) => ({
+    indentAtStart: isBlock ? ctx.indent.length : ctx.indentAtStart,
+    lineWidth: ctx.options.lineWidth,
+    minContentWidth: ctx.options.minContentWidth
+});
+// Also checks for lines starting with %, as parsing the output as YAML 1.1 will
+// presume that's starting a new document.
+const containsDocumentMarker = (str) => /^(%|---|\.\.\.)/m.test(str);
+function lineLengthOverLimit(str, lineWidth, indentLength) {
+    if (!lineWidth || lineWidth < 0)
+        return false;
+    const limit = lineWidth - indentLength;
+    const strLen = str.length;
+    if (strLen <= limit)
+        return false;
+    for (let i = 0, start = 0; i < strLen; ++i) {
+        if (str[i] === '\n') {
+            if (i - start > limit)
+                return true;
+            start = i + 1;
+            if (strLen - start <= limit)
+                return false;
+        }
+    }
+    return true;
+}
+function doubleQuotedString(value, ctx) {
+    const json = JSON.stringify(value);
+    if (ctx.options.doubleQuotedAsJSON)
+        return json;
+    const { implicitKey } = ctx;
+    const minMultiLineLength = ctx.options.doubleQuotedMinMultiLineLength;
+    const indent = ctx.indent || (containsDocumentMarker(value) ? '  ' : '');
+    let str = '';
+    let start = 0;
+    for (let i = 0, ch = json[i]; ch; ch = json[++i]) {
+        if (ch === ' ' && json[i + 1] === '\\' && json[i + 2] === 'n') {
+            // space before newline needs to be escaped to not be folded
+            str += json.slice(start, i) + '\\ ';
+            i += 1;
+            start = i;
+            ch = '\\';
+        }
+        if (ch === '\\')
+            switch (json[i + 1]) {
+                case 'u':
+                    {
+                        str += json.slice(start, i);
+                        const code = json.substr(i + 2, 4);
+                        switch (code) {
+                            case '0000':
+                                str += '\\0';
+                                break;
+                            case '0007':
+                                str += '\\a';
+                                break;
+                            case '000b':
+                                str += '\\v';
+                                break;
+                            case '001b':
+                                str += '\\e';
+                                break;
+                            case '0085':
+                                str += '\\N';
+                                break;
+                            case '00a0':
+                                str += '\\_';
+                                break;
+                            case '2028':
+                                str += '\\L';
+                                break;
+                            case '2029':
+                                str += '\\P';
+                                break;
+                            default:
+                                if (code.substr(0, 2) === '00')
+                                    str += '\\x' + code.substr(2);
+                                else
+                                    str += json.substr(i, 6);
+                        }
+                        i += 5;
+                        start = i + 1;
+                    }
+                    break;
+                case 'n':
+                    if (implicitKey ||
+                        json[i + 2] === '"' ||
+                        json.length < minMultiLineLength) {
+                        i += 1;
+                    }
+                    else {
+                        // folding will eat first newline
+                        str += json.slice(start, i) + '\n\n';
+                        while (json[i + 2] === '\\' &&
+                            json[i + 3] === 'n' &&
+                            json[i + 4] !== '"') {
+                            str += '\n';
+                            i += 2;
+                        }
+                        str += indent;
+                        // space after newline needs to be escaped to not be folded
+                        if (json[i + 2] === ' ')
+                            str += '\\';
+                        i += 1;
+                        start = i + 1;
+                    }
+                    break;
+                default:
+                    i += 1;
+            }
+    }
+    str = start ? str + json.slice(start) : json;
+    return implicitKey
+        ? str
+        : foldFlowLines.foldFlowLines(str, indent, foldFlowLines.FOLD_QUOTED, getFoldOptions(ctx, false));
+}
+function singleQuotedString(value, ctx) {
+    if (ctx.options.singleQuote === false ||
+        (ctx.implicitKey && value.includes('\n')) ||
+        /[ \t]\n|\n[ \t]/.test(value) // single quoted string can't have leading or trailing whitespace around newline
+    )
+        return doubleQuotedString(value, ctx);
+    const indent = ctx.indent || (containsDocumentMarker(value) ? '  ' : '');
+    const res = "'" + value.replace(/'/g, "''").replace(/\n+/g, `$&\n${indent}`) + "'";
+    return ctx.implicitKey
+        ? res
+        : foldFlowLines.foldFlowLines(res, indent, foldFlowLines.FOLD_FLOW, getFoldOptions(ctx, false));
+}
+function quotedString(value, ctx) {
+    const { singleQuote } = ctx.options;
+    let qs;
+    if (singleQuote === false)
+        qs = doubleQuotedString;
+    else {
+        const hasDouble = value.includes('"');
+        const hasSingle = value.includes("'");
+        if (hasDouble && !hasSingle)
+            qs = singleQuotedString;
+        else if (hasSingle && !hasDouble)
+            qs = doubleQuotedString;
+        else
+            qs = singleQuote ? singleQuotedString : doubleQuotedString;
+    }
+    return qs(value, ctx);
+}
+// The negative lookbehind avoids a polynomial search,
+// but isn't supported yet on Safari: https://caniuse.com/js-regexp-lookbehind
+let blockEndNewlines;
+try {
+    blockEndNewlines = new RegExp('(^|(?<!\n))\n+(?!\n|$)', 'g');
+}
+catch {
+    blockEndNewlines = /\n+(?!\n|$)/g;
+}
+function blockString({ comment, type, value }, ctx, onComment, onChompKeep) {
+    const { blockQuote, commentString, lineWidth } = ctx.options;
+    // 1. Block can't end in whitespace unless the last line is non-empty.
+    // 2. Strings consisting of only whitespace are best rendered explicitly.
+    if (!blockQuote || /\n[\t ]+$/.test(value)) {
+        return quotedString(value, ctx);
+    }
+    const indent = ctx.indent ||
+        (ctx.forceBlockIndent || containsDocumentMarker(value) ? '  ' : '');
+    const literal = blockQuote === 'literal'
+        ? true
+        : blockQuote === 'folded' || type === Scalar.Scalar.BLOCK_FOLDED
+            ? false
+            : type === Scalar.Scalar.BLOCK_LITERAL
+                ? true
+                : !lineLengthOverLimit(value, lineWidth, indent.length);
+    if (!value)
+        return literal ? '|\n' : '>\n';
+    // determine chomping from whitespace at value end
+    let chomp;
+    let endStart;
+    for (endStart = value.length; endStart > 0; --endStart) {
+        const ch = value[endStart - 1];
+        if (ch !== '\n' && ch !== '\t' && ch !== ' ')
+            break;
+    }
+    let end = value.substring(endStart);
+    const endNlPos = end.indexOf('\n');
+    if (endNlPos === -1) {
+        chomp = '-'; // strip
+    }
+    else if (value === end || endNlPos !== end.length - 1) {
+        chomp = '+'; // keep
+        if (onChompKeep)
+            onChompKeep();
+    }
+    else {
+        chomp = ''; // clip
+    }
+    if (end) {
+        value = value.slice(0, -end.length);
+        if (end[end.length - 1] === '\n')
+            end = end.slice(0, -1);
+        end = end.replace(blockEndNewlines, `$&${indent}`);
+    }
+    // determine indent indicator from whitespace at value start
+    let startWithSpace = false;
+    let startEnd;
+    let startNlPos = -1;
+    for (startEnd = 0; startEnd < value.length; ++startEnd) {
+        const ch = value[startEnd];
+        if (ch === ' ')
+            startWithSpace = true;
+        else if (ch === '\n')
+            startNlPos = startEnd;
+        else
+            break;
+    }
+    let start = value.substring(0, startNlPos < startEnd ? startNlPos + 1 : startEnd);
+    if (start) {
+        value = value.substring(start.length);
+        start = start.replace(/\n+/g, `$&${indent}`);
+    }
+    const indentSize = indent ? '2' : '1'; // root is at -1
+    // Leading | or > is added later
+    let header = (startWithSpace ? indentSize : '') + chomp;
+    if (comment) {
+        header += ' ' + commentString(comment.replace(/ ?[\r\n]+/g, ' '));
+        if (onComment)
+            onComment();
+    }
+    if (!literal) {
+        const foldedValue = value
+            .replace(/\n+/g, '\n$&')
+            .replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g, '$1$2') // more-indented lines aren't folded
+            //                ^ more-ind. ^ empty     ^ capture next empty lines only at end of indent
+            .replace(/\n+/g, `$&${indent}`);
+        let literalFallback = false;
+        const foldOptions = getFoldOptions(ctx, true);
+        if (blockQuote !== 'folded' && type !== Scalar.Scalar.BLOCK_FOLDED) {
+            foldOptions.onOverflow = () => {
+                literalFallback = true;
+            };
+        }
+        const body = foldFlowLines.foldFlowLines(`${start}${foldedValue}${end}`, indent, foldFlowLines.FOLD_BLOCK, foldOptions);
+        if (!literalFallback)
+            return `>${header}\n${indent}${body}`;
+    }
+    value = value.replace(/\n+/g, `$&${indent}`);
+    return `|${header}\n${indent}${start}${value}${end}`;
+}
+function plainString(item, ctx, onComment, onChompKeep) {
+    const { type, value } = item;
+    const { actualString, implicitKey, indent, indentStep, inFlow } = ctx;
+    if ((implicitKey && value.includes('\n')) ||
+        (inFlow && /[[\]{},]/.test(value))) {
+        return quotedString(value, ctx);
+    }
+    if (/^[\n\t ,[\]{}#&*!|>'"%@`]|^[?-]$|^[?-][ \t]|[\n:][ \t]|[ \t]\n|[\n\t ]#|[\n\t :]$/.test(value)) {
+        // not allowed:
+        // - '-' or '?'
+        // - start with an indicator character (except [?:-]) or /[?-] /
+        // - '\n ', ': ' or ' \n' anywhere
+        // - '#' not preceded by a non-space char
+        // - end with ' ' or ':'
+        return implicitKey || inFlow || !value.includes('\n')
+            ? quotedString(value, ctx)
+            : blockString(item, ctx, onComment, onChompKeep);
+    }
+    if (!implicitKey &&
+        !inFlow &&
+        type !== Scalar.Scalar.PLAIN &&
+        value.includes('\n')) {
+        // Where allowed & type not set explicitly, prefer block style for multiline strings
+        return blockString(item, ctx, onComment, onChompKeep);
+    }
+    if (containsDocumentMarker(value)) {
+        if (indent === '') {
+            ctx.forceBlockIndent = true;
+            return blockString(item, ctx, onComment, onChompKeep);
+        }
+        else if (implicitKey && indent === indentStep) {
+            return quotedString(value, ctx);
+        }
+    }
+    const str = value.replace(/\n+/g, `$&\n${indent}`);
+    // Verify that output will be parsed as a string, as e.g. plain numbers and
+    // booleans get parsed with those types in v1.2 (e.g. '42', 'true' & '0.9e-3'),
+    // and others in v1.1.
+    if (actualString) {
+        const test = (tag) => tag.default && tag.tag !== 'tag:yaml.org,2002:str' && tag.test?.test(str);
+        const { compat, tags } = ctx.doc.schema;
+        if (tags.some(test) || compat?.some(test))
+            return quotedString(value, ctx);
+    }
+    return implicitKey
+        ? str
+        : foldFlowLines.foldFlowLines(str, indent, foldFlowLines.FOLD_FLOW, getFoldOptions(ctx, false));
+}
+function stringifyString(item, ctx, onComment, onChompKeep) {
+    const { implicitKey, inFlow } = ctx;
+    const ss = typeof item.value === 'string'
+        ? item
+        : Object.assign({}, item, { value: String(item.value) });
+    let { type } = item;
+    if (type !== Scalar.Scalar.QUOTE_DOUBLE) {
+        // force double quotes on control characters & unpaired surrogates
+        if (/[\x00-\x08\x0b-\x1f\x7f-\x9f\u{D800}-\u{DFFF}]/u.test(ss.value))
+            type = Scalar.Scalar.QUOTE_DOUBLE;
+    }
+    const _stringify = (_type) => {
+        switch (_type) {
+            case Scalar.Scalar.BLOCK_FOLDED:
+            case Scalar.Scalar.BLOCK_LITERAL:
+                return implicitKey || inFlow
+                    ? quotedString(ss.value, ctx) // blocks are not valid inside flow containers
+                    : blockString(ss, ctx, onComment, onChompKeep);
+            case Scalar.Scalar.QUOTE_DOUBLE:
+                return doubleQuotedString(ss.value, ctx);
+            case Scalar.Scalar.QUOTE_SINGLE:
+                return singleQuotedString(ss.value, ctx);
+            case Scalar.Scalar.PLAIN:
+                return plainString(ss, ctx, onComment, onChompKeep);
+            default:
+                return null;
+        }
+    };
+    let res = _stringify(type);
+    if (res === null) {
+        const { defaultKeyType, defaultStringType } = ctx.options;
+        const t = (implicitKey && defaultKeyType) || defaultStringType;
+        res = _stringify(t);
+        if (res === null)
+            throw new Error(`Unsupported default string type ${t}`);
+    }
+    return res;
+}
+
+exports.stringifyString = stringifyString;
+
+
+/***/ }),
+
+/***/ 9520:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+
+
+var identity = __nccwpck_require__(1667);
+
+const BREAK = Symbol('break visit');
+const SKIP = Symbol('skip children');
+const REMOVE = Symbol('remove node');
+/**
+ * Apply a visitor to an AST node or document.
+ *
+ * Walks through the tree (depth-first) starting from `node`, calling a
+ * `visitor` function with three arguments:
+ *   - `key`: For sequence values and map `Pair`, the node's index in the
+ *     collection. Within a `Pair`, `'key'` or `'value'`, correspondingly.
+ *     `null` for the root node.
+ *   - `node`: The current node.
+ *   - `path`: The ancestry of the current node.
+ *
+ * The return value of the visitor may be used to control the traversal:
+ *   - `undefined` (default): Do nothing and continue
+ *   - `visit.SKIP`: Do not visit the children of this node, continue with next
+ *     sibling
+ *   - `visit.BREAK`: Terminate traversal completely
+ *   - `visit.REMOVE`: Remove the current node, then continue with the next one
+ *   - `Node`: Replace the current node, then continue by visiting it
+ *   - `number`: While iterating the items of a sequence or map, set the index
+ *     of the next step. This is useful especially if the index of the current
+ *     node has changed.
+ *
+ * If `visitor` is a single function, it will be called with all values
+ * encountered in the tree, including e.g. `null` values. Alternatively,
+ * separate visitor functions may be defined for each `Map`, `Pair`, `Seq`,
+ * `Alias` and `Scalar` node. To define the same visitor function for more than
+ * one node type, use the `Collection` (map and seq), `Value` (map, seq & scalar)
+ * and `Node` (alias, map, seq & scalar) targets. Of all these, only the most
+ * specific defined one will be used for each node.
+ */
+function visit(node, visitor) {
+    const visitor_ = initVisitor(visitor);
+    if (identity.isDocument(node)) {
+        const cd = visit_(null, node.contents, visitor_, Object.freeze([node]));
+        if (cd === REMOVE)
+            node.contents = null;
+    }
+    else
+        visit_(null, node, visitor_, Object.freeze([]));
+}
+// Without the `as symbol` casts, TS declares these in the `visit`
+// namespace using `var`, but then complains about that because
+// `unique symbol` must be `const`.
+/** Terminate visit traversal completely */
+visit.BREAK = BREAK;
+/** Do not visit the children of the current node */
+visit.SKIP = SKIP;
+/** Remove the current node */
+visit.REMOVE = REMOVE;
+function visit_(key, node, visitor, path) {
+    const ctrl = callVisitor(key, node, visitor, path);
+    if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
+        replaceNode(key, path, ctrl);
+        return visit_(key, ctrl, visitor, path);
+    }
+    if (typeof ctrl !== 'symbol') {
+        if (identity.isCollection(node)) {
+            path = Object.freeze(path.concat(node));
+            for (let i = 0; i < node.items.length; ++i) {
+                const ci = visit_(i, node.items[i], visitor, path);
+                if (typeof ci === 'number')
+                    i = ci - 1;
+                else if (ci === BREAK)
+                    return BREAK;
+                else if (ci === REMOVE) {
+                    node.items.splice(i, 1);
+                    i -= 1;
+                }
+            }
+        }
+        else if (identity.isPair(node)) {
+            path = Object.freeze(path.concat(node));
+            const ck = visit_('key', node.key, visitor, path);
+            if (ck === BREAK)
+                return BREAK;
+            else if (ck === REMOVE)
+                node.key = null;
+            const cv = visit_('value', node.value, visitor, path);
+            if (cv === BREAK)
+                return BREAK;
+            else if (cv === REMOVE)
+                node.value = null;
+        }
+    }
+    return ctrl;
+}
+/**
+ * Apply an async visitor to an AST node or document.
+ *
+ * Walks through the tree (depth-first) starting from `node`, calling a
+ * `visitor` function with three arguments:
+ *   - `key`: For sequence values and map `Pair`, the node's index in the
+ *     collection. Within a `Pair`, `'key'` or `'value'`, correspondingly.
+ *     `null` for the root node.
+ *   - `node`: The current node.
+ *   - `path`: The ancestry of the current node.
+ *
+ * The return value of the visitor may be used to control the traversal:
+ *   - `Promise`: Must resolve to one of the following values
+ *   - `undefined` (default): Do nothing and continue
+ *   - `visit.SKIP`: Do not visit the children of this node, continue with next
+ *     sibling
+ *   - `visit.BREAK`: Terminate traversal completely
+ *   - `visit.REMOVE`: Remove the current node, then continue with the next one
+ *   - `Node`: Replace the current node, then continue by visiting it
+ *   - `number`: While iterating the items of a sequence or map, set the index
+ *     of the next step. This is useful especially if the index of the current
+ *     node has changed.
+ *
+ * If `visitor` is a single function, it will be called with all values
+ * encountered in the tree, including e.g. `null` values. Alternatively,
+ * separate visitor functions may be defined for each `Map`, `Pair`, `Seq`,
+ * `Alias` and `Scalar` node. To define the same visitor function for more than
+ * one node type, use the `Collection` (map and seq), `Value` (map, seq & scalar)
+ * and `Node` (alias, map, seq & scalar) targets. Of all these, only the most
+ * specific defined one will be used for each node.
+ */
+async function visitAsync(node, visitor) {
+    const visitor_ = initVisitor(visitor);
+    if (identity.isDocument(node)) {
+        const cd = await visitAsync_(null, node.contents, visitor_, Object.freeze([node]));
+        if (cd === REMOVE)
+            node.contents = null;
+    }
+    else
+        await visitAsync_(null, node, visitor_, Object.freeze([]));
+}
+// Without the `as symbol` casts, TS declares these in the `visit`
+// namespace using `var`, but then complains about that because
+// `unique symbol` must be `const`.
+/** Terminate visit traversal completely */
+visitAsync.BREAK = BREAK;
+/** Do not visit the children of the current node */
+visitAsync.SKIP = SKIP;
+/** Remove the current node */
+visitAsync.REMOVE = REMOVE;
+async function visitAsync_(key, node, visitor, path) {
+    const ctrl = await callVisitor(key, node, visitor, path);
+    if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
+        replaceNode(key, path, ctrl);
+        return visitAsync_(key, ctrl, visitor, path);
+    }
+    if (typeof ctrl !== 'symbol') {
+        if (identity.isCollection(node)) {
+            path = Object.freeze(path.concat(node));
+            for (let i = 0; i < node.items.length; ++i) {
+                const ci = await visitAsync_(i, node.items[i], visitor, path);
+                if (typeof ci === 'number')
+                    i = ci - 1;
+                else if (ci === BREAK)
+                    return BREAK;
+                else if (ci === REMOVE) {
+                    node.items.splice(i, 1);
+                    i -= 1;
+                }
+            }
+        }
+        else if (identity.isPair(node)) {
+            path = Object.freeze(path.concat(node));
+            const ck = await visitAsync_('key', node.key, visitor, path);
+            if (ck === BREAK)
+                return BREAK;
+            else if (ck === REMOVE)
+                node.key = null;
+            const cv = await visitAsync_('value', node.value, visitor, path);
+            if (cv === BREAK)
+                return BREAK;
+            else if (cv === REMOVE)
+                node.value = null;
+        }
+    }
+    return ctrl;
+}
+function initVisitor(visitor) {
+    if (typeof visitor === 'object' &&
+        (visitor.Collection || visitor.Node || visitor.Value)) {
+        return Object.assign({
+            Alias: visitor.Node,
+            Map: visitor.Node,
+            Scalar: visitor.Node,
+            Seq: visitor.Node
+        }, visitor.Value && {
+            Map: visitor.Value,
+            Scalar: visitor.Value,
+            Seq: visitor.Value
+        }, visitor.Collection && {
+            Map: visitor.Collection,
+            Seq: visitor.Collection
+        }, visitor);
+    }
+    return visitor;
+}
+function callVisitor(key, node, visitor, path) {
+    if (typeof visitor === 'function')
+        return visitor(key, node, path);
+    if (identity.isMap(node))
+        return visitor.Map?.(key, node, path);
+    if (identity.isSeq(node))
+        return visitor.Seq?.(key, node, path);
+    if (identity.isPair(node))
+        return visitor.Pair?.(key, node, path);
+    if (identity.isScalar(node))
+        return visitor.Scalar?.(key, node, path);
+    if (identity.isAlias(node))
+        return visitor.Alias?.(key, node, path);
+    return undefined;
+}
+function replaceNode(key, path, node) {
+    const parent = path[path.length - 1];
+    if (identity.isCollection(parent)) {
+        parent.items[key] = node;
+    }
+    else if (identity.isPair(parent)) {
+        if (key === 'key')
+            parent.key = node;
+        else
+            parent.value = node;
+    }
+    else if (identity.isDocument(parent)) {
+        parent.contents = node;
+    }
+    else {
+        const pt = identity.isAlias(parent) ? 'alias' : 'scalar';
+        throw new Error(`Cannot replace node with ${pt} parent`);
+    }
+}
+
+exports.visit = visit;
+exports.visitAsync = visitAsync;
+
+
 /***/ })
 
 /******/ });
@@ -31960,6 +40498,9 @@ module.exports = parseParams
 /******/ 	// Return the exports of the module
 /******/ 	return module.exports;
 /******/ }
+/******/ 
+/******/ // expose the modules object (__webpack_modules__)
+/******/ __nccwpck_require__.m = __webpack_modules__;
 /******/ 
 /************************************************************************/
 /******/ /* webpack/runtime/create fake namespace object */
@@ -32004,6 +40545,28 @@ module.exports = parseParams
 /******/ 	};
 /******/ })();
 /******/ 
+/******/ /* webpack/runtime/ensure chunk */
+/******/ (() => {
+/******/ 	__nccwpck_require__.f = {};
+/******/ 	// This file contains only the entry chunk.
+/******/ 	// The chunk loading function for additional chunks
+/******/ 	__nccwpck_require__.e = (chunkId) => {
+/******/ 		return Promise.all(Object.keys(__nccwpck_require__.f).reduce((promises, key) => {
+/******/ 			__nccwpck_require__.f[key](chunkId, promises);
+/******/ 			return promises;
+/******/ 		}, []));
+/******/ 	};
+/******/ })();
+/******/ 
+/******/ /* webpack/runtime/get javascript chunk filename */
+/******/ (() => {
+/******/ 	// This function allow to reference async chunks
+/******/ 	__nccwpck_require__.u = (chunkId) => {
+/******/ 		// return url for filenames based on template
+/******/ 		return "" + chunkId + ".index.js";
+/******/ 	};
+/******/ })();
+/******/ 
 /******/ /* webpack/runtime/hasOwnProperty shorthand */
 /******/ (() => {
 /******/ 	__nccwpck_require__.o = (obj, prop) => (Object.prototype.hasOwnProperty.call(obj, prop))
@@ -32020,9 +40583,83 @@ module.exports = parseParams
 /******/ 	};
 /******/ })();
 /******/ 
+/******/ /* webpack/runtime/publicPath */
+/******/ (() => {
+/******/ 	var scriptUrl;
+/******/ 	if (typeof import.meta.url === "string") scriptUrl = import.meta.url
+/******/ 	// When supporting browsers where an automatic publicPath is not supported you must specify an output.publicPath manually via configuration
+/******/ 	// or pass an empty string ("") and set the __webpack_public_path__ variable from your code to use your own logic.
+/******/ 	if (!scriptUrl) throw new Error("Automatic publicPath is not supported in this browser");
+/******/ 	scriptUrl = scriptUrl.replace(/#.*$/, "").replace(/\?.*$/, "").replace(/\/[^\/]+$/, "/");
+/******/ 	__nccwpck_require__.p = scriptUrl;
+/******/ })();
+/******/ 
 /******/ /* webpack/runtime/compat */
 /******/ 
 /******/ if (typeof __nccwpck_require__ !== 'undefined') __nccwpck_require__.ab = new URL('.', import.meta.url).pathname.slice(import.meta.url.match(/^file:\/\/\/\w:/) ? 1 : 0, -1) + "/";
+/******/ 
+/******/ /* webpack/runtime/import chunk loading */
+/******/ (() => {
+/******/ 	__nccwpck_require__.b = new URL("./", import.meta.url);
+/******/ 	
+/******/ 	// object to store loaded and loading chunks
+/******/ 	// undefined = chunk not loaded, null = chunk preloaded/prefetched
+/******/ 	// [resolve, Promise] = chunk loading, 0 = chunk loaded
+/******/ 	var installedChunks = {
+/******/ 		792: 0
+/******/ 	};
+/******/ 	
+/******/ 	var installChunk = (data) => {
+/******/ 		var {ids, modules, runtime} = data;
+/******/ 		// add "modules" to the modules object,
+/******/ 		// then flag all "ids" as loaded and fire callback
+/******/ 		var moduleId, chunkId, i = 0;
+/******/ 		for(moduleId in modules) {
+/******/ 			if(__nccwpck_require__.o(modules, moduleId)) {
+/******/ 				__nccwpck_require__.m[moduleId] = modules[moduleId];
+/******/ 			}
+/******/ 		}
+/******/ 		if(runtime) runtime(__nccwpck_require__);
+/******/ 		for(;i < ids.length; i++) {
+/******/ 			chunkId = ids[i];
+/******/ 			if(__nccwpck_require__.o(installedChunks, chunkId) && installedChunks[chunkId]) {
+/******/ 				installedChunks[chunkId][0]();
+/******/ 			}
+/******/ 			installedChunks[ids[i]] = 0;
+/******/ 		}
+/******/ 	
+/******/ 	}
+/******/ 	
+/******/ 	__nccwpck_require__.f.j = (chunkId, promises) => {
+/******/ 			// import() chunk loading for javascript
+/******/ 			var installedChunkData = __nccwpck_require__.o(installedChunks, chunkId) ? installedChunks[chunkId] : undefined;
+/******/ 			if(installedChunkData !== 0) { // 0 means "already installed".
+/******/ 	
+/******/ 				// a Promise means "currently loading".
+/******/ 				if(installedChunkData) {
+/******/ 					promises.push(installedChunkData[1]);
+/******/ 				} else {
+/******/ 					if(true) { // all chunks have JS
+/******/ 						// setup Promise in chunk cache
+/******/ 						var promise = import("./" + __nccwpck_require__.u(chunkId)).then(installChunk, (e) => {
+/******/ 							if(installedChunks[chunkId] !== 0) installedChunks[chunkId] = undefined;
+/******/ 							throw e;
+/******/ 						});
+/******/ 						var promise = Promise.race([promise, new Promise((resolve) => (installedChunkData = installedChunks[chunkId] = [resolve]))])
+/******/ 						promises.push(installedChunkData[1] = promise);
+/******/ 					}
+/******/ 				}
+/******/ 			}
+/******/ 	};
+/******/ 	
+/******/ 	// no prefetching
+/******/ 	
+/******/ 	// no preloaded
+/******/ 	
+/******/ 	// no external install chunk
+/******/ 	
+/******/ 	// no on chunks loaded
+/******/ })();
 /******/ 
 /************************************************************************/
 var __webpack_exports__ = {};
@@ -33054,12 +41691,12 @@ const defaultPlatform = (typeof process === 'object' && process
         process.env.__MINIMATCH_TESTING_PLATFORM__) ||
         process.platform
     : 'posix');
-const path = {
+const esm_path = {
     win32: { sep: '\\' },
     posix: { sep: '/' },
 };
 /* c8 ignore stop */
-const sep = defaultPlatform === 'win32' ? path.win32.sep : path.posix.sep;
+const sep = defaultPlatform === 'win32' ? esm_path.win32.sep : esm_path.posix.sep;
 minimatch.sep = sep;
 const GLOBSTAR = Symbol('globstar **');
 minimatch.GLOBSTAR = GLOBSTAR;
@@ -39879,21 +48516,2327 @@ const glob = Object.assign(glob_, {
 });
 glob.glob = glob;
 //# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ../core/dist/types.js
+/**
+ * Open Code Review V3 — Unified Type Definitions
+ *
+ * Core types shared across all modules: detectors, scoring engine,
+ * SLA framework, config system, and language adapters.
+ *
+ * @since 0.3.0
+ */
+// ─── AI Defect Categories ──────────────────────────────────────────
+/**
+ * Classification of AI-specific defect patterns.
+ * These categories represent issues unique to AI-generated code
+ * that traditional linters typically don't cover.
+ */
+var types_AIDefectCategory;
+(function (AIDefectCategory) {
+    /** AI references non-existent packages, APIs, or methods */
+    AIDefectCategory["HALLUCINATION"] = "hallucination";
+    /** AI uses outdated/deprecated APIs from training data */
+    AIDefectCategory["STALE_KNOWLEDGE"] = "stale-knowledge";
+    /** AI loses context across long outputs, causing inconsistencies */
+    AIDefectCategory["CONTEXT_LOSS"] = "context-loss";
+    /** AI generates code with security vulnerabilities */
+    AIDefectCategory["SECURITY_ANTIPATTERN"] = "security";
+    /** AI over-engineers solutions with unnecessary complexity */
+    AIDefectCategory["OVER_ENGINEERING"] = "over-engineering";
+    /** AI leaves incomplete implementations (TODO, stubs, empty catch) */
+    AIDefectCategory["INCOMPLETE_IMPL"] = "incomplete";
+    /** AI generates type-unsafe code (excessive any, unsafe casts) */
+    AIDefectCategory["TYPE_SAFETY"] = "type-safety";
+    /** AI generates code with missing/incorrect error handling */
+    AIDefectCategory["ERROR_HANDLING"] = "error-handling";
+    /** AI duplicates logic that should be extracted */
+    AIDefectCategory["DUPLICATION"] = "duplication";
+    /** AI leaks training data patterns (license headers, example code) */
+    AIDefectCategory["TRAINING_LEAK"] = "training-leak";
+})(types_AIDefectCategory || (types_AIDefectCategory = {}));
+/** Deduction points per severity level */
+const SEVERITY_DEDUCTIONS = {
+    critical: 15,
+    high: 10,
+    medium: 5,
+    low: 2,
+    info: 0,
+};
+/** V3 scoring dimension weights (must sum to 100) */
+const SCORING_WEIGHTS = {
+    faithfulness: 35,
+    freshness: 25,
+    coherence: 20,
+    quality: 20,
+};
+/**
+ * Maps each AIDefectCategory to its primary scoring dimension.
+ * Used by the scoring engine to route issues to the correct dimension.
+ */
+const CATEGORY_DIMENSION_MAP = {
+    [types_AIDefectCategory.HALLUCINATION]: 'faithfulness',
+    [types_AIDefectCategory.STALE_KNOWLEDGE]: 'freshness',
+    [types_AIDefectCategory.CONTEXT_LOSS]: 'coherence',
+    [types_AIDefectCategory.SECURITY_ANTIPATTERN]: 'faithfulness',
+    [types_AIDefectCategory.OVER_ENGINEERING]: 'quality',
+    [types_AIDefectCategory.INCOMPLETE_IMPL]: 'quality',
+    [types_AIDefectCategory.TYPE_SAFETY]: 'quality',
+    [types_AIDefectCategory.ERROR_HANDLING]: 'quality',
+    [types_AIDefectCategory.DUPLICATION]: 'quality',
+    [types_AIDefectCategory.TRAINING_LEAK]: 'faithfulness',
+};
+//# sourceMappingURL=types.js.map
+;// CONCATENATED MODULE: ../core/dist/languages/typescript/parser.js
+/**
+ * TypeScript / JavaScript Language Adapter
+ *
+ * Uses oxc-parser for fast AST parsing (Tier 1).
+ * Provides import/call extraction, complexity metrics, and built-in module detection.
+ *
+ * @since 0.3.0
+ */
+// ─── Node.js Built-in Modules ───
+const parser_NODE_BUILTINS = new Set([
+    'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console',
+    'constants', 'crypto', 'dgram', 'diagnostics_channel', 'dns', 'domain',
+    'events', 'fs', 'http', 'http2', 'https', 'inspector', 'module', 'net',
+    'os', 'path', 'perf_hooks', 'process', 'punycode', 'querystring',
+    'readline', 'repl', 'stream', 'string_decoder', 'test', 'timers',
+    'tls', 'trace_events', 'tty', 'url', 'util', 'v8', 'vm',
+    'wasi', 'worker_threads', 'zlib',
+    // Subpath imports
+    'fs/promises', 'stream/promises', 'timers/promises',
+    'dns/promises', 'readline/promises',
+]);
+/**
+ * Check if a module specifier refers to a Node.js built-in.
+ */
+function isNodeBuiltin(specifier) {
+    if (specifier.startsWith('node:')) {
+        return true;
+    }
+    return parser_NODE_BUILTINS.has(specifier);
+}
+/**
+ * Check if an import specifier is a relative path.
+ */
+function isRelativeImport(specifier) {
+    return specifier.startsWith('.') || specifier.startsWith('/');
+}
+/**
+ * TypeScriptAdapter — LanguageAdapter implementation for TypeScript and JavaScript.
+ *
+ * Covers: .ts, .tsx, .js, .jsx, .mts, .cts, .mjs, .cjs
+ */
+class TypeScriptAdapter {
+    id = 'typescript';
+    extensions = ['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts', '.mjs', '.cjs'];
+    /**
+     * Parse source code using oxc-parser.
+     */
+    async parse(source, filePath) {
+        const { parseSync } = await __nccwpck_require__.e(/* import() */ 602).then(__nccwpck_require__.bind(__nccwpck_require__, 8602));
+        const result = parseSync(filePath, source);
+        if (result.errors && result.errors.length > 0) {
+            // Non-fatal: return program even with parse errors
+            // Detectors can check for errors separately
+        }
+        return result.program;
+    }
+    /**
+     * Extract import/require statements using regex (fast, works without AST).
+     * This is a robust regex-based approach that matches the existing detector logic.
+     */
+    extractImports(source, _ast) {
+        const imports = [];
+        const lines = source.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const lineNum = i + 1;
+            // ES import: import { a, b } from 'module'
+            // ES import: import name from 'module'
+            // ES import: import * as name from 'module'
+            const esMatch = line.match(/import\s+(?:(?:\{([^}]*)\}|(\w+)|\*\s+as\s+(\w+))(?:\s*,\s*(?:\{([^}]*)\}|(\w+)|\*\s+as\s+(\w+)))?\s+from\s+)?['"]([^'"]+)['"]/);
+            if (esMatch) {
+                const mod = esMatch[7];
+                const bindings = [];
+                // Named imports: { a, b as c }
+                for (const group of [esMatch[1], esMatch[4]]) {
+                    if (group) {
+                        group.split(',').forEach(s => {
+                            const name = s.trim().split(/\s+as\s+/).pop()?.trim();
+                            if (name)
+                                bindings.push(name);
+                        });
+                    }
+                }
+                // Default import
+                if (esMatch[2])
+                    bindings.push(esMatch[2]);
+                if (esMatch[5])
+                    bindings.push(esMatch[5]);
+                // Namespace import
+                if (esMatch[3])
+                    bindings.push(esMatch[3]);
+                if (esMatch[6])
+                    bindings.push(esMatch[6]);
+                imports.push({
+                    module: mod,
+                    bindings,
+                    line: lineNum,
+                    isRelative: isRelativeImport(mod),
+                    isBuiltin: isNodeBuiltin(mod),
+                });
+                continue;
+            }
+            // Side-effect import: import 'module'
+            const sideEffectMatch = line.match(/import\s+['"]([^'"]+)['"]/);
+            if (sideEffectMatch) {
+                imports.push({
+                    module: sideEffectMatch[1],
+                    bindings: [],
+                    line: lineNum,
+                    isRelative: isRelativeImport(sideEffectMatch[1]),
+                    isBuiltin: isNodeBuiltin(sideEffectMatch[1]),
+                });
+                continue;
+            }
+            // Dynamic import: import('module')
+            const dynamicMatch = line.match(/import\s*\(\s*['"]([^'"]+)['"]\s*\)/);
+            if (dynamicMatch) {
+                imports.push({
+                    module: dynamicMatch[1],
+                    bindings: [],
+                    line: lineNum,
+                    isRelative: isRelativeImport(dynamicMatch[1]),
+                    isBuiltin: isNodeBuiltin(dynamicMatch[1]),
+                });
+                continue;
+            }
+            // CommonJS: const { a, b } = require('module')
+            const cjsDestructMatch = line.match(/(?:const|let|var)\s+\{([^}]*)\}\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)/);
+            if (cjsDestructMatch) {
+                const bindings = cjsDestructMatch[1]
+                    .split(',')
+                    .map(s => s.trim().split(/\s+as\s+/).pop()?.trim())
+                    .filter(Boolean);
+                imports.push({
+                    module: cjsDestructMatch[2],
+                    bindings,
+                    line: lineNum,
+                    isRelative: isRelativeImport(cjsDestructMatch[2]),
+                    isBuiltin: isNodeBuiltin(cjsDestructMatch[2]),
+                });
+                continue;
+            }
+            // CommonJS: const name = require('module')
+            const cjsMatch = line.match(/(?:const|let|var)\s+(\w+)\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)/);
+            if (cjsMatch) {
+                imports.push({
+                    module: cjsMatch[2],
+                    bindings: [cjsMatch[1]],
+                    line: lineNum,
+                    isRelative: isRelativeImport(cjsMatch[2]),
+                    isBuiltin: isNodeBuiltin(cjsMatch[2]),
+                });
+                continue;
+            }
+            // Bare require: require('module')
+            const bareRequireMatch = line.match(/require\s*\(\s*['"]([^'"]+)['"]\s*\)/);
+            if (bareRequireMatch && !cjsDestructMatch && !cjsMatch) {
+                imports.push({
+                    module: bareRequireMatch[1],
+                    bindings: [],
+                    line: lineNum,
+                    isRelative: isRelativeImport(bareRequireMatch[1]),
+                    isBuiltin: isNodeBuiltin(bareRequireMatch[1]),
+                });
+            }
+        }
+        return imports;
+    }
+    /**
+     * Extract function/method calls using regex.
+     * This is a lightweight extraction — AST-based extraction can be added later.
+     */
+    extractCalls(source, _ast) {
+        const calls = [];
+        const lines = source.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const lineNum = i + 1;
+            // Skip comments
+            const trimmed = line.trim();
+            if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) {
+                continue;
+            }
+            // Match method calls: obj.method(...)
+            const methodCallPattern = /(\w+(?:\.\w+)+)\s*\(/g;
+            let match;
+            while ((match = methodCallPattern.exec(line)) !== null) {
+                calls.push({
+                    name: match[1],
+                    line: lineNum,
+                    column: match.index + 1,
+                    isMethodCall: true,
+                });
+            }
+            // Match standalone function calls: func(...)
+            const funcCallPattern = /(?<!\.)(?<!\w)([a-zA-Z_$]\w*)\s*\(/g;
+            while ((match = funcCallPattern.exec(line)) !== null) {
+                const name = match[1];
+                // Skip keywords
+                if (['if', 'for', 'while', 'switch', 'catch', 'return', 'throw', 'new',
+                    'typeof', 'instanceof', 'void', 'delete', 'await', 'yield', 'function',
+                    'class', 'const', 'let', 'var', 'import', 'export', 'async', 'from',
+                    'case', 'type', 'interface', 'enum'].includes(name)) {
+                    continue;
+                }
+                calls.push({
+                    name,
+                    line: lineNum,
+                    column: match.index + 1,
+                    isMethodCall: false,
+                });
+            }
+        }
+        return calls;
+    }
+    /**
+     * Verify if an npm package exists.
+     * Uses HEAD request to registry.npmjs.org.
+     * Note: This is a placeholder — actual HTTP verification will be done
+     * in DeepHallucinationDetector (Phase 2).
+     */
+    async verifyPackage(name) {
+        // Placeholder: return exists=true for now
+        // Real implementation in Phase 2 (DeepHallucinationDetector)
+        return {
+            name,
+            exists: true,
+            checkedAt: Date.now(),
+        };
+    }
+    /**
+     * Check if an API is deprecated.
+     * Placeholder — real deprecated-apis.json will be added in Phase 2 (StaleAPIDetector).
+     */
+    checkDeprecated(_api) {
+        return null;
+    }
+    /**
+     * Compute complexity metrics for a TypeScript/JavaScript file.
+     * Uses simple heuristic counting — AST-based metrics in Phase 2.
+     */
+    computeComplexity(source, _ast) {
+        const lines = source.split('\n');
+        const nonEmptyLines = lines.filter(l => l.trim().length > 0);
+        let cyclomatic = 1; // base
+        let cognitive = 0;
+        let maxNestingDepth = 0;
+        let currentDepth = 0;
+        let functionCount = 0;
+        for (const line of lines) {
+            const trimmed = line.trim();
+            // Count decision points for cyclomatic complexity
+            const decisions = (trimmed.match(/\b(if|else\s+if|for|while|case|catch|\?\?|&&|\|\|)\b/g) || []).length;
+            cyclomatic += decisions;
+            // Count ternary operators
+            const ternaries = (trimmed.match(/\?[^?:]*:/g) || []).length;
+            cyclomatic += ternaries;
+            // Track nesting depth
+            const opens = (trimmed.match(/\{/g) || []).length;
+            const closes = (trimmed.match(/\}/g) || []).length;
+            currentDepth += opens - closes;
+            if (currentDepth > maxNestingDepth) {
+                maxNestingDepth = currentDepth;
+            }
+            // Cognitive complexity: nested conditions add more
+            if (/\b(if|for|while|catch)\b/.test(trimmed)) {
+                cognitive += 1 + Math.max(0, currentDepth - 1);
+            }
+            // Count functions
+            if (/\b(function|=>)\b/.test(trimmed) || /\b(async\s+)?\w+\s*\(/.test(trimmed)) {
+                // Very rough function counter
+                if (/(?:function\s+\w+|(?:const|let|var)\s+\w+\s*=\s*(?:async\s*)?\(|(?:async\s+)?(?:get|set)?\s*\w+\s*\([^)]*\)\s*(?::\s*\w+)?\s*\{)/.test(trimmed)) {
+                    functionCount++;
+                }
+            }
+        }
+        return {
+            cyclomatic,
+            cognitive,
+            loc: nonEmptyLines.length,
+            functionCount,
+            maxNestingDepth,
+        };
+    }
+}
+//# sourceMappingURL=parser.js.map
+;// CONCATENATED MODULE: ../core/dist/languages/typescript/index.js
+/**
+ * TypeScript/JavaScript Language Adapter — Exports
+ *
+ * @since 0.3.0
+ */
+
+//# sourceMappingURL=index.js.map
+// EXTERNAL MODULE: external "node:module"
+var external_node_module_ = __nccwpck_require__(8995);
+;// CONCATENATED MODULE: ../core/dist/languages/python/parser.js
+/**
+ * Python Language Adapter
+ *
+ * Regex-based parser for Python source code. No native AST dependencies needed —
+ * Python's indentation-based syntax is straightforward enough for regex extraction.
+ *
+ * Supports:
+ * - Import extraction (import, from...import, relative imports)
+ * - Function/method call extraction
+ * - Complexity metrics (cyclomatic, cognitive, nesting via indentation)
+ * - Deprecated API detection (via deprecated-apis-python.json)
+ * - Package verification (builtin + common third-party whitelists)
+ *
+ * @since 0.3.0
+ */
+
+// ─── Python Built-in Modules ───
+/**
+ * Python standard library modules (3.10+).
+ * At least 65 modules covering the most commonly used parts of stdlib.
+ */
+const PYTHON_BUILTIN_MODULES = new Set([
+    // Core
+    'os', 'sys', 're', 'json', 'math', 'random', 'datetime', 'time',
+    'pathlib', 'typing', 'collections', 'functools', 'itertools', 'io',
+    // System & subprocess
+    'subprocess', 'shutil', 'tempfile', 'logging', 'unittest', 'argparse',
+    // Crypto & encoding
+    'hashlib', 'hmac', 'secrets', 'base64',
+    // Network & web
+    'urllib', 'http', 'socket', 'ssl', 'email', 'smtplib',
+    // Data formats
+    'csv', 'sqlite3', 'xml', 'html', 'configparser',
+    // OOP & patterns
+    'abc', 'asyncio', 'concurrent', 'multiprocessing', 'threading', 'queue',
+    // Binary & serialization
+    'struct', 'pickle', 'copy', 'pprint', 'textwrap',
+    // Enums & data
+    'enum', 'dataclasses', 'contextlib', 'warnings', 'traceback',
+    // Introspection
+    'inspect', 'dis', 'ast', 'token', 'tokenize', 'importlib', 'pkgutil',
+    // Archive & compression
+    'zipfile', 'tarfile', 'gzip', 'bz2', 'lzma', 'zipimport',
+    // OS-level
+    'signal', 'ctypes', 'platform',
+    // Additional stdlib
+    'string', 'decimal', 'fractions', 'statistics', 'operator',
+    'array', 'bisect', 'heapq', 'weakref', 'types',
+    'glob', 'fnmatch', 'linecache', 'shelve', 'dbm',
+    'binascii', 'codecs', 'unicodedata',
+    'mmap', 'select', 'selectors',
+    'atexit', 'sched', 'gettext', 'locale',
+    'os.path', 'posixpath', 'ntpath',
+    'pdb', 'profile', 'cProfile', 'timeit',
+    'doctest', 'builtins', '__future__',
+]);
+// ─── Common Third-Party Packages ───
+/**
+ * Well-known Python third-party packages from PyPI.
+ * At least 55 packages covering data science, web, testing, tooling, etc.
+ */
+const PYTHON_COMMON_PACKAGES = new Set([
+    // Data science & ML
+    'numpy', 'pandas', 'scipy', 'matplotlib', 'seaborn',
+    'sklearn', 'scikit-learn', 'tensorflow', 'torch', 'keras',
+    'xgboost', 'lightgbm', 'transformers',
+    // Web frameworks
+    'flask', 'django', 'fastapi', 'uvicorn', 'gunicorn',
+    'starlette', 'sanic',
+    // Task queues & caching
+    'celery', 'redis', 'kombu',
+    // Database
+    'sqlalchemy', 'alembic', 'pydantic', 'psycopg2', 'pymongo',
+    // HTTP clients
+    'requests', 'httpx', 'aiohttp', 'urllib3',
+    // Scraping & automation
+    'beautifulsoup4', 'bs4', 'scrapy', 'selenium', 'playwright',
+    // Image processing
+    'pillow', 'PIL', 'opencv-python', 'cv2',
+    // Cloud
+    'boto3', 'botocore', 'google-cloud-storage',
+    // Testing
+    'pytest', 'tox', 'coverage', 'mock', 'hypothesis',
+    // Code quality
+    'black', 'isort', 'flake8', 'pylint', 'mypy', 'ruff', 'pre-commit',
+    // Packaging
+    'poetry', 'pipenv', 'setuptools', 'wheel', 'twine', 'pip',
+    // CLI
+    'click', 'typer', 'rich', 'tqdm',
+    // Config & serialization
+    'pyyaml', 'yaml', 'toml', 'tomli', 'python-dotenv', 'dotenv',
+    // Security
+    'cryptography', 'paramiko', 'jwt', 'pyjwt',
+]);
+/** Load deprecated APIs from JSON data file */
+function loadDeprecatedAPIs() {
+    try {
+        const require = (0,external_node_module_.createRequire)(import.meta.url);
+        return require('../../data/deprecated-apis-python.json');
+    }
+    catch {
+        return [];
+    }
+}
+const PYTHON_DEPRECATED_DB = loadDeprecatedAPIs();
+// ─── Python Adapter ───
+/**
+ * PythonAdapter — LanguageAdapter implementation for Python.
+ *
+ * Covers: .py, .pyi
+ *
+ * Uses regex-based parsing instead of a native AST parser.
+ * Python's syntax (indentation-based nesting, simple import syntax)
+ * is well-suited for regex-based extraction.
+ */
+class PythonAdapter {
+    id = 'python';
+    extensions = ['.py', '.pyi'];
+    /**
+     * Parse Python source code.
+     * Returns a lightweight AST-like structure with lines and source,
+     * sufficient for regex-based detection.
+     */
+    async parse(source, _filePath) {
+        return {
+            type: 'PythonModule',
+            lines: source.split('\n'),
+            source,
+        };
+    }
+    /**
+     * Extract import statements from Python source.
+     *
+     * Matches:
+     * - import os
+     * - import os.path
+     * - import os, sys
+     * - from os import path
+     * - from os.path import exists, join
+     * - from . import relative
+     * - from ..parent import something
+     * - from __future__ import annotations
+     */
+    extractImports(source, _ast) {
+        const lines = source.split('\n');
+        const imports = [];
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.trim();
+            const lineNum = i + 1;
+            // Skip comments and strings
+            if (trimmed.startsWith('#'))
+                continue;
+            // from xxx import yyy, zzz
+            const fromMatch = trimmed.match(/^from\s+(\.{0,3}[\w.]*)\s+import\s+(.+?)(?:\s*#.*)?$/);
+            if (fromMatch) {
+                const modulePath = fromMatch[1];
+                const importedNames = fromMatch[2];
+                const isRelative = modulePath.startsWith('.');
+                // Parse imported bindings: "a, b as c, d"
+                const bindings = [];
+                // Handle star import
+                if (importedNames.trim() === '*') {
+                    bindings.push('*');
+                }
+                else {
+                    // Handle parenthesized imports (single-line): from x import (a, b, c)
+                    const cleaned = importedNames.replace(/[()]/g, '');
+                    for (const part of cleaned.split(',')) {
+                        const name = part.trim().split(/\s+as\s+/).pop()?.trim();
+                        if (name && name !== '\\')
+                            bindings.push(name);
+                    }
+                }
+                // Determine base module name
+                const baseModule = isRelative
+                    ? modulePath
+                    : modulePath.split('.')[0];
+                imports.push({
+                    module: modulePath,
+                    bindings,
+                    line: lineNum,
+                    isRelative,
+                    isBuiltin: !isRelative && PYTHON_BUILTIN_MODULES.has(baseModule),
+                });
+                continue;
+            }
+            // import xxx, yyy.zzz
+            const importMatch = trimmed.match(/^import\s+(.+?)(?:\s*#.*)?$/);
+            if (importMatch) {
+                const moduleList = importMatch[1];
+                // Split comma-separated imports: import os, sys, json
+                for (const part of moduleList.split(',')) {
+                    const asMatch = part.trim().match(/^([\w.]+)(?:\s+as\s+(\w+))?$/);
+                    if (asMatch) {
+                        const fullPath = asMatch[1];
+                        const alias = asMatch[2] || fullPath.split('.').pop();
+                        const baseModule = fullPath.split('.')[0];
+                        imports.push({
+                            module: fullPath,
+                            bindings: [alias],
+                            line: lineNum,
+                            isRelative: false,
+                            isBuiltin: PYTHON_BUILTIN_MODULES.has(baseModule),
+                        });
+                    }
+                }
+            }
+        }
+        return imports;
+    }
+    /**
+     * Extract function/method calls from Python source.
+     *
+     * Matches patterns like:
+     * - func()
+     * - obj.method()
+     * - module.submodule.func()
+     * - Class()
+     */
+    extractCalls(source, _ast) {
+        const lines = source.split('\n');
+        const calls = [];
+        // Python keywords that look like function calls but aren't
+        const pythonKeywords = new Set([
+            'if', 'elif', 'else', 'for', 'while', 'with', 'try', 'except',
+            'finally', 'def', 'class', 'return', 'yield', 'raise', 'import',
+            'from', 'as', 'pass', 'break', 'continue', 'del', 'assert',
+            'lambda', 'global', 'nonlocal', 'async', 'await', 'and', 'or',
+            'not', 'in', 'is', 'True', 'False', 'None',
+        ]);
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.trimStart();
+            const lineNum = i + 1;
+            // Skip comments
+            if (trimmed.startsWith('#'))
+                continue;
+            // Skip string-only lines (rough heuristic)
+            if (/^(['"]){3}/.test(trimmed) || /^(['"])/.test(trimmed))
+                continue;
+            // Match calls: word.word.word(  or  word(
+            const callPattern = /(\w+(?:\.\w+)*)\s*\(/g;
+            let match;
+            while ((match = callPattern.exec(line)) !== null) {
+                const callee = match[1];
+                const firstName = callee.split('.')[0];
+                // Skip keywords
+                if (pythonKeywords.has(firstName))
+                    continue;
+                // Skip decorators (they're on lines starting with @)
+                if (trimmed.startsWith('@') && match.index <= line.indexOf(callee))
+                    continue;
+                const isMethodCall = callee.includes('.');
+                calls.push({
+                    name: callee,
+                    line: lineNum,
+                    column: match.index + 1,
+                    isMethodCall,
+                });
+            }
+        }
+        return calls;
+    }
+    /**
+     * Verify if a Python package exists.
+     *
+     * Phase 2 implementation: checks against builtin modules and
+     * common third-party package whitelists.
+     * Full PyPI verification will be added in a later phase.
+     */
+    async verifyPackage(name) {
+        const baseModule = name.split('.')[0];
+        if (PYTHON_BUILTIN_MODULES.has(baseModule) || PYTHON_BUILTIN_MODULES.has(name)) {
+            return {
+                name,
+                exists: true,
+                checkedAt: Date.now(),
+            };
+        }
+        if (PYTHON_COMMON_PACKAGES.has(baseModule) || PYTHON_COMMON_PACKAGES.has(name)) {
+            return {
+                name,
+                exists: true,
+                checkedAt: Date.now(),
+            };
+        }
+        return {
+            name,
+            exists: false,
+            checkedAt: Date.now(),
+        };
+    }
+    /**
+     * Check if an API is deprecated.
+     * Searches the deprecated-apis-python.json database.
+     */
+    checkDeprecated(api) {
+        for (const entry of PYTHON_DEPRECATED_DB) {
+            const regex = new RegExp(entry.pattern);
+            if (regex.test(api)) {
+                return {
+                    api: entry.api,
+                    reason: entry.reason,
+                    replacement: entry.replacement,
+                    since: entry.deprecated_since,
+                };
+            }
+        }
+        return null;
+    }
+    /**
+     * Compute complexity metrics for Python source code.
+     *
+     * Uses indentation-based nesting detection (Python's natural structure)
+     * and regex matching for decision points.
+     */
+    computeComplexity(source, _ast) {
+        const lines = source.split('\n');
+        let cyclomatic = 1; // base complexity
+        let cognitive = 0;
+        let maxNestingDepth = 0;
+        let currentDepth = 0;
+        let functionCount = 0;
+        // Track non-empty, non-comment lines
+        const codeLines = lines.filter(l => {
+            const t = l.trim();
+            return t.length > 0 && !t.startsWith('#');
+        });
+        for (const line of lines) {
+            const trimmed = line.trimStart();
+            if (!trimmed || trimmed.startsWith('#'))
+                continue;
+            // Python uses indentation for nesting
+            const indent = line.length - trimmed.length;
+            // Use 4-space standard, but handle 2-space too
+            currentDepth = indent > 0 ? Math.floor(indent / 4) || Math.floor(indent / 2) : 0;
+            maxNestingDepth = Math.max(maxNestingDepth, currentDepth);
+            // Decision points → cyclomatic complexity
+            if (/^(if|elif)\s+/.test(trimmed)) {
+                cyclomatic++;
+                cognitive += 1 + currentDepth; // nesting adds cognitive load
+            }
+            else if (/^(for|while)\s+/.test(trimmed)) {
+                cyclomatic++;
+                cognitive += 1 + currentDepth;
+            }
+            else if (/^except(\s+|\s*:)/.test(trimmed)) {
+                cyclomatic++;
+                cognitive += 1 + currentDepth;
+            }
+            else if (/^else\s*:/.test(trimmed)) {
+                cognitive += 1; // else doesn't add cyclomatic but adds cognitive
+            }
+            // Logical operators within expressions
+            const logicalOps = (trimmed.match(/\band\b|\bor\b/g) || []).length;
+            cyclomatic += logicalOps;
+            cognitive += logicalOps;
+            // Count function/method definitions
+            if (/^(async\s+)?def\s+\w+/.test(trimmed)) {
+                functionCount++;
+            }
+            // Count class definitions (rough proxy for structure)
+            // Not counted as functions, but noted
+        }
+        return {
+            cyclomatic,
+            cognitive,
+            loc: codeLines.length,
+            functionCount,
+            maxNestingDepth,
+        };
+    }
+}
+//# sourceMappingURL=parser.js.map
+;// CONCATENATED MODULE: ../core/dist/languages/python/index.js
+/**
+ * Python Language Adapter — Exports
+ *
+ * @since 0.3.0
+ */
+
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ../core/dist/languages/java/parser.js
+/**
+ * Java Language Adapter
+ *
+ * Regex-based parser for Java source code. No native AST dependencies needed.
+ *
+ * Supports:
+ * - Import extraction (single, wildcard, static imports)
+ * - Function/method call extraction
+ * - Complexity metrics (cyclomatic, cognitive, nesting via braces)
+ * - Deprecated API detection (via deprecated-apis-java.json)
+ * - Package verification (Java stdlib + common third-party whitelists)
+ *
+ * @since 0.3.0
+ */
+
+// ─── Java Standard Library Packages ───
+/**
+ * Java standard library top-level packages & common sub-packages.
+ * Includes java.*, javax.*, and bundled XML packages.
+ */
+const JAVA_STDLIB_PACKAGES = new Set([
+    // java.*
+    'java.lang',
+    'java.util',
+    'java.io',
+    'java.nio',
+    'java.net',
+    'java.sql',
+    'java.time',
+    'java.math',
+    'java.security',
+    'java.crypto',
+    'java.text',
+    'java.beans',
+    'java.awt',
+    'java.applet',
+    'java.rmi',
+    'java.lang.reflect',
+    'java.lang.invoke',
+    'java.lang.annotation',
+    'java.util.concurrent',
+    'java.util.stream',
+    'java.util.function',
+    'java.util.regex',
+    'java.util.logging',
+    'java.util.zip',
+    'java.util.jar',
+    'java.nio.file',
+    'java.nio.charset',
+    'java.nio.channels',
+    'java.net.http',
+    'java.time.format',
+    'java.time.temporal',
+    // javax.*
+    'javax.swing',
+    'javax.servlet',
+    'javax.persistence',
+    'javax.annotation',
+    'javax.xml',
+    'javax.json',
+    'javax.websocket',
+    'javax.naming',
+    'javax.crypto',
+    'javax.net',
+    'javax.net.ssl',
+    'javax.management',
+    'javax.imageio',
+    'javax.sound',
+    'javax.sql',
+    'javax.tools',
+    'javax.script',
+    // Bundled XML / W3C
+    'org.w3c.dom',
+    'org.xml.sax',
+]);
+// ─── Common Third-Party Packages ───
+/**
+ * Well-known Java third-party packages from Maven Central.
+ * Covers Spring, Apache Commons, Google, testing, data, messaging, cloud, etc.
+ */
+const JAVA_COMMON_PACKAGES = new Set([
+    // Spring
+    'org.springframework',
+    'org.springframework.boot',
+    'org.springframework.web',
+    'org.springframework.data',
+    'org.springframework.security',
+    // Apache Commons
+    'org.apache.commons',
+    'org.apache.commons.lang3',
+    'org.apache.commons.io',
+    'org.apache.commons.collections4',
+    // Google
+    'com.google.gson',
+    'com.google.guava',
+    'com.google.common',
+    'com.google.protobuf',
+    // Logging
+    'org.slf4j',
+    'ch.qos.logback',
+    'org.apache.logging.log4j',
+    // Testing
+    'org.junit',
+    'org.junit.jupiter',
+    'org.mockito',
+    'org.assertj',
+    'org.hamcrest',
+    // Serialization / REST
+    'com.fasterxml.jackson',
+    'com.fasterxml.jackson.databind',
+    'com.fasterxml.jackson.core',
+    // Network
+    'io.netty',
+    'com.squareup.okhttp3',
+    'org.apache.http',
+    'org.apache.httpclient',
+    // Messaging / Streaming
+    'org.apache.kafka',
+    'org.apache.activemq',
+    // Reactive
+    'io.reactivex',
+    'io.reactivex.rxjava3',
+    'reactor.core',
+    // Lombok
+    'org.projectlombok',
+    'lombok',
+    // Validation
+    'javax.validation',
+    'jakarta.validation',
+    // ORM / Database
+    'org.hibernate',
+    'com.zaxxer.hikari',
+    'org.mybatis',
+    'org.jooq',
+    // Build tools
+    'org.apache.maven',
+    'org.gradle',
+    // Cloud / AWS
+    'com.amazonaws',
+    'software.amazon.awssdk',
+    // gRPC
+    'io.grpc',
+    // Search / Analytics
+    'org.apache.lucene',
+    'org.elasticsearch',
+    'co.elastic.clients',
+    // Big Data
+    'org.apache.spark',
+    'org.apache.flink',
+    'org.apache.hadoop',
+    // Metrics
+    'io.micrometer',
+    'io.prometheus',
+    // Containers / Testing infra
+    'org.testcontainers',
+    // Databases
+    'com.h2database',
+    'org.postgresql',
+    'com.mysql',
+    'org.mongodb',
+    'org.mariadb',
+    // Redis
+    'redis.clients',
+    'io.lettuce',
+    // ZooKeeper
+    'org.apache.zookeeper',
+    // Servlet (Jakarta)
+    'jakarta.servlet',
+    'jakarta.persistence',
+    'jakarta.annotation',
+]);
+/** Load deprecated APIs from JSON data file */
+function parser_loadDeprecatedAPIs() {
+    try {
+        const require = (0,external_node_module_.createRequire)(import.meta.url);
+        return require('../../data/deprecated-apis-java.json');
+    }
+    catch {
+        return [];
+    }
+}
+const JAVA_DEPRECATED_DB = parser_loadDeprecatedAPIs();
+// ─── Helpers ───
+/**
+ * Extract the top-level package prefix from a fully-qualified Java package.
+ * e.g. "java.util.List" → "java.util"
+ *      "org.springframework.boot.autoconfigure" → "org.springframework"
+ */
+function getPackagePrefix(fullPkg) {
+    const parts = fullPkg.split('.');
+    // For java.* / javax.*, use first two segments
+    if (parts[0] === 'java' || parts[0] === 'javax') {
+        return parts.slice(0, 2).join('.');
+    }
+    // For org.w3c.dom / org.xml.sax, use first three
+    if (parts[0] === 'org' && (parts[1] === 'w3c' || parts[1] === 'xml')) {
+        return parts.slice(0, 3).join('.');
+    }
+    // For third-party: use first two segments (e.g. "org.springframework")
+    return parts.slice(0, Math.min(2, parts.length)).join('.');
+}
+// ─── Java Adapter ───
+/**
+ * JavaAdapter — LanguageAdapter implementation for Java.
+ *
+ * Covers: .java
+ *
+ * Uses regex-based parsing. Java's C-style syntax with explicit import
+ * declarations and brace-delimited blocks is well-suited for regex extraction.
+ */
+class JavaAdapter {
+    id = 'java';
+    extensions = ['.java'];
+    /**
+     * Parse Java source code.
+     * Returns a lightweight AST-like structure with lines and source.
+     */
+    async parse(source, _filePath) {
+        return {
+            type: 'JavaCompilationUnit',
+            lines: source.split('\n'),
+            source,
+        };
+    }
+    /**
+     * Extract import statements from Java source.
+     *
+     * Matches:
+     * - import java.util.List;
+     * - import java.util.*;
+     * - import static org.junit.Assert.*;
+     * - import static java.lang.Math.PI;
+     */
+    extractImports(source, _ast) {
+        const lines = source.split('\n');
+        const imports = [];
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.trim();
+            const lineNum = i + 1;
+            // Skip comments
+            if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) {
+                continue;
+            }
+            // Match: import [static] package.path.ClassName;
+            // Match: import [static] package.path.*;
+            const importMatch = trimmed.match(/^import\s+(static\s+)?([\w.]+(?:\.\*)?)\s*;/);
+            if (importMatch) {
+                const isStatic = !!importMatch[1];
+                const fullPath = importMatch[2];
+                // Extract the package/module portion (everything except the last segment for class imports)
+                // For wildcard imports (java.util.*), module = "java.util"
+                // For class imports (java.util.List), module = "java.util"
+                // For static imports (org.junit.Assert.assertEquals), module = "org.junit"
+                const parts = fullPath.split('.');
+                let moduleName;
+                let bindings = [];
+                if (fullPath.endsWith('.*')) {
+                    // Wildcard import: java.util.* → module = "java.util", binding = "*"
+                    moduleName = parts.slice(0, -1).join('.');
+                    bindings = ['*'];
+                }
+                else if (isStatic) {
+                    // Static import: org.junit.Assert.assertEquals
+                    // Module is the class's package, binding is the member
+                    moduleName = parts.slice(0, -1).join('.');
+                    bindings = [parts[parts.length - 1]];
+                }
+                else {
+                    // Regular import: java.util.List → module = package, binding = class name
+                    moduleName = parts.slice(0, -1).join('.');
+                    bindings = [parts[parts.length - 1]];
+                }
+                // Determine if this is a standard library package
+                const prefix = getPackagePrefix(moduleName);
+                const isBuiltin = JAVA_STDLIB_PACKAGES.has(prefix) || JAVA_STDLIB_PACKAGES.has(moduleName);
+                imports.push({
+                    module: moduleName,
+                    bindings,
+                    line: lineNum,
+                    isRelative: false, // Java doesn't have relative imports
+                    isBuiltin,
+                });
+            }
+        }
+        return imports;
+    }
+    /**
+     * Extract function/method calls from Java source.
+     *
+     * Matches patterns like:
+     * - System.out.println(...)
+     * - obj.method(...)
+     * - ClassName.staticMethod(...)
+     * - localMethod(...)
+     */
+    extractCalls(source, _ast) {
+        const lines = source.split('\n');
+        const calls = [];
+        // Java keywords that look like function calls but aren't
+        const javaKeywords = new Set([
+            'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break',
+            'continue', 'return', 'throw', 'try', 'catch', 'finally',
+            'new', 'class', 'interface', 'enum', 'extends', 'implements',
+            'import', 'package', 'void', 'public', 'private', 'protected',
+            'static', 'final', 'abstract', 'synchronized', 'volatile',
+            'transient', 'native', 'strictfp', 'assert', 'instanceof',
+            'super', 'this', 'default', 'throws',
+        ]);
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.trim();
+            const lineNum = i + 1;
+            // Skip comments
+            if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) {
+                continue;
+            }
+            // Skip import/package declarations
+            if (trimmed.startsWith('import ') || trimmed.startsWith('package ')) {
+                continue;
+            }
+            // Match method calls: word.word.word(
+            const methodCallPattern = /(\w+(?:\.\w+)+)\s*\(/g;
+            let match;
+            while ((match = methodCallPattern.exec(line)) !== null) {
+                calls.push({
+                    name: match[1],
+                    line: lineNum,
+                    column: match.index + 1,
+                    isMethodCall: true,
+                });
+            }
+            // Match standalone function calls: name(
+            const funcCallPattern = /(?<!\.)(?<!\w)([a-zA-Z_$]\w*)\s*\(/g;
+            while ((match = funcCallPattern.exec(line)) !== null) {
+                const name = match[1];
+                // Skip keywords and type declarations
+                if (javaKeywords.has(name))
+                    continue;
+                // Skip annotations
+                if (line.charAt(match.index - 1) === '@')
+                    continue;
+                calls.push({
+                    name,
+                    line: lineNum,
+                    column: match.index + 1,
+                    isMethodCall: false,
+                });
+            }
+        }
+        return calls;
+    }
+    /**
+     * Verify if a Java package exists.
+     *
+     * Checks against Java standard library and common third-party package whitelists.
+     * Full Maven Central verification can be added in a later phase.
+     */
+    async verifyPackage(name) {
+        const prefix = getPackagePrefix(name);
+        // Check standard library
+        if (JAVA_STDLIB_PACKAGES.has(name) || JAVA_STDLIB_PACKAGES.has(prefix)) {
+            return {
+                name,
+                exists: true,
+                checkedAt: Date.now(),
+            };
+        }
+        // Check common third-party packages
+        if (JAVA_COMMON_PACKAGES.has(name) || JAVA_COMMON_PACKAGES.has(prefix)) {
+            return {
+                name,
+                exists: true,
+                checkedAt: Date.now(),
+            };
+        }
+        // Also check with progressively longer prefixes
+        const parts = name.split('.');
+        for (let len = 2; len <= parts.length; len++) {
+            const candidate = parts.slice(0, len).join('.');
+            if (JAVA_STDLIB_PACKAGES.has(candidate) || JAVA_COMMON_PACKAGES.has(candidate)) {
+                return {
+                    name,
+                    exists: true,
+                    checkedAt: Date.now(),
+                };
+            }
+        }
+        return {
+            name,
+            exists: false,
+            checkedAt: Date.now(),
+        };
+    }
+    /**
+     * Check if an API is deprecated.
+     * Searches the deprecated-apis-java.json database.
+     */
+    checkDeprecated(api) {
+        for (const entry of JAVA_DEPRECATED_DB) {
+            const regex = new RegExp(entry.pattern);
+            if (regex.test(api)) {
+                return {
+                    api: entry.api,
+                    reason: entry.reason,
+                    replacement: entry.replacement,
+                    since: entry.deprecated_since,
+                };
+            }
+        }
+        return null;
+    }
+    /**
+     * Compute complexity metrics for Java source code.
+     *
+     * Uses brace-based nesting detection and regex matching for decision points.
+     */
+    computeComplexity(source, _ast) {
+        const lines = source.split('\n');
+        let cyclomatic = 1; // base complexity
+        let cognitive = 0;
+        let maxNestingDepth = 0;
+        let currentDepth = 0;
+        let functionCount = 0;
+        let inBlockComment = false;
+        // Track non-empty, non-comment code lines
+        const codeLines = [];
+        for (const line of lines) {
+            const trimmed = line.trim();
+            // Handle block comments
+            if (inBlockComment) {
+                if (trimmed.includes('*/')) {
+                    inBlockComment = false;
+                }
+                continue;
+            }
+            if (trimmed.startsWith('/*')) {
+                inBlockComment = true;
+                if (trimmed.includes('*/')) {
+                    inBlockComment = false;
+                }
+                continue;
+            }
+            // Skip single-line comments and empty lines
+            if (!trimmed || trimmed.startsWith('//'))
+                continue;
+            // Count as code line
+            codeLines.push(trimmed);
+            // Decision points → cyclomatic complexity
+            const ifMatches = (trimmed.match(/\b(if|else\s+if)\s*\(/g) || []).length;
+            cyclomatic += ifMatches;
+            const forMatches = (trimmed.match(/\b(for|while)\s*\(/g) || []).length;
+            cyclomatic += forMatches;
+            const caseMatches = (trimmed.match(/\bcase\s+/g) || []).length;
+            cyclomatic += caseMatches;
+            const catchMatches = (trimmed.match(/\bcatch\s*\(/g) || []).length;
+            cyclomatic += catchMatches;
+            // Logical operators
+            const logicalOps = (trimmed.match(/&&|\|\|/g) || []).length;
+            cyclomatic += logicalOps;
+            // Ternary operators
+            const ternaries = (trimmed.match(/\?[^?:]*:/g) || []).length;
+            cyclomatic += ternaries;
+            // Track nesting depth via braces
+            const opens = (trimmed.match(/\{/g) || []).length;
+            const closes = (trimmed.match(/\}/g) || []).length;
+            currentDepth += opens - closes;
+            if (currentDepth > maxNestingDepth) {
+                maxNestingDepth = currentDepth;
+            }
+            // Cognitive complexity: nested conditions add more
+            if (/\b(if|for|while|catch|switch)\b/.test(trimmed)) {
+                cognitive += 1 + Math.max(0, currentDepth - 1);
+            }
+            // Logical operators add cognitive load
+            cognitive += logicalOps;
+            // Count methods (rough heuristic)
+            // Matches: public void method( / private static int method( / protected String method(
+            if (/(?:public|private|protected|static|final|abstract|synchronized|native|void|int|long|double|float|boolean|char|byte|short|String|\w+)\s+\w+\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{/.test(trimmed)) {
+                functionCount++;
+            }
+        }
+        return {
+            cyclomatic,
+            cognitive,
+            loc: codeLines.length,
+            functionCount,
+            maxNestingDepth,
+        };
+    }
+}
+//# sourceMappingURL=parser.js.map
+;// CONCATENATED MODULE: ../core/dist/languages/java/index.js
+/**
+ * Java Language Adapter — Exports
+ *
+ * @since 0.3.0
+ */
+
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ../core/dist/languages/go/parser.js
+/**
+ * Go Language Adapter
+ *
+ * Regex-based parser for Go source code. No native AST dependencies needed.
+ *
+ * Supports:
+ * - Import extraction (single, grouped, aliased, standard lib, third-party)
+ * - Function/method call extraction
+ * - Complexity metrics (cyclomatic, cognitive, nesting via braces)
+ * - Deprecated API detection (via deprecated-apis-go.json)
+ * - Package verification (Go stdlib + common module whitelists)
+ *
+ * @since 0.3.0
+ */
+
+// ─── Go Standard Library Packages ───
+/**
+ * Go standard library packages (Go 1.21+).
+ * Includes top-level packages and commonly used sub-packages.
+ */
+const GO_STDLIB_PACKAGES = new Set([
+    // Core
+    'fmt', 'os', 'io', 'bufio', 'bytes', 'strings', 'strconv',
+    'unicode', 'regexp', 'sort', 'slices', 'maps', 'cmp',
+    'math', 'rand', 'time', 'errors', 'log', 'flag', 'context',
+    'sync', 'atomic', 'reflect', 'unsafe', 'runtime', 'testing',
+    // Network
+    'net', 'net/http', 'net/url', 'net/rpc', 'net/smtp',
+    'net/http/httptest', 'net/http/httputil', 'net/http/pprof',
+    // Encoding
+    'encoding/json', 'encoding/xml', 'encoding/csv',
+    'encoding/base64', 'encoding/binary', 'encoding/hex',
+    'encoding/gob', 'encoding/pem', 'encoding/ascii85',
+    // Crypto
+    'crypto', 'crypto/sha256', 'crypto/sha512',
+    'crypto/md5', 'crypto/rand', 'crypto/tls',
+    'crypto/aes', 'crypto/rsa', 'crypto/ecdsa',
+    'crypto/ed25519', 'crypto/elliptic', 'crypto/hmac',
+    'crypto/cipher', 'crypto/x509',
+    // Hash
+    'hash', 'hash/crc32', 'hash/fnv',
+    // Compression & Archive
+    'compress/gzip', 'compress/zlib', 'compress/flate', 'compress/bzip2',
+    'archive/zip', 'archive/tar',
+    // Database
+    'database/sql', 'database/sql/driver',
+    // HTML & Template
+    'html', 'html/template', 'text/template', 'text/template/parse',
+    // Path
+    'path', 'path/filepath',
+    // OS subpackages
+    'os/exec', 'os/signal', 'os/user',
+    // IO subpackages
+    'io/ioutil', 'io/fs',
+    // Sync subpackages
+    'sync/atomic',
+    // Runtime subpackages
+    'runtime/debug', 'runtime/pprof',
+    // Testing subpackages
+    'testing/iotest', 'testing/fstest',
+    // Log subpackages
+    'log/slog',
+    // Misc
+    'embed', 'plugin', 'expvar',
+    'debug/buildinfo', 'debug/elf', 'debug/dwarf', 'debug/gosym',
+    'go/ast', 'go/parser', 'go/token', 'go/types', 'go/format',
+    'go/build', 'go/doc', 'go/printer', 'go/scanner',
+    'image', 'image/png', 'image/jpeg', 'image/gif', 'image/color',
+    'math/big', 'math/bits', 'math/cmplx', 'math/rand',
+    'mime', 'mime/multipart',
+    'text/scanner', 'text/tabwriter',
+    'unicode/utf8', 'unicode/utf16',
+    'syscall',
+]);
+// ─── Common Third-Party Modules ───
+/**
+ * Well-known Go third-party modules from the Go ecosystem.
+ * Covers web frameworks, testing, logging, databases, cloud, etc.
+ */
+const GO_COMMON_MODULES = new Set([
+    // Web frameworks
+    'github.com/gin-gonic/gin',
+    'github.com/gorilla/mux',
+    'github.com/gorilla/websocket',
+    'github.com/go-chi/chi',
+    'github.com/labstack/echo',
+    'github.com/gofiber/fiber',
+    'github.com/julienschmidt/httprouter',
+    // Testing
+    'github.com/stretchr/testify',
+    'github.com/onsi/ginkgo',
+    'github.com/onsi/gomega',
+    // Logging
+    'github.com/sirupsen/logrus',
+    'go.uber.org/zap',
+    'github.com/rs/zerolog',
+    // CLI
+    'github.com/spf13/cobra',
+    'github.com/spf13/viper',
+    'github.com/urfave/cli',
+    // ORM / Database
+    'gorm.io/gorm',
+    'gorm.io/driver/mysql',
+    'gorm.io/driver/postgres',
+    'github.com/jmoiron/sqlx',
+    'github.com/jackc/pgx',
+    'github.com/go-sql-driver/mysql',
+    'github.com/mattn/go-sqlite3',
+    // Redis
+    'github.com/go-redis/redis',
+    'github.com/redis/go-redis',
+    // Messaging
+    'github.com/nats-io/nats.go',
+    'github.com/segmentio/kafka-go',
+    'github.com/confluentinc/confluent-kafka-go',
+    // gRPC / Protobuf
+    'google.golang.org/grpc',
+    'google.golang.org/protobuf',
+    'google.golang.org/api',
+    // Auth
+    'github.com/golang-jwt/jwt',
+    'github.com/dgrijalva/jwt-go',
+    // Metrics / Monitoring
+    'github.com/prometheus/client_golang',
+    'go.opentelemetry.io/otel',
+    // Cloud
+    'github.com/aws/aws-sdk-go-v2',
+    'github.com/aws/aws-sdk-go',
+    // Docker & Kubernetes
+    'github.com/docker/docker',
+    'k8s.io/client-go',
+    'k8s.io/api',
+    'k8s.io/apimachinery',
+    'sigs.k8s.io/controller-runtime',
+    // HashiCorp
+    'github.com/hashicorp/consul',
+    'github.com/hashicorp/vault',
+    'github.com/hashicorp/terraform',
+    // Validation
+    'github.com/go-playground/validator',
+    // API docs
+    'github.com/swaggo/swag',
+    // MongoDB
+    'go.mongodb.org/mongo-driver',
+    // Minio / Object storage
+    'github.com/minio/minio-go',
+    // Elasticsearch
+    'github.com/elastic/go-elasticsearch',
+    'github.com/olivere/elastic',
+    // Misc popular
+    'github.com/google/uuid',
+    'github.com/google/go-cmp',
+    'github.com/pkg/errors',
+    'golang.org/x/sync',
+    'golang.org/x/text',
+    'golang.org/x/net',
+    'golang.org/x/crypto',
+    'golang.org/x/sys',
+    'golang.org/x/tools',
+]);
+/** Load deprecated APIs from JSON data file */
+function go_parser_loadDeprecatedAPIs() {
+    try {
+        const require = (0,external_node_module_.createRequire)(import.meta.url);
+        return require('../../data/deprecated-apis-go.json');
+    }
+    catch {
+        return [];
+    }
+}
+const GO_DEPRECATED_DB = go_parser_loadDeprecatedAPIs();
+// ─── Helpers ───
+/**
+ * Check if a Go import path is a standard library package.
+ * Standard library packages don't contain dots in their path.
+ * e.g. "fmt", "net/http", "encoding/json" are stdlib.
+ *      "github.com/gin-gonic/gin" is third-party.
+ */
+function isStdlib(importPath) {
+    // Standard library packages don't have dots (no domain name)
+    // Exception: golang.org/x/* which are "extended stdlib" but technically third-party
+    const firstSegment = importPath.split('/')[0];
+    return !firstSegment.includes('.');
+}
+// ─── Go Adapter ───
+/**
+ * GoAdapter — LanguageAdapter implementation for Go.
+ *
+ * Covers: .go
+ *
+ * Uses regex-based parsing. Go's explicit import syntax and brace-delimited
+ * blocks are well-suited for regex extraction.
+ */
+class GoAdapter {
+    id = 'go';
+    extensions = ['.go'];
+    /**
+     * Parse Go source code.
+     * Returns a lightweight AST-like structure with lines and source.
+     */
+    async parse(source, _filePath) {
+        return {
+            type: 'GoSourceFile',
+            lines: source.split('\n'),
+            source,
+        };
+    }
+    /**
+     * Extract import statements from Go source.
+     *
+     * Matches:
+     * - import "fmt"
+     * - import "os/exec"
+     * - import (
+     *     "fmt"
+     *     "os"
+     *   )
+     * - import alias "github.com/pkg/name"
+     * - import . "github.com/onsi/gomega"
+     * - import _ "github.com/lib/pq"
+     */
+    extractImports(source, _ast) {
+        const imports = [];
+        // Pattern 1: Single-line import: import "fmt" or import alias "path"
+        const singleImportPattern = /^[ \t]*import\s+(?:(\w+|\.)\s+)?"([^"]+)"/gm;
+        let match;
+        while ((match = singleImportPattern.exec(source)) !== null) {
+            const alias = match[1] || '';
+            const importPath = match[2];
+            // Get line number
+            const lineNum = source.substring(0, match.index).split('\n').length;
+            // Get the package name (last segment of path)
+            const pkgName = importPath.split('/').pop() || importPath;
+            const bindings = alias && alias !== '.'
+                ? [alias]
+                : [pkgName];
+            const isStdlibPkg = isStdlib(importPath);
+            imports.push({
+                module: importPath,
+                bindings,
+                line: lineNum,
+                isRelative: false,
+                isBuiltin: isStdlibPkg,
+            });
+        }
+        // Pattern 2: Grouped import block: import ( ... )
+        const groupPattern = /^[ \t]*import\s*\(([\s\S]*?)\)/gm;
+        while ((match = groupPattern.exec(source)) !== null) {
+            const blockContent = match[1];
+            const blockStartLine = source.substring(0, match.index).split('\n').length;
+            // Parse each line in the import block
+            const blockLines = blockContent.split('\n');
+            for (let i = 0; i < blockLines.length; i++) {
+                const blockLine = blockLines[i].trim();
+                if (!blockLine || blockLine.startsWith('//'))
+                    continue;
+                // Match: alias "path" or "path"
+                const lineMatch = blockLine.match(/^(?:(\w+|\.)\s+)?"([^"]+)"/);
+                if (lineMatch) {
+                    const alias = lineMatch[1] || '';
+                    const importPath = lineMatch[2];
+                    const pkgName = importPath.split('/').pop() || importPath;
+                    const bindings = alias && alias !== '.'
+                        ? [alias]
+                        : [pkgName];
+                    const isStdlibPkg = isStdlib(importPath);
+                    imports.push({
+                        module: importPath,
+                        bindings,
+                        line: blockStartLine + i,
+                        isRelative: false,
+                        isBuiltin: isStdlibPkg,
+                    });
+                }
+            }
+        }
+        // Deduplicate: grouped import blocks also get caught by single-line pattern
+        // if they happen to appear on the same lines. Keep unique by module+line.
+        const seen = new Set();
+        const deduplicated = [];
+        for (const imp of imports) {
+            const key = `${imp.module}:${imp.line}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                deduplicated.push(imp);
+            }
+        }
+        return deduplicated;
+    }
+    /**
+     * Extract function/method calls from Go source.
+     *
+     * Matches patterns like:
+     * - fmt.Println(...)
+     * - http.Get(...)
+     * - json.Marshal(...)
+     * - localFunc(...)
+     * - obj.Method(...)
+     */
+    extractCalls(source, _ast) {
+        const lines = source.split('\n');
+        const calls = [];
+        // Go keywords that look like function calls but aren't
+        const goKeywords = new Set([
+            'if', 'else', 'for', 'switch', 'select', 'case', 'default',
+            'break', 'continue', 'return', 'go', 'defer', 'chan',
+            'func', 'type', 'struct', 'interface', 'map', 'range',
+            'import', 'package', 'const', 'var', 'fallthrough', 'goto',
+        ]);
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.trim();
+            const lineNum = i + 1;
+            // Skip comments
+            if (trimmed.startsWith('//'))
+                continue;
+            // Skip import/package declarations
+            if (trimmed.startsWith('import ') || trimmed.startsWith('package '))
+                continue;
+            // Match method/package calls: word.word(
+            const methodCallPattern = /(\w+(?:\.\w+)+)\s*\(/g;
+            let match;
+            while ((match = methodCallPattern.exec(line)) !== null) {
+                const name = match[1];
+                // Skip type assertions like .(type)
+                if (name.startsWith('.'))
+                    continue;
+                calls.push({
+                    name,
+                    line: lineNum,
+                    column: match.index + 1,
+                    isMethodCall: true,
+                });
+            }
+            // Match standalone function calls: name(
+            const funcCallPattern = /(?<!\.)(?<!\w)([a-zA-Z_]\w*)\s*\(/g;
+            while ((match = funcCallPattern.exec(line)) !== null) {
+                const name = match[1];
+                // Skip keywords
+                if (goKeywords.has(name))
+                    continue;
+                calls.push({
+                    name,
+                    line: lineNum,
+                    column: match.index + 1,
+                    isMethodCall: false,
+                });
+            }
+        }
+        return calls;
+    }
+    /**
+     * Verify if a Go package exists.
+     *
+     * Checks against Go standard library and common third-party module whitelists.
+     * Full pkg.go.dev verification can be added in a later phase.
+     */
+    async verifyPackage(name) {
+        // Check standard library
+        if (GO_STDLIB_PACKAGES.has(name)) {
+            return {
+                name,
+                exists: true,
+                checkedAt: Date.now(),
+            };
+        }
+        // For stdlib sub-packages, check if the base path matches
+        // e.g. "net/http/httptest" → check "net/http" is in stdlib
+        if (isStdlib(name)) {
+            // It doesn't have dots, so it's a potential stdlib path
+            // Check if any prefix matches
+            const parts = name.split('/');
+            for (let len = parts.length; len >= 1; len--) {
+                const candidate = parts.slice(0, len).join('/');
+                if (GO_STDLIB_PACKAGES.has(candidate)) {
+                    return {
+                        name,
+                        exists: true,
+                        checkedAt: Date.now(),
+                    };
+                }
+            }
+        }
+        // Check common third-party modules
+        if (GO_COMMON_MODULES.has(name)) {
+            return {
+                name,
+                exists: true,
+                checkedAt: Date.now(),
+            };
+        }
+        // Check if it's a sub-package of a known module
+        // e.g. "github.com/gin-gonic/gin/binding" → check "github.com/gin-gonic/gin"
+        for (const mod of GO_COMMON_MODULES) {
+            if (name.startsWith(mod + '/') || name === mod) {
+                return {
+                    name,
+                    exists: true,
+                    checkedAt: Date.now(),
+                };
+            }
+        }
+        return {
+            name,
+            exists: false,
+            checkedAt: Date.now(),
+        };
+    }
+    /**
+     * Check if an API is deprecated.
+     * Searches the deprecated-apis-go.json database.
+     */
+    checkDeprecated(api) {
+        for (const entry of GO_DEPRECATED_DB) {
+            const regex = new RegExp(entry.pattern);
+            if (regex.test(api)) {
+                return {
+                    api: entry.api,
+                    reason: entry.reason,
+                    replacement: entry.replacement,
+                    since: entry.deprecated_since,
+                };
+            }
+        }
+        return null;
+    }
+    /**
+     * Compute complexity metrics for Go source code.
+     *
+     * Uses brace-based nesting detection and regex matching for decision points.
+     * Go has unique constructs like `select`, `go`, and `defer`.
+     */
+    computeComplexity(source, _ast) {
+        const lines = source.split('\n');
+        let cyclomatic = 1; // base complexity
+        let cognitive = 0;
+        let maxNestingDepth = 0;
+        let currentDepth = 0;
+        let functionCount = 0;
+        let inBlockComment = false;
+        // Track non-empty, non-comment code lines
+        const codeLines = [];
+        for (const line of lines) {
+            const trimmed = line.trim();
+            // Handle block comments
+            if (inBlockComment) {
+                if (trimmed.includes('*/')) {
+                    inBlockComment = false;
+                }
+                continue;
+            }
+            if (trimmed.startsWith('/*')) {
+                inBlockComment = true;
+                if (trimmed.includes('*/')) {
+                    inBlockComment = false;
+                }
+                continue;
+            }
+            // Skip single-line comments and empty lines
+            if (!trimmed || trimmed.startsWith('//'))
+                continue;
+            // Count as code line
+            codeLines.push(trimmed);
+            // Decision points → cyclomatic complexity
+            const ifMatches = (trimmed.match(/\bif\b/g) || []).length;
+            cyclomatic += ifMatches;
+            const forMatches = (trimmed.match(/\bfor\b/g) || []).length;
+            cyclomatic += forMatches;
+            const caseMatches = (trimmed.match(/\bcase\b/g) || []).length;
+            cyclomatic += caseMatches;
+            // select is like switch for channels
+            const selectMatches = (trimmed.match(/\bselect\s*\{/g) || []).length;
+            cyclomatic += selectMatches;
+            // Logical operators
+            const logicalOps = (trimmed.match(/&&|\|\|/g) || []).length;
+            cyclomatic += logicalOps;
+            // Track nesting depth via braces
+            const opens = (trimmed.match(/\{/g) || []).length;
+            const closes = (trimmed.match(/\}/g) || []).length;
+            currentDepth += opens - closes;
+            if (currentDepth > maxNestingDepth) {
+                maxNestingDepth = currentDepth;
+            }
+            // Cognitive complexity: nested conditions add more
+            if (/\b(if|for|switch|select)\b/.test(trimmed)) {
+                cognitive += 1 + Math.max(0, currentDepth - 1);
+            }
+            // Logical operators add cognitive load
+            cognitive += logicalOps;
+            // Count functions
+            // Matches: func name( ... ) { or func (receiver) name( ... ) {
+            if (/\bfunc\s+(?:\([^)]*\)\s*)?\w+\s*\(/.test(trimmed)) {
+                functionCount++;
+            }
+            // Also count anonymous functions: func(
+            if (/\bfunc\s*\(/.test(trimmed) && !/\bfunc\s+(?:\([^)]*\)\s*)?\w+/.test(trimmed)) {
+                functionCount++;
+            }
+        }
+        return {
+            cyclomatic,
+            cognitive,
+            loc: codeLines.length,
+            functionCount,
+            maxNestingDepth,
+        };
+    }
+}
+//# sourceMappingURL=parser.js.map
+;// CONCATENATED MODULE: ../core/dist/languages/go/index.js
+/**
+ * Go Language Adapter — Exports
+ *
+ * @since 0.3.0
+ */
+
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ../core/dist/languages/kotlin/parser.js
+/**
+ * Kotlin Language Adapter
+ *
+ * Regex-based parser for Kotlin source code. No native AST dependencies needed.
+ *
+ * Supports:
+ * - Import extraction (single, wildcard, aliased imports)
+ * - Function/method call extraction (including top-level functions)
+ * - Complexity metrics (cyclomatic, cognitive, nesting; includes `when` expression)
+ * - Deprecated API detection (via deprecated-apis-kotlin.json)
+ * - Package verification (Kotlin stdlib + Java interop + common third-party)
+ *
+ * @since 0.3.0
+ */
+
+// ─── Kotlin Standard Library Packages ───
+/**
+ * Kotlin standard library packages and commonly used kotlinx packages.
+ * Also includes Java stdlib prefixes since Kotlin has full Java interop.
+ */
+const KOTLIN_STDLIB_PACKAGES = new Set([
+    // Kotlin stdlib
+    'kotlin',
+    'kotlin.annotation',
+    'kotlin.collections',
+    'kotlin.comparisons',
+    'kotlin.concurrent',
+    'kotlin.contracts',
+    'kotlin.coroutines',
+    'kotlin.enums',
+    'kotlin.io',
+    'kotlin.jvm',
+    'kotlin.math',
+    'kotlin.properties',
+    'kotlin.random',
+    'kotlin.ranges',
+    'kotlin.reflect',
+    'kotlin.sequences',
+    'kotlin.system',
+    'kotlin.text',
+    'kotlin.time',
+    // kotlinx official extensions
+    'kotlinx.coroutines',
+    'kotlinx.serialization',
+    'kotlinx.datetime',
+    'kotlinx.html',
+    'kotlinx.cli',
+    'kotlinx.atomicfu',
+    'kotlinx.io',
+    // Java stdlib — Kotlin has full interop
+    'java.lang',
+    'java.util',
+    'java.io',
+    'java.nio',
+    'java.net',
+    'java.sql',
+    'java.time',
+    'java.math',
+    'java.security',
+    'java.text',
+    'java.beans',
+    'java.lang.reflect',
+    'java.lang.invoke',
+    'java.util.concurrent',
+    'java.util.stream',
+    'java.util.function',
+    'java.util.regex',
+    'java.nio.file',
+    'java.nio.charset',
+    'java.net.http',
+    'javax.swing',
+    'javax.annotation',
+    'javax.crypto',
+    'javax.net',
+    'javax.net.ssl',
+]);
+// ─── Common Third-Party Packages ───
+/**
+ * Well-known Kotlin/JVM third-party packages.
+ * Covers Ktor, Android, testing, DI, serialization, Arrow, etc.
+ */
+const KOTLIN_COMMON_PACKAGES = new Set([
+    // Ktor
+    'io.ktor',
+    'io.ktor.client',
+    'io.ktor.server',
+    'io.ktor.http',
+    'io.ktor.serialization',
+    // Exposed (JetBrains ORM)
+    'org.jetbrains.exposed',
+    'org.jetbrains.exposed.sql',
+    'org.jetbrains.exposed.dao',
+    // Serialization (third-party formats)
+    'com.squareup.moshi',
+    'com.squareup.moshi.kotlin',
+    // Retrofit / OkHttp
+    'com.squareup.retrofit2',
+    'com.squareup.okhttp3',
+    'okhttp3',
+    // Testing
+    'io.kotest',
+    'io.kotest.core',
+    'io.kotest.matchers',
+    'io.kotest.property',
+    'org.mockk',
+    'io.mockk',
+    // DI
+    'com.google.dagger',
+    'dagger',
+    'dagger.hilt',
+    'org.koin',
+    'org.koin.core',
+    'org.koin.android',
+    'io.insert.koin',
+    // Android / AndroidX
+    'androidx.compose',
+    'androidx.compose.ui',
+    'androidx.compose.material',
+    'androidx.compose.material3',
+    'androidx.compose.foundation',
+    'androidx.compose.runtime',
+    'androidx.lifecycle',
+    'androidx.room',
+    'androidx.navigation',
+    'androidx.activity',
+    'androidx.fragment',
+    'androidx.core',
+    'androidx.appcompat',
+    'androidx.recyclerview',
+    'android.content',
+    'android.os',
+    'android.view',
+    'android.widget',
+    'android.app',
+    'android.util',
+    // Firebase
+    'com.google.firebase',
+    'com.google.firebase.auth',
+    'com.google.firebase.firestore',
+    // Arrow (FP for Kotlin)
+    'arrow.core',
+    'arrow.fx',
+    'arrow.optics',
+    // Spring (Kotlin support)
+    'org.springframework',
+    'org.springframework.boot',
+    'org.springframework.web',
+    // Google / Protobuf
+    'com.google.gson',
+    'com.google.protobuf',
+    // Logging
+    'org.slf4j',
+    'io.github.microutils',
+    'mu',
+    // JUnit (Kotlin-compatible)
+    'org.junit',
+    'org.junit.jupiter',
+    // Jackson Kotlin module
+    'com.fasterxml.jackson',
+    'com.fasterxml.jackson.module.kotlin',
+    // Coroutines test
+    'kotlinx.coroutines.test',
+]);
+/** Load deprecated APIs from JSON data file */
+function kotlin_parser_loadDeprecatedAPIs() {
+    try {
+        const require = (0,external_node_module_.createRequire)(import.meta.url);
+        return require('../../data/deprecated-apis-kotlin.json');
+    }
+    catch {
+        return [];
+    }
+}
+const KOTLIN_DEPRECATED_DB = kotlin_parser_loadDeprecatedAPIs();
+// ─── Helpers ───
+/**
+ * Extract the top-level package prefix from a fully-qualified Kotlin/Java package.
+ * e.g. "kotlin.collections.listOf" → "kotlin.collections"
+ *      "androidx.compose.material3" → "androidx.compose"
+ */
+function parser_getPackagePrefix(fullPkg) {
+    const parts = fullPkg.split('.');
+    // For kotlin.* / kotlinx.*, use first two segments
+    if (parts[0] === 'kotlin' || parts[0] === 'kotlinx') {
+        return parts.slice(0, 2).join('.');
+    }
+    // For java.* / javax.*, use first two segments
+    if (parts[0] === 'java' || parts[0] === 'javax') {
+        return parts.slice(0, 2).join('.');
+    }
+    // For androidx.*, use first two segments
+    if (parts[0] === 'androidx') {
+        return parts.slice(0, 2).join('.');
+    }
+    // For android.*, use first two segments
+    if (parts[0] === 'android') {
+        return parts.slice(0, 2).join('.');
+    }
+    // For third-party: use first two segments
+    return parts.slice(0, Math.min(2, parts.length)).join('.');
+}
+// ─── Kotlin Adapter ───
+/**
+ * KotlinAdapter — LanguageAdapter implementation for Kotlin.
+ *
+ * Covers: .kt, .kts
+ *
+ * Uses regex-based parsing. Kotlin's syntax is similar to Java but with
+ * differences like `when` expressions, `val`/`var`, extension functions,
+ * and top-level functions.
+ */
+class KotlinAdapter {
+    id = 'kotlin';
+    extensions = ['.kt', '.kts'];
+    /**
+     * Parse Kotlin source code.
+     * Returns a lightweight AST-like structure with lines and source.
+     */
+    async parse(source, _filePath) {
+        return {
+            type: 'KotlinSourceFile',
+            lines: source.split('\n'),
+            source,
+        };
+    }
+    /**
+     * Extract import statements from Kotlin source.
+     *
+     * Matches:
+     * - import kotlin.collections.listOf
+     * - import kotlinx.coroutines.*
+     * - import java.io.File
+     * - import com.example.Foo as Bar
+     */
+    extractImports(source, _ast) {
+        const lines = source.split('\n');
+        const imports = [];
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.trim();
+            const lineNum = i + 1;
+            // Skip comments
+            if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) {
+                continue;
+            }
+            // Match: import package.path.Name
+            // Match: import package.path.*
+            // Match: import package.path.Name as Alias
+            const importMatch = trimmed.match(/^import\s+([\w.]+(?:\.\*)?)\s*(?:as\s+(\w+))?\s*$/);
+            if (importMatch) {
+                const fullPath = importMatch[1];
+                const alias = importMatch[2];
+                const parts = fullPath.split('.');
+                let moduleName;
+                let bindings = [];
+                if (fullPath.endsWith('.*')) {
+                    // Wildcard import: kotlinx.coroutines.* → module = "kotlinx.coroutines"
+                    moduleName = parts.slice(0, -1).join('.');
+                    bindings = ['*'];
+                }
+                else {
+                    // Regular import: kotlin.collections.listOf → module = "kotlin.collections", binding = "listOf"
+                    moduleName = parts.slice(0, -1).join('.');
+                    bindings = [alias || parts[parts.length - 1]];
+                }
+                // Determine if this is a stdlib package
+                const prefix = parser_getPackagePrefix(moduleName);
+                const isBuiltin = KOTLIN_STDLIB_PACKAGES.has(prefix) ||
+                    KOTLIN_STDLIB_PACKAGES.has(moduleName);
+                imports.push({
+                    module: moduleName,
+                    bindings,
+                    line: lineNum,
+                    isRelative: false, // Kotlin doesn't have relative imports
+                    isBuiltin,
+                });
+            }
+        }
+        return imports;
+    }
+    /**
+     * Extract function/method calls from Kotlin source.
+     *
+     * Matches patterns like:
+     * - println(...)
+     * - list.add(...)
+     * - System.out.println(...)
+     * - TopLevelFunction(...)
+     * - obj.extensionFunc(...)
+     */
+    extractCalls(source, _ast) {
+        const lines = source.split('\n');
+        const calls = [];
+        // Kotlin keywords that look like function calls but aren't
+        const kotlinKeywords = new Set([
+            'if', 'else', 'for', 'while', 'do', 'when', 'switch',
+            'break', 'continue', 'return', 'throw', 'try', 'catch', 'finally',
+            'class', 'interface', 'object', 'enum', 'annotation',
+            'fun', 'val', 'var', 'const', 'typealias',
+            'import', 'package', 'as', 'is', 'in', 'out',
+            'super', 'this', 'null', 'true', 'false',
+            'constructor', 'init', 'companion', 'data', 'sealed', 'inline',
+            'suspend', 'tailrec', 'operator', 'infix', 'external',
+            'open', 'abstract', 'final', 'override', 'internal', 'private',
+            'protected', 'public', 'lateinit', 'by', 'where', 'typeof',
+        ]);
+        let inBlockComment = false;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.trim();
+            const lineNum = i + 1;
+            // Handle block comments
+            if (inBlockComment) {
+                if (trimmed.includes('*/')) {
+                    inBlockComment = false;
+                }
+                continue;
+            }
+            if (trimmed.startsWith('/*')) {
+                inBlockComment = true;
+                if (trimmed.includes('*/')) {
+                    inBlockComment = false;
+                }
+                continue;
+            }
+            // Skip single-line comments
+            if (trimmed.startsWith('//'))
+                continue;
+            // Skip import/package declarations
+            if (trimmed.startsWith('import ') || trimmed.startsWith('package '))
+                continue;
+            // Match method/qualified calls: word.word.word(
+            const methodCallPattern = /(\w+(?:\.\w+)+)\s*\(/g;
+            let match;
+            while ((match = methodCallPattern.exec(line)) !== null) {
+                calls.push({
+                    name: match[1],
+                    line: lineNum,
+                    column: match.index + 1,
+                    isMethodCall: true,
+                });
+            }
+            // Match standalone function calls: name(
+            const funcCallPattern = /(?<!\.)(?<!\w)([a-zA-Z_]\w*)\s*\(/g;
+            while ((match = funcCallPattern.exec(line)) !== null) {
+                const name = match[1];
+                // Skip keywords
+                if (kotlinKeywords.has(name))
+                    continue;
+                // Skip annotations
+                if (line.charAt(match.index - 1) === '@')
+                    continue;
+                calls.push({
+                    name,
+                    line: lineNum,
+                    column: match.index + 1,
+                    isMethodCall: false,
+                });
+            }
+        }
+        return calls;
+    }
+    /**
+     * Verify if a Kotlin/Java package exists.
+     *
+     * Checks against Kotlin stdlib, Java stdlib (interop), and common third-party whitelists.
+     */
+    async verifyPackage(name) {
+        const prefix = parser_getPackagePrefix(name);
+        // Check Kotlin stdlib + Java stdlib
+        if (KOTLIN_STDLIB_PACKAGES.has(name) || KOTLIN_STDLIB_PACKAGES.has(prefix)) {
+            return {
+                name,
+                exists: true,
+                checkedAt: Date.now(),
+            };
+        }
+        // Check common third-party packages
+        if (KOTLIN_COMMON_PACKAGES.has(name) || KOTLIN_COMMON_PACKAGES.has(prefix)) {
+            return {
+                name,
+                exists: true,
+                checkedAt: Date.now(),
+            };
+        }
+        // Also check with progressively longer prefixes
+        const parts = name.split('.');
+        for (let len = 2; len <= parts.length; len++) {
+            const candidate = parts.slice(0, len).join('.');
+            if (KOTLIN_STDLIB_PACKAGES.has(candidate) || KOTLIN_COMMON_PACKAGES.has(candidate)) {
+                return {
+                    name,
+                    exists: true,
+                    checkedAt: Date.now(),
+                };
+            }
+        }
+        return {
+            name,
+            exists: false,
+            checkedAt: Date.now(),
+        };
+    }
+    /**
+     * Check if an API is deprecated.
+     * Searches the deprecated-apis-kotlin.json database.
+     */
+    checkDeprecated(api) {
+        for (const entry of KOTLIN_DEPRECATED_DB) {
+            const regex = new RegExp(entry.pattern);
+            if (regex.test(api)) {
+                return {
+                    api: entry.api,
+                    reason: entry.reason,
+                    replacement: entry.replacement,
+                    since: entry.deprecated_since,
+                };
+            }
+        }
+        return null;
+    }
+    /**
+     * Compute complexity metrics for Kotlin source code.
+     *
+     * Uses brace-based nesting detection and regex matching for decision points.
+     * Kotlin-specific: `when` expression branches add to complexity.
+     */
+    computeComplexity(source, _ast) {
+        const lines = source.split('\n');
+        let cyclomatic = 1; // base complexity
+        let cognitive = 0;
+        let maxNestingDepth = 0;
+        let currentDepth = 0;
+        let functionCount = 0;
+        let inBlockComment = false;
+        const codeLines = [];
+        for (const line of lines) {
+            const trimmed = line.trim();
+            // Handle block comments
+            if (inBlockComment) {
+                if (trimmed.includes('*/')) {
+                    inBlockComment = false;
+                }
+                continue;
+            }
+            if (trimmed.startsWith('/*')) {
+                inBlockComment = true;
+                if (trimmed.includes('*/')) {
+                    inBlockComment = false;
+                }
+                continue;
+            }
+            // Skip single-line comments and empty lines
+            if (!trimmed || trimmed.startsWith('//'))
+                continue;
+            codeLines.push(trimmed);
+            // Decision points → cyclomatic complexity
+            const ifMatches = (trimmed.match(/\b(if|else\s+if)\s*\(/g) || []).length;
+            cyclomatic += ifMatches;
+            const forMatches = (trimmed.match(/\b(for|while)\s*\(/g) || []).length;
+            cyclomatic += forMatches;
+            // `when` branches (Kotlin's pattern matching)
+            // Each branch in a `when` block adds a decision path
+            // We count `when {` or `when (expr) {` as starting a when block
+            const whenMatches = (trimmed.match(/\bwhen\b\s*(?:\([^)]*\))?\s*\{/g) || []).length;
+            cyclomatic += whenMatches;
+            // Individual when branches (lines that look like "value ->" or "is Type ->")
+            // Only count if not the else branch
+            if (/^\s*(?:(?:is\s+\w+|in\s+|!in\s+|[^{}\n]+)\s*->)/.test(trimmed) && !trimmed.startsWith('else')) {
+                cyclomatic += 1;
+            }
+            const catchMatches = (trimmed.match(/\bcatch\s*\(/g) || []).length;
+            cyclomatic += catchMatches;
+            // Logical operators
+            const logicalOps = (trimmed.match(/&&|\|\|/g) || []).length;
+            cyclomatic += logicalOps;
+            // Ternary / elvis operator
+            const elvisOps = (trimmed.match(/\?:/g) || []).length;
+            cyclomatic += elvisOps;
+            // Track nesting depth via braces
+            const opens = (trimmed.match(/\{/g) || []).length;
+            const closes = (trimmed.match(/\}/g) || []).length;
+            currentDepth += opens - closes;
+            if (currentDepth > maxNestingDepth) {
+                maxNestingDepth = currentDepth;
+            }
+            // Cognitive complexity: nested conditions add more
+            if (/\b(if|for|while|catch|when)\b/.test(trimmed)) {
+                cognitive += 1 + Math.max(0, currentDepth - 1);
+            }
+            cognitive += logicalOps;
+            // Count functions
+            // Matches: fun name( or fun Type.name( or suspend fun name(
+            if (/\bfun\s+(?:\w+\.)?(\w+)\s*\(/.test(trimmed)) {
+                functionCount++;
+            }
+        }
+        return {
+            cyclomatic,
+            cognitive,
+            loc: codeLines.length,
+            functionCount,
+            maxNestingDepth,
+        };
+    }
+}
+//# sourceMappingURL=parser.js.map
+;// CONCATENATED MODULE: ../core/dist/languages/kotlin/index.js
+/**
+ * Kotlin Language Adapter — Exports
+ *
+ * @since 0.3.0
+ */
+
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ../core/dist/languages/index.js
+/**
+ * Multi-Language Support — Exports
+ *
+ * @since 0.3.0
+ */
+// Registry
+
+// Adapters
+
+
+
+
+
+//# sourceMappingURL=index.js.map
 ;// CONCATENATED MODULE: ../core/dist/detectors/hallucination.js
 /**
- * Hallucination Detector
+ * Hallucination Detector (V3)
  *
  * Detects AI-generated code hallucination patterns:
  * 1. References to non-existent npm packages (compared against package.json)
  * 2. Calls to undefined functions/variables
  * 3. Usage of non-existent API endpoints (if OpenAPI spec is provided)
  * 4. Imported but never-defined types
+ *
+ * Implements the unified Detector interface.
+ * Backward compatible: old analyze() signature is preserved but deprecated.
+ *
+ * @since 0.2.0 (original)
+ * @since 0.3.0 (V3 unified interface)
  */
 
 
-/**
- * Resolve the full set of valid package names from package.json + node_modules
- */
+
+// ─── Internal Helpers ───
 function resolveValidPackages(projectRoot, extra = []) {
     const packages = new Set([
         // Node.js built-in modules
@@ -39903,14 +50846,12 @@ function resolveValidPackages(projectRoot, extra = []) {
         'node:dns', 'node:assert', 'node:readline', 'node:worker_threads',
         'node:perf_hooks', 'node:async_hooks', 'node:timers', 'node:timers/promises',
         'node:fs/promises', 'node:stream/promises', 'node:test',
-        // Legacy (non-prefixed) built-ins
         'fs', 'path', 'url', 'http', 'https', 'crypto', 'stream', 'util', 'os',
         'child_process', 'events', 'buffer', 'querystring', 'zlib', 'net', 'tls',
         'dns', 'assert', 'readline', 'worker_threads', 'perf_hooks', 'async_hooks',
         'timers', 'timers/promises', 'fs/promises', 'stream/promises',
         ...extra,
     ]);
-    // Walk up to find the nearest package.json
     let dir = projectRoot;
     while (dir !== (0,external_node_path_namespaceObject.dirname)(dir)) {
         const pkgPath = (0,external_node_path_namespaceObject.join)(dir, 'package.json');
@@ -39926,7 +50867,6 @@ function resolveValidPackages(projectRoot, extra = []) {
                 for (const name of Object.keys(deps)) {
                     packages.add(name);
                 }
-                // In monorepo: also read root workspace package.json (one or two levels up)
                 const isWorkspacePkg = pkg.name && (dir.includes('/packages/') || dir.includes('/apps/'));
                 if (isWorkspacePkg) {
                     for (let up = (0,external_node_path_namespaceObject.dirname)(dir); up !== (0,external_node_path_namespaceObject.dirname)(up); up = (0,external_node_path_namespaceObject.dirname)(up)) {
@@ -39946,41 +50886,34 @@ function resolveValidPackages(projectRoot, extra = []) {
                     }
                 }
             }
-            catch {
-                // Ignore malformed package.json
-            }
+            catch { /* ignore */ }
             break;
         }
         dir = (0,external_node_path_namespaceObject.dirname)(dir);
     }
     return packages;
 }
-/** Extract import/require statements from source text */
 function extractImports(source) {
     const imports = [];
     const lines = source.split('\n');
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const lineNum = i + 1;
-        // ES import: import ... from 'module'
         const esMatch = line.match(/import\s+.*?\s+from\s+['"]([^'"]+)['"]/);
         if (esMatch) {
             imports.push({ module: esMatch[1], line: lineNum });
             continue;
         }
-        // ES import: import 'module' (side-effect)
         const sideEffectMatch = line.match(/import\s+['"]([^'"]+)['"]/);
         if (sideEffectMatch) {
             imports.push({ module: sideEffectMatch[1], line: lineNum });
             continue;
         }
-        // Dynamic import: import('module')
         const dynamicMatch = line.match(/import\s*\(\s*['"]([^'"]+)['"]\s*\)/);
         if (dynamicMatch) {
             imports.push({ module: dynamicMatch[1], line: lineNum });
             continue;
         }
-        // CommonJS: require('module')
         const requireMatch = line.match(/require\s*\(\s*['"]([^'"]+)['"]\s*\)/);
         if (requireMatch) {
             imports.push({ module: requireMatch[1], line: lineNum });
@@ -39988,34 +50921,21 @@ function extractImports(source) {
     }
     return imports;
 }
-/** Get the top-level package name from an import specifier */
 function getPackageName(specifier) {
-    // Relative imports
-    if (specifier.startsWith('.') || specifier.startsWith('/')) {
+    if (specifier.startsWith('.') || specifier.startsWith('/'))
         return null;
-    }
-    // Scoped packages: @scope/package/sub → @scope/package
     if (specifier.startsWith('@')) {
         const parts = specifier.split('/');
-        if (parts.length >= 2) {
+        if (parts.length >= 2)
             return `${parts[0]}/${parts[1]}`;
-        }
         return specifier;
     }
-    // Regular packages: package/sub → package
     return specifier.split('/')[0];
 }
-/**
- * Detect undefined variable/function references.
- * Uses a simple heuristic: finds identifiers that look like function calls
- * but are never imported or declared in the file.
- */
 function detectPhantomReferences(source, filePath) {
     const issues = [];
     const lines = source.split('\n');
-    // Collect all declared identifiers (rough heuristic)
     const declared = new Set();
-    // Common global/built-in identifiers
     const builtins = new Set([
         'console', 'process', 'require', 'module', 'exports', '__dirname', '__filename',
         'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'setImmediate',
@@ -40030,23 +50950,17 @@ function detectPhantomReferences(source, filePath) {
         'performance', 'queueMicrotask', 'atob', 'btoa',
         'describe', 'it', 'test', 'expect', 'beforeAll', 'afterAll', 'beforeEach', 'afterEach',
         'vi', 'jest',
-        // Class keywords that appear as identifiers
         'constructor', 'super', 'this',
-        // Common logging / utility patterns
         'log', 'warn', 'error', 'info', 'debug', 'trace',
-        // SQL aggregate functions (appear in TypeORM/raw queries)
         'COUNT', 'SUM', 'AVG', 'MAX', 'MIN', 'COALESCE', 'NULLIF', 'CAST',
         'count', 'sum', 'avg', 'max', 'min', 'coalesce', 'nullif', 'cast',
-        // Node.js / common runtime
         'next', 'resolve', 'reject', 'emit', 'on', 'off', 'once',
         'toString', 'valueOf', 'hasOwnProperty', 'isPrototypeOf',
     ]);
     for (const line of lines) {
-        // Variable declarations
         const varMatch = line.matchAll(/(?:const|let|var|function|class)\s+(\w+)/g);
         for (const m of varMatch)
             declared.add(m[1]);
-        // Import bindings
         const importMatch = line.matchAll(/import\s+(?:{([^}]+)}|(\w+))/g);
         for (const m of importMatch) {
             if (m[1]) {
@@ -40059,7 +50973,6 @@ function detectPhantomReferences(source, filePath) {
             if (m[2])
                 declared.add(m[2]);
         }
-        // Destructuring from require
         const reqMatch = line.match(/(?:const|let|var)\s+{([^}]+)}\s*=\s*require/);
         if (reqMatch) {
             reqMatch[1].split(',').forEach(s => {
@@ -40068,7 +50981,6 @@ function detectPhantomReferences(source, filePath) {
                     declared.add(name);
             });
         }
-        // Function parameters (basic)
         const paramMatch = line.match(/(?:function\s+\w+|=>)\s*\(([^)]*)\)/);
         if (paramMatch) {
             paramMatch[1].split(',').forEach(s => {
@@ -40078,40 +50990,29 @@ function detectPhantomReferences(source, filePath) {
             });
         }
     }
-    // Look for function calls to undeclared identifiers (very conservative)
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const trimmedLine = line.trim();
-        // Skip decorator lines entirely (@Decorator(...))
         if (trimmedLine.startsWith('@'))
             continue;
-        // Match standalone function calls: identifier(...)
         const callMatches = line.matchAll(/\b([a-z]\w*)\s*\(/gi);
         for (const m of callMatches) {
             const name = m[1];
-            // Skip if it's a keyword, builtin, or declared
             if (builtins.has(name) || declared.has(name))
                 continue;
-            // Skip common patterns (methods on objects: obj.method())
             const idx = m.index;
             if (idx > 0 && line[idx - 1] === '.')
                 continue;
-            // Skip if preceded by @ (decorator call within a line)
             if (idx > 0 && line[idx - 1] === '@')
                 continue;
-            // Skip control flow keywords
             if (['if', 'for', 'while', 'switch', 'catch', 'return', 'throw', 'new', 'typeof', 'instanceof', 'void', 'delete', 'await', 'yield', 'case', 'in', 'of', 'as', 'from', 'import', 'export', 'default', 'extends', 'implements', 'interface', 'type', 'enum', 'namespace', 'abstract', 'declare', 'readonly', 'static', 'public', 'private', 'protected', 'override', 'get', 'set', 'async', 'function', 'class', 'const', 'let', 'var'].includes(name))
                 continue;
-            // Skip all-uppercase identifiers (likely enum values, constants, SQL)
             if (/^[A-Z][A-Z0-9_]+$/.test(name))
                 continue;
-            // Skip single-char identifiers (loop variables: i, j, k, etc.)
             if (name.length === 1)
                 continue;
-            // Skip lines that are inside SQL template literals or comments
             if (trimmedLine.startsWith('//') || trimmedLine.startsWith('*') || trimmedLine.startsWith('/*'))
                 continue;
-            // Skip class method definitions (name followed by ( inside class body)
             if (/^\s*(public|private|protected|static|async|override|abstract)?\s*\w+\s*\(/.test(line) && !line.includes('='))
                 continue;
             issues.push({
@@ -40126,41 +51027,63 @@ function detectPhantomReferences(source, filePath) {
     }
     return issues;
 }
-/**
- * Known framework decorators that should not be flagged as phantom functions.
- * Covers NestJS, TypeORM, class-validator, class-transformer, Swagger/OpenAPI, etc.
- */
 const FRAMEWORK_DECORATORS = new Set([
-    // NestJS core
     'Controller', 'Get', 'Post', 'Put', 'Delete', 'Patch', 'Options', 'Head', 'All',
     'Injectable', 'Module', 'Component', 'Pipe', 'Guard', 'Interceptor', 'Middleware',
     'UseGuards', 'UseInterceptors', 'UsePipes', 'UseFilters', 'Catch',
-    // NestJS parameter decorators
     'Body', 'Param', 'Query', 'Headers', 'Req', 'Res', 'Next', 'Session', 'UploadedFile',
-    // NestJS DI
     'Inject', 'InjectRepository', 'InjectQueue',
-    // Swagger / OpenAPI
     'ApiProperty', 'ApiTags', 'ApiOperation', 'ApiResponse', 'ApiBody', 'ApiBearerAuth',
-    // TypeORM
     'Column', 'Entity', 'PrimaryGeneratedColumn', 'CreateDateColumn', 'UpdateDateColumn',
     'ManyToOne', 'OneToMany', 'ManyToMany', 'JoinColumn', 'JoinTable', 'OneToOne',
     'BeforeInsert', 'AfterInsert', 'BeforeUpdate', 'AfterUpdate', 'BeforeRemove',
-    // class-validator
     'IsString', 'IsNumber', 'IsBoolean', 'IsEmail', 'IsOptional', 'IsArray', 'IsEnum',
     'IsNotEmpty', 'MinLength', 'MaxLength', 'Min', 'Max', 'ValidateNested',
-    // class-transformer
     'Type', 'Expose', 'Exclude', 'Transform',
-    // Express / Fastify
     'Router',
-    // Angular
     'Component', 'Directive', 'NgModule', 'Input', 'Output', 'HostListener',
-    // TypeScript / JS builtins used as decorators
     'Reflect',
 ]);
+// ─── Severity Mapping ───
+function mapLegacySeverity(severity, type) {
+    if (type === 'phantom-package')
+        return 'high';
+    if (type === 'phantom-api')
+        return 'high';
+    if (severity === 'error')
+        return 'high';
+    return 'medium';
+}
 /**
- * Main hallucination detector
+ * Convert a legacy HallucinationIssue to a UnifiedIssue.
+ */
+function toUnifiedIssue(issue, index) {
+    return {
+        id: `hallucination:${index}`,
+        detector: 'hallucination',
+        category: types_AIDefectCategory.HALLUCINATION,
+        severity: mapLegacySeverity(issue.severity, issue.type),
+        message: issue.message,
+        file: issue.file,
+        line: issue.line,
+        column: issue.column,
+        fix: issue.suggestion ? {
+            description: issue.suggestion,
+            autoFixable: false,
+        } : undefined,
+    };
+}
+// ─── Main Detector ───
+/**
+ * HallucinationDetector — detects AI-generated hallucination patterns.
+ *
+ * V3: Implements the unified Detector interface.
+ * V2 (deprecated): Old analyze() signature still works for backward compatibility.
  */
 class HallucinationDetector {
+    name = 'hallucination';
+    version = '2.0.0';
+    tier = 1;
     validPackages;
     options;
     ignoreDecorators;
@@ -40169,8 +51092,27 @@ class HallucinationDetector {
         this.ignoreDecorators = options.ignoreDecorators ?? true;
         this.validPackages = resolveValidPackages(options.projectRoot, options.knownPackages);
     }
+    // ─── V3 Unified Interface ───
     /**
-     * Analyze a single file for hallucination issues
+     * V3 unified detect method.
+     * Processes multiple files and returns UnifiedIssue[].
+     */
+    async detect(files) {
+        const allIssues = [];
+        let globalIndex = 0;
+        for (const file of files) {
+            // Use legacy analyze for the actual detection logic
+            const result = this.analyze(file.path, file.content);
+            for (const issue of result.issues) {
+                allIssues.push(toUnifiedIssue(issue, globalIndex++));
+            }
+        }
+        return allIssues;
+    }
+    // ─── V2 Legacy Interface (Deprecated) ───
+    /**
+     * Analyze a single file for hallucination issues.
+     * @deprecated Use detect(files) instead. Will be removed in v0.4.0.
      */
     analyze(filePath, source) {
         const content = source ?? (0,external_node_fs_namespaceObject.readFileSync)(filePath, 'utf-8');
@@ -40180,7 +51122,6 @@ class HallucinationDetector {
         for (const imp of imports) {
             const pkgName = getPackageName(imp.module);
             if (pkgName && !this.validPackages.has(pkgName)) {
-                // Check if it might be a path alias (e.g., @/ or ~/)
                 if (pkgName.startsWith('@/') || pkgName.startsWith('~/'))
                     continue;
                 issues.push({
@@ -40196,7 +51137,6 @@ class HallucinationDetector {
         // 2. Check for phantom function references
         const phantomRefs = detectPhantomReferences(content, filePath);
         for (const ref of phantomRefs) {
-            // Skip known framework decorators if ignoreDecorators is enabled
             if (this.ignoreDecorators) {
                 const fnName = ref.message.match(/Possible phantom function call: '(\w+)'/)?.[1];
                 if (fnName && FRAMEWORK_DECORATORS.has(fnName))
@@ -40204,7 +51144,7 @@ class HallucinationDetector {
             }
             issues.push(ref);
         }
-        // Filter out issues suppressed by // ai-validator-ignore or // ai-validator-disable
+        // Filter suppressed issues
         const lines = content.split('\n');
         const filteredIssues = issues.filter(issue => {
             if (issue.line <= 0)
@@ -40212,19 +51152,15 @@ class HallucinationDetector {
             const prevLine = lines[issue.line - 2] || '';
             return !prevLine.includes('// ai-validator-ignore') && !prevLine.includes('// ai-validator-disable');
         });
-        // Calculate score: start at 100, deduct for issues
         const errorCount = filteredIssues.filter(i => i.severity === 'error').length;
         const warningCount = filteredIssues.filter(i => i.severity === 'warning').length;
         const deductions = (errorCount * 15) + (warningCount * 5);
         const score = Math.max(0, 100 - deductions);
-        return {
-            file: filePath,
-            issues: filteredIssues,
-            score,
-        };
+        return { file: filePath, issues: filteredIssues, score };
     }
     /**
-     * Analyze multiple files
+     * Analyze multiple files.
+     * @deprecated Use detect(files) instead. Will be removed in v0.4.0.
      */
     analyzeMany(files) {
         return files.map(f => this.analyze(f.path, f.source));
@@ -40234,7 +51170,7 @@ class HallucinationDetector {
 //# sourceMappingURL=hallucination.js.map
 ;// CONCATENATED MODULE: ../core/dist/detectors/logic-gap.js
 /**
- * Logic Gap Detector
+ * Logic Gap Detector (V3)
  *
  * Detects AI-generated code logic discontinuities:
  * 1. Empty catch blocks (swallowed errors)
@@ -40243,22 +51179,23 @@ class HallucinationDetector {
  * 4. Unused variables that suggest incomplete logic
  * 5. TODO/FIXME markers left by AI (incomplete implementation)
  * 6. Functions that declare parameters but never use them
+ *
+ * Implements the unified Detector interface.
+ *
+ * @since 0.2.0 (original)
+ * @since 0.3.0 (V3 unified interface)
  */
-/**
- * Detect empty catch blocks
- */
+
+// ─── Internal Detection Functions ───
 function detectEmptyCatch(lines, filePath) {
     const issues = [];
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
-        // Pattern: catch (...) { } or catch { }
         if (/catch\s*(\([^)]*\))?\s*\{/.test(line)) {
-            // Check if the next non-empty line is just a closing brace
             let j = i + 1;
             let blockContent = '';
             let braceDepth = 0;
             let foundOpen = false;
-            // Count braces on catch line
             for (const ch of line) {
                 if (ch === '{') {
                     braceDepth++;
@@ -40267,7 +51204,6 @@ function detectEmptyCatch(lines, filePath) {
                 if (ch === '}')
                     braceDepth--;
             }
-            // If the block was opened and closed on the same line
             if (foundOpen && braceDepth === 0) {
                 const afterCatch = line.replace(/catch\s*(\([^)]*\))?\s*\{/, '').replace('}', '').trim();
                 if (!afterCatch) {
@@ -40282,7 +51218,6 @@ function detectEmptyCatch(lines, filePath) {
                     continue;
                 }
             }
-            // Multi-line: look ahead
             if (braceDepth > 0) {
                 while (j < lines.length && braceDepth > 0) {
                     for (const ch of lines[j]) {
@@ -40294,7 +51229,6 @@ function detectEmptyCatch(lines, filePath) {
                     blockContent += lines[j].trim();
                     j++;
                 }
-                // Remove the final closing brace content
                 blockContent = blockContent.replace(/}$/, '').trim();
                 if (!blockContent || blockContent === '// TODO' || blockContent === '// ignore') {
                     issues.push({
@@ -40311,9 +51245,6 @@ function detectEmptyCatch(lines, filePath) {
     }
     return issues;
 }
-/**
- * Detect incomplete implementation markers
- */
 function detectIncompleteImpl(lines, filePath) {
     const issues = [];
     const markers = [
@@ -40342,16 +51273,11 @@ function detectIncompleteImpl(lines, filePath) {
     }
     return issues;
 }
-/**
- * Detect unreachable code after return/throw/break/continue
- */
 function detectUnreachableCode(lines, filePath) {
     const issues = [];
     for (let i = 0; i < lines.length - 1; i++) {
         const line = lines[i].trim();
-        // Check for return/throw/break/continue statements
         if (/^(return|throw)\s/.test(line) || /^(return|throw);?$/.test(line)) {
-            // Look at the next non-empty, non-comment line
             let j = i + 1;
             while (j < lines.length) {
                 const next = lines[j].trim();
@@ -40359,13 +51285,10 @@ function detectUnreachableCode(lines, filePath) {
                     j++;
                     continue;
                 }
-                // If next statement is a closing brace, case, or another block end, that's fine
                 if (next === '}' || next.startsWith('case ') || next.startsWith('default:'))
                     break;
-                // If it's a function/class declaration, could be legitimate
                 if (/^(function|class|export|const|let|var|interface|type|enum)/.test(next))
                     break;
-                // Otherwise it might be unreachable
                 issues.push({
                     type: 'unreachable-code',
                     severity: 'warning',
@@ -40380,19 +51303,14 @@ function detectUnreachableCode(lines, filePath) {
     }
     return issues;
 }
-/**
- * Detect missing error handling in async functions
- */
 function detectMissingErrorHandling(lines, filePath) {
     const issues = [];
     const source = lines.join('\n');
-    // Find async functions that don't have try-catch
     const asyncFuncPattern = /async\s+(?:function\s+)?(\w+)?\s*\([^)]*\)\s*(?::\s*[^{]+)?\s*\{/g;
     let match;
     while ((match = asyncFuncPattern.exec(source)) !== null) {
         const startIdx = match.index;
         const lineNum = source.substring(0, startIdx).split('\n').length;
-        // Look within the function body for try-catch
         let braceDepth = 0;
         let hasTryCatch = false;
         let searchStart = source.indexOf('{', startIdx);
@@ -40406,20 +51324,17 @@ function detectMissingErrorHandling(lines, filePath) {
                 if (braceDepth === 0)
                     break;
             }
-            // Check if there's a try block at depth 1
             if (braceDepth === 1 && source.substring(k).startsWith('try')) {
                 hasTryCatch = true;
                 break;
             }
         }
-        // Also check if the function has .catch() calls
         const funcBody = source.substring(searchStart, source.indexOf('}', searchStart + 1) + 1);
         if (funcBody.includes('.catch(') || funcBody.includes('.catch (')) {
             hasTryCatch = true;
         }
         if (!hasTryCatch) {
             const funcName = match[1] || 'anonymous';
-            // Only flag if function has await calls (actually does async operations)
             if (funcBody.includes('await ')) {
                 issues.push({
                     type: 'missing-error-handling',
@@ -40434,12 +51349,86 @@ function detectMissingErrorHandling(lines, filePath) {
     }
     return issues;
 }
+// ─── Severity & Category Mapping ───
+function mapSeverity(type) {
+    switch (type) {
+        case 'empty-catch':
+        case 'missing-error-handling':
+            return 'medium';
+        case 'unreachable-code':
+        case 'dead-code':
+            return 'low';
+        case 'incomplete-implementation':
+            return 'medium';
+        case 'unused-variable':
+            return 'low';
+        case 'missing-return':
+            return 'medium';
+        default:
+            return 'low';
+    }
+}
+function mapCategory(type) {
+    switch (type) {
+        case 'empty-catch':
+        case 'missing-error-handling':
+            return types_AIDefectCategory.ERROR_HANDLING;
+        case 'incomplete-implementation':
+        case 'missing-return':
+            return types_AIDefectCategory.INCOMPLETE_IMPL;
+        case 'unreachable-code':
+        case 'dead-code':
+        case 'unused-variable':
+            return types_AIDefectCategory.CONTEXT_LOSS;
+        default:
+            return types_AIDefectCategory.INCOMPLETE_IMPL;
+    }
+}
+function logic_gap_toUnifiedIssue(issue, index) {
+    return {
+        id: `logic-gap:${index}`,
+        detector: 'logic-gap',
+        category: mapCategory(issue.type),
+        severity: mapSeverity(issue.type),
+        message: issue.message,
+        file: issue.file,
+        line: issue.line,
+        fix: issue.suggestion ? {
+            description: issue.suggestion,
+            autoFixable: false,
+        } : undefined,
+    };
+}
+// ─── Main Detector ───
 /**
- * Main Logic Gap Detector
+ * LogicGapDetector — detects AI-generated code logic gaps.
+ *
+ * V3: Implements the unified Detector interface.
+ * V2 (deprecated): Old analyze() signature still works.
  */
 class LogicGapDetector {
+    name = 'logic-gap';
+    version = '2.0.0';
+    tier = 1;
+    // ─── V3 Unified Interface ───
     /**
-     * Analyze a single file for logic gap issues
+     * V3 unified detect method.
+     */
+    async detect(files) {
+        const allIssues = [];
+        let globalIndex = 0;
+        for (const file of files) {
+            const result = this.analyze(file.path, file.content);
+            for (const issue of result.issues) {
+                allIssues.push(logic_gap_toUnifiedIssue(issue, globalIndex++));
+            }
+        }
+        return allIssues;
+    }
+    // ─── V2 Legacy Interface (Deprecated) ───
+    /**
+     * Analyze a single file for logic gap issues.
+     * @deprecated Use detect(files) instead. Will be removed in v0.4.0.
      */
     analyze(filePath, source) {
         const lines = source.split('\n');
@@ -40449,7 +51438,6 @@ class LogicGapDetector {
             ...detectUnreachableCode(lines, filePath),
             ...detectMissingErrorHandling(lines, filePath),
         ];
-        // Filter out issues suppressed by // ai-validator-ignore or // ai-validator-disable
         const issues = rawIssues.filter(issue => {
             if (issue.line <= 0)
                 return true;
@@ -40467,14 +51455,20 @@ class LogicGapDetector {
 //# sourceMappingURL=logic-gap.js.map
 ;// CONCATENATED MODULE: ../core/dist/detectors/duplication.js
 /**
- * Duplication Detector
+ * Duplication Detector (V3)
  *
  * Detects AI-generated code redundancy patterns:
  * 1. Near-identical function bodies (copy-paste with minor changes)
  * 2. Repeated logic blocks that should be extracted
  * 3. Duplicate import statements
+ *
+ * Implements the unified Detector interface.
+ *
+ * @since 0.2.0 (original)
+ * @since 0.3.0 (V3 unified interface)
  */
-/** Normalize a code line for comparison */
+
+// ─── Internal Detection Functions ───
 function normalizeLine(line) {
     return line
         .replace(/\/\/.*$/, '')
@@ -40482,13 +51476,10 @@ function normalizeLine(line) {
         .replace(/\s+/g, ' ')
         .trim();
 }
-/** Extract function bodies as normalized blocks */
 function extractFunctionBlocks(lines) {
     const blocks = [];
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        // Match function declarations, arrow functions, and class methods
-        // Exclude: destructuring (const { x } = ...), object literals (const x = {...}), imports
         const isDestructuring = /(?:const|let|var)\s*\{/.test(line) || /(?:const|let|var)\s*\[/.test(line);
         const isSimpleAssignment = /(?:const|let|var)\s+\w+\s*=\s*[^(=>]/.test(line) && !/(?:async\s*)?\(/.test(line.split('=').slice(1).join('='));
         const funcMatch = !isDestructuring && !isSimpleAssignment ? line.match(/(?:(?:export\s+)?(?:async\s+)?function\s+(\w+)|(?:(?:public|private|protected|static|async|override)\s+)+(\w+)\s*\(|(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?\()/) : null;
@@ -40517,7 +51508,6 @@ function extractFunctionBlocks(lines) {
     }
     return blocks;
 }
-/** Compute similarity ratio between two string arrays (0-1) */
 function computeSimilarity(a, b) {
     if (a.length === 0 || b.length === 0)
         return 0;
@@ -40530,7 +51520,6 @@ function computeSimilarity(a, b) {
     }
     return matches / longer.length;
 }
-/** Detect duplicate imports */
 function detectDuplicateImports(lines, filePath) {
     const issues = [];
     const seenImports = new Map();
@@ -40557,21 +51546,73 @@ function detectDuplicateImports(lines, filePath) {
     }
     return issues;
 }
+// ─── Severity & Category Mapping ───
+function duplication_mapSeverity(type) {
+    switch (type) {
+        case 'duplicate-function':
+            return 'low'; // Traditional tools cover this; V3 downgrades
+        case 'duplicate-block':
+            return 'low';
+        case 'duplicate-import':
+            return 'info';
+        default:
+            return 'low';
+    }
+}
+function duplication_toUnifiedIssue(issue, index) {
+    return {
+        id: `duplication:${index}`,
+        detector: 'duplication',
+        category: types_AIDefectCategory.DUPLICATION,
+        severity: duplication_mapSeverity(issue.type),
+        message: issue.message,
+        file: issue.file,
+        line: issue.line,
+        fix: issue.suggestion ? {
+            description: issue.suggestion,
+            autoFixable: false,
+        } : undefined,
+    };
+}
+// ─── Main Detector ───
 /**
- * Main Duplication Detector
+ * DuplicationDetector — detects AI-generated code duplication patterns.
+ *
+ * V3: Implements the unified Detector interface.
+ * V2 (deprecated): Old analyze() signature still works.
  */
 class DuplicationDetector {
+    name = 'duplication';
+    version = '2.0.0';
+    tier = 1;
     similarityThreshold;
     constructor(similarityThreshold = 0.8) {
         this.similarityThreshold = similarityThreshold;
     }
-    /** Analyze a single file for duplication issues */
+    // ─── V3 Unified Interface ───
+    /**
+     * V3 unified detect method.
+     */
+    async detect(files) {
+        const allIssues = [];
+        let globalIndex = 0;
+        for (const file of files) {
+            const result = this.analyze(file.path, file.content);
+            for (const issue of result.issues) {
+                allIssues.push(duplication_toUnifiedIssue(issue, globalIndex++));
+            }
+        }
+        return allIssues;
+    }
+    // ─── V2 Legacy Interface (Deprecated) ───
+    /**
+     * Analyze a single file for duplication issues.
+     * @deprecated Use detect(files) instead. Will be removed in v0.4.0.
+     */
     analyze(filePath, source) {
         const lines = source.split('\n');
         const rawIssues = [];
-        // 1. Detect duplicate imports
         rawIssues.push(...detectDuplicateImports(lines, filePath));
-        // 2. Detect near-duplicate functions within the same file
         const blocks = extractFunctionBlocks(lines);
         for (let i = 0; i < blocks.length; i++) {
             for (let j = i + 1; j < blocks.length; j++) {
@@ -40589,7 +51630,6 @@ class DuplicationDetector {
                 }
             }
         }
-        // Filter out issues suppressed by // ai-validator-ignore or // ai-validator-disable
         const issues = rawIssues.filter(issue => {
             if (issue.line <= 0)
                 return true;
@@ -40607,7 +51647,7 @@ class DuplicationDetector {
 //# sourceMappingURL=duplication.js.map
 ;// CONCATENATED MODULE: ../core/dist/detectors/context-break.js
 /**
- * Context Break Detector
+ * Context Break Detector (V3)
  *
  * Detects architectural inconsistencies in AI-generated code:
  * 1. Mixed coding styles (camelCase vs snake_case)
@@ -40615,8 +51655,14 @@ class DuplicationDetector {
  * 3. Mixed module systems (import vs require in same file)
  * 4. Inconsistent async patterns (callbacks vs promises vs async/await)
  * 5. Style breaks that indicate context window switches
+ *
+ * Implements the unified Detector interface.
+ *
+ * @since 0.2.0 (original)
+ * @since 0.3.0 (V3 unified interface)
  */
-/** Detect mixed naming conventions */
+
+// ─── Internal Detection Functions ───
 function detectNamingInconsistency(lines, filePath) {
     const issues = [];
     let camelCaseCount = 0;
@@ -40625,7 +51671,6 @@ function detectNamingInconsistency(lines, filePath) {
     const camelCaseLines = [];
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        // Extract variable/function declarations
         const declMatch = line.match(/(?:const|let|var|function)\s+(\w+)/);
         if (declMatch) {
             const name = declMatch[1];
@@ -40639,7 +51684,6 @@ function detectNamingInconsistency(lines, filePath) {
             }
         }
     }
-    // If there's a significant mix, flag it
     if (camelCaseCount > 0 && snakeCaseCount > 0) {
         const minority = camelCaseCount < snakeCaseCount ? camelCaseLines : snakeCaseLines;
         const majorStyle = camelCaseCount >= snakeCaseCount ? 'camelCase' : 'snake_case';
@@ -40656,7 +51700,6 @@ function detectNamingInconsistency(lines, filePath) {
     }
     return issues;
 }
-/** Detect mixed module systems (ESM vs CJS) */
 function detectModuleSystemMix(lines, filePath) {
     const issues = [];
     let hasESMImport = false;
@@ -40690,7 +51733,6 @@ function detectModuleSystemMix(lines, filePath) {
     }
     return issues;
 }
-/** Detect mixed async patterns */
 function detectAsyncPatternMix(lines, filePath) {
     const issues = [];
     const source = lines.join('\n');
@@ -40701,7 +51743,6 @@ function detectAsyncPatternMix(lines, filePath) {
         hasAsyncAwait = true;
     if (/\.then\s*\(/.test(source))
         hasThenChain = true;
-    // Check for callback patterns (function(err, result))
     const callbackPattern = /function\s*\(\s*err(?:or)?\s*,/g;
     if (callbackPattern.test(source))
         hasCallback = true;
@@ -40719,11 +51760,69 @@ function detectAsyncPatternMix(lines, filePath) {
     }
     return issues;
 }
+// ─── Severity & Category Mapping ───
+function context_break_mapSeverity(type) {
+    switch (type) {
+        case 'naming-inconsistency':
+            return 'low';
+        case 'module-system-mix':
+            return 'medium';
+        case 'async-pattern-mix':
+            return 'low';
+        case 'style-break':
+            return 'low';
+        case 'error-handling-inconsistency':
+            return 'medium';
+        default:
+            return 'low';
+    }
+}
+function context_break_toUnifiedIssue(issue, index) {
+    return {
+        id: `context-break:${index}`,
+        detector: 'context-break',
+        category: types_AIDefectCategory.CONTEXT_LOSS,
+        severity: context_break_mapSeverity(issue.type),
+        message: issue.message,
+        file: issue.file,
+        line: issue.line,
+        fix: issue.suggestion ? {
+            description: issue.suggestion,
+            autoFixable: false,
+        } : undefined,
+    };
+}
+// ─── Main Detector ───
 /**
- * Main Context Break Detector
+ * ContextBreakDetector — detects AI context window inconsistencies.
+ *
+ * V3: Implements the unified Detector interface.
+ * V2 (deprecated): Old analyze() signature still works.
  */
 class ContextBreakDetector {
-    /** Analyze a single file */
+    name = 'context-break';
+    version = '2.0.0';
+    tier = 1;
+    // ─── V3 Unified Interface ───
+    /**
+     * V3 unified detect method.
+     */
+    async detect(files) {
+        const allIssues = [];
+        let globalIndex = 0;
+        for (const file of files) {
+            const result = this.analyze(file.path, file.content);
+            for (const issue of result.issues) {
+                allIssues.push(context_break_toUnifiedIssue(issue, globalIndex++));
+            }
+        }
+        return allIssues;
+    }
+    // ─── V2 Legacy Interface (Deprecated) ───
+    /**
+     * Analyze a single file.
+     * @deprecated Use detect(files) instead. Will be removed in v0.4.0.
+     */
     analyze(filePath, source) {
         const lines = source.split('\n');
         const rawIssues = [
@@ -40731,7 +51830,6 @@ class ContextBreakDetector {
             ...detectModuleSystemMix(lines, filePath),
             ...detectAsyncPatternMix(lines, filePath),
         ];
-        // Filter out issues suppressed by // ai-validator-ignore or // ai-validator-disable
         const issues = rawIssues.filter(issue => {
             if (issue.line <= 0)
                 return true;
@@ -40749,18 +51847,56 @@ class ContextBreakDetector {
 //# sourceMappingURL=context-break.js.map
 ;// CONCATENATED MODULE: ../core/dist/scorer/scoring-engine.js
 /**
- * Scoring Engine
+ * Scoring Engine V3
  *
- * Calculates a composite quality score (0-100) for AI-generated code.
+ * Multi-dimensional scoring engine for AI-generated code quality.
  *
- * Scoring dimensions (total: 100):
- * - Code Completeness (30): No hallucinated variables/functions/packages
- * - Logic Coherence   (25): No logic gaps, meaningful control flow
- * - Architecture Consistency (25): Consistent style and patterns
- * - Code Conciseness  (20): No obvious duplication or redundancy
+ * V3 scoring dimensions (total: 100):
+ *   - AI Faithfulness       (35): Hallucination — packages/APIs/methods existence
+ *   - Code Freshness        (25): Timeliness — deprecated APIs and methods
+ *   - Context Coherence     (20): Consistency across long files and functions
+ *   - Implementation Quality (20): Completeness, error handling, complexity
+ *
+ * Grade scale: A+ (95-100), A (90-94), B (80-89), C (70-79), D (60-69), F (0-59)
+ *
+ * Backward compatible: legacy scoreFile() is preserved (deprecated).
  */
-/** Score thresholds for grading */
+
+// ─── V3 Scoring Dimensions ─────────────────────────────────────────
+const DIMENSIONS = {
+    aiFaithfulness: { weight: 35, name: 'AI Faithfulness' },
+    codeFreshness: { weight: 25, name: 'Code Freshness' },
+    contextCoherence: { weight: 20, name: 'Context Coherence' },
+    implementationQuality: { weight: 20, name: 'Implementation Quality' },
+};
+// ─── Severity Deductions ───────────────────────────────────────────
+const scoring_engine_SEVERITY_DEDUCTIONS = {
+    critical: 15,
+    high: 10,
+    medium: 5,
+    low: 2,
+    info: 0,
+};
+// ─── Category → Dimension Mapping ──────────────────────────────────
+/**
+ * Maps each AIDefectCategory to a scoring dimension.
+ */
+const scoring_engine_CATEGORY_DIMENSION_MAP = {
+    [types_AIDefectCategory.HALLUCINATION]: 'aiFaithfulness',
+    [types_AIDefectCategory.SECURITY_ANTIPATTERN]: 'aiFaithfulness',
+    [types_AIDefectCategory.TRAINING_LEAK]: 'aiFaithfulness',
+    [types_AIDefectCategory.STALE_KNOWLEDGE]: 'codeFreshness',
+    [types_AIDefectCategory.CONTEXT_LOSS]: 'contextCoherence',
+    [types_AIDefectCategory.INCOMPLETE_IMPL]: 'implementationQuality',
+    [types_AIDefectCategory.OVER_ENGINEERING]: 'implementationQuality',
+    [types_AIDefectCategory.DUPLICATION]: 'implementationQuality',
+    [types_AIDefectCategory.TYPE_SAFETY]: 'implementationQuality',
+    [types_AIDefectCategory.ERROR_HANDLING]: 'implementationQuality',
+};
+// ─── Grade Computation ─────────────────────────────────────────────
 function computeGrade(score) {
+    if (score >= 95)
+        return 'A+';
     if (score >= 90)
         return 'A';
     if (score >= 80)
@@ -40771,73 +51907,120 @@ function computeGrade(score) {
         return 'D';
     return 'F';
 }
-/** Weight configuration */
-const WEIGHTS = {
-    completeness: 30,
-    coherence: 25,
-    consistency: 25,
-    conciseness: 20,
-};
-/** Per-issue deductions */
-const DEDUCTIONS = {
-    error: 10,
-    warning: 3,
-};
-class ScoringEngine {
+/** Legacy grade (without A+) for backward compatibility */
+function computeLegacyGrade(score) {
+    if (score >= 90)
+        return 'A';
+    if (score >= 80)
+        return 'B';
+    if (score >= 70)
+        return 'C';
+    if (score >= 60)
+        return 'D';
+    return 'F';
+}
+// ─── Scoring Engine ────────────────────────────────────────────────
+class scoring_engine_ScoringEngine {
     threshold;
     constructor(threshold = 70) {
         this.threshold = threshold;
     }
+    // ─── V3 API ────────────────────────────────────────────────────
     /**
-     * Score a single file based on detector results
+     * Score a set of UnifiedIssues.
+     * Can be used for file-level or project-level scoring.
+     */
+    score(issues) {
+        const dimensionIssues = this.groupByDimension(issues);
+        const dimensions = this.scoreDimensions(dimensionIssues);
+        const totalScore = Math.round(Object.values(dimensions).reduce((sum, d) => sum + d.score, 0));
+        return {
+            totalScore,
+            grade: computeGrade(totalScore),
+            dimensions,
+            issueCount: issues.length,
+            passed: totalScore >= this.threshold,
+            threshold: this.threshold,
+        };
+    }
+    /**
+     * Score issues grouped by file, returning per-file scores.
+     */
+    scoreByFile(issues) {
+        const fileMap = new Map();
+        for (const issue of issues) {
+            const existing = fileMap.get(issue.file);
+            if (existing) {
+                existing.push(issue);
+            }
+            else {
+                fileMap.set(issue.file, [issue]);
+            }
+        }
+        return Array.from(fileMap.entries()).map(([file, fileIssues]) => {
+            const result = this.score(fileIssues);
+            return { ...result, file };
+        });
+    }
+    /**
+     * Aggregate scores across multiple files into a project-level report.
+     */
+    aggregateV3(issues) {
+        const fileScores = this.scoreByFile(issues);
+        if (fileScores.length === 0) {
+            return {
+                overallScore: 100,
+                grade: 'A+',
+                totalFiles: 0,
+                passedFiles: 0,
+                failedFiles: 0,
+                files: [],
+                dimensions: this.emptyDimensions(),
+                issueCount: 0,
+                passed: true,
+                threshold: this.threshold,
+                timestamp: new Date().toISOString(),
+            };
+        }
+        // Project-level score: score ALL issues together (not average of file scores)
+        const projectScore = this.score(issues);
+        const passedFiles = fileScores.filter(f => f.passed).length;
+        return {
+            overallScore: projectScore.totalScore,
+            grade: projectScore.grade,
+            totalFiles: fileScores.length,
+            passedFiles,
+            failedFiles: fileScores.length - passedFiles,
+            files: fileScores,
+            dimensions: projectScore.dimensions,
+            issueCount: issues.length,
+            passed: projectScore.passed,
+            threshold: this.threshold,
+            timestamp: new Date().toISOString(),
+        };
+    }
+    // ─── Legacy API (backward compatibility) ───────────────────────
+    /**
+     * @deprecated Use `score(issues)` instead.
+     * Score a single file based on legacy detector results.
      */
     scoreFile(filePath, hallucination, logicGap, duplication, contextBreak) {
-        // Completeness dimension (hallucination)
-        const completeness = this.scoreDimension('Code Completeness', WEIGHTS.completeness, hallucination?.issues ?? []);
-        // Coherence dimension (logic gaps)
-        const coherence = this.scoreDimension('Logic Coherence', WEIGHTS.coherence, logicGap?.issues ?? []);
-        // Consistency dimension (context breaks)
-        const consistency = this.scoreDimension('Architecture Consistency', WEIGHTS.consistency, contextBreak?.issues ?? []);
-        // Conciseness dimension (duplication)
-        const conciseness = this.scoreDimension('Code Conciseness', WEIGHTS.conciseness, duplication?.issues ?? []);
+        const completeness = this.scoreLegacyDimension('Code Completeness', 30, hallucination?.issues ?? []);
+        const coherence = this.scoreLegacyDimension('Logic Coherence', 25, logicGap?.issues ?? []);
+        const consistency = this.scoreLegacyDimension('Architecture Consistency', 25, contextBreak?.issues ?? []);
+        const conciseness = this.scoreLegacyDimension('Code Conciseness', 20, duplication?.issues ?? []);
         const totalScore = Math.round(completeness.score + coherence.score + consistency.score + conciseness.score);
         return {
             file: filePath,
             totalScore,
-            grade: computeGrade(totalScore),
-            dimensions: {
-                completeness,
-                coherence,
-                consistency,
-                conciseness,
-            },
+            grade: computeLegacyGrade(totalScore),
+            dimensions: { completeness, coherence, consistency, conciseness },
             passed: totalScore >= this.threshold,
         };
     }
     /**
-     * Score a single dimension based on issues found
-     */
-    scoreDimension(name, maxScore, issues) {
-        let deduction = 0;
-        const details = [];
-        for (const issue of issues) {
-            const amount = issue.severity === 'error' ? DEDUCTIONS.error : DEDUCTIONS.warning;
-            deduction += amount;
-            details.push(issue.message);
-        }
-        // Normalize deduction to the max score of this dimension
-        const normalizedDeduction = Math.min(maxScore, (deduction / 100) * maxScore);
-        const score = Math.round((maxScore - normalizedDeduction) * 100) / 100;
-        return {
-            name,
-            maxScore,
-            score: Math.max(0, score),
-            issueCount: issues.length,
-            details: details.slice(0, 10), // Top 10 details
-        };
-    }
-    /**
-     * Aggregate scores across multiple files
+     * @deprecated Use `aggregateV3(issues)` instead.
+     * Aggregate scores across multiple files (legacy format).
      */
     aggregate(fileScores) {
         if (fileScores.length === 0) {
@@ -40856,7 +52039,7 @@ class ScoringEngine {
         const passedFiles = fileScores.filter(f => f.passed).length;
         return {
             overallScore,
-            grade: computeGrade(overallScore),
+            grade: computeLegacyGrade(overallScore),
             totalFiles: fileScores.length,
             passedFiles,
             failedFiles: fileScores.length - passedFiles,
@@ -40865,22 +52048,129 @@ class ScoringEngine {
             timestamp: new Date().toISOString(),
         };
     }
+    // ─── Internal Scoring Logic ────────────────────────────────────
+    /**
+     * Group issues by scoring dimension based on their category.
+     */
+    groupByDimension(issues) {
+        const groups = {
+            aiFaithfulness: [],
+            codeFreshness: [],
+            contextCoherence: [],
+            implementationQuality: [],
+        };
+        for (const issue of issues) {
+            const dimensionId = scoring_engine_CATEGORY_DIMENSION_MAP[issue.category];
+            if (dimensionId) {
+                groups[dimensionId].push(issue);
+            }
+            else {
+                // Default unmapped categories to implementationQuality
+                groups.implementationQuality.push(issue);
+            }
+        }
+        return groups;
+    }
+    /**
+     * Score all dimensions from grouped issues.
+     */
+    scoreDimensions(grouped) {
+        const result = {};
+        for (const [id, config] of Object.entries(DIMENSIONS)) {
+            const issues = grouped[id] ?? [];
+            result[id] = this.scoreSingleDimension(id, config, issues);
+        }
+        return result;
+    }
+    /**
+     * Score a single dimension.
+     *
+     * Deduction calculation:
+     *   1. Sum raw deductions: Σ SEVERITY_DEDUCTIONS[issue.severity]
+     *   2. Normalize to dimension weight range:
+     *      normalizedDeduction = min(maxScore, (rawDeduction / 100) * maxScore)
+     *   3. Dimension score = maxScore - normalizedDeduction (clamped to [0, maxScore])
+     */
+    scoreSingleDimension(id, config, issues) {
+        const maxScore = config.weight;
+        let rawDeduction = 0;
+        for (const issue of issues) {
+            rawDeduction += scoring_engine_SEVERITY_DEDUCTIONS[issue.severity] ?? 0;
+        }
+        const normalizedDeduction = Math.min(maxScore, (rawDeduction / 100) * maxScore);
+        const score = Math.max(0, Math.round((maxScore - normalizedDeduction) * 100) / 100);
+        return {
+            id,
+            name: config.name,
+            maxScore,
+            score,
+            issueCount: issues.length,
+            rawDeduction,
+            normalizedDeduction: Math.round(normalizedDeduction * 100) / 100,
+            issues,
+        };
+    }
+    /**
+     * Create empty dimension scores (for zero-issue projects).
+     */
+    emptyDimensions() {
+        const result = {};
+        for (const [id, config] of Object.entries(DIMENSIONS)) {
+            result[id] = {
+                id,
+                name: config.name,
+                maxScore: config.weight,
+                score: config.weight,
+                issueCount: 0,
+                rawDeduction: 0,
+                normalizedDeduction: 0,
+                issues: [],
+            };
+        }
+        return result;
+    }
+    /**
+     * Legacy dimension scoring for backward compatibility.
+     */
+    scoreLegacyDimension(name, maxScore, issues) {
+        const LEGACY_DEDUCTIONS = { error: 10, warning: 3 };
+        let deduction = 0;
+        const details = [];
+        for (const issue of issues) {
+            const amount = LEGACY_DEDUCTIONS[issue.severity] ?? LEGACY_DEDUCTIONS.warning;
+            deduction += amount;
+            details.push(issue.message);
+        }
+        const normalizedDeduction = Math.min(maxScore, (deduction / 100) * maxScore);
+        const score = Math.round((maxScore - normalizedDeduction) * 100) / 100;
+        return {
+            name,
+            maxScore,
+            score: Math.max(0, score),
+            issueCount: issues.length,
+            details: details.slice(0, 10),
+        };
+    }
 }
-/* harmony default export */ const scoring_engine = ((/* unused pure expression or super */ null && (ScoringEngine)));
+/* harmony default export */ const scoring_engine = ((/* unused pure expression or super */ null && (scoring_engine_ScoringEngine)));
 //# sourceMappingURL=scoring-engine.js.map
 ;// CONCATENATED MODULE: ../core/dist/scorer/report.js
 /**
- * Report Generator
+ * Report Generator V3
  *
  * Formats validation results into various output formats:
- * - Terminal (human-readable with colors)
+ * - Terminal (human-readable with colors and SLA metrics)
  * - JSON (machine-readable)
  * - Markdown (for PR comments)
  * - GitLab Code Quality (for CI integration)
+ *
+ * V3 additions:
+ * - Support for new AggregateScoreV3 / FileScoreV3 types
+ * - SLA metrics section in terminal and markdown output
+ * - Dimension-based breakdown (AI Faithfulness, Code Freshness, etc.)
+ * - Backward compatible with legacy AggregateScore
  */
-/**
- * Format a dimension score as a visual bar
- */
+// ─── Visual Helpers ────────────────────────────────────────────────
 function dimensionBar(dim) {
     const pct = Math.round((dim.score / dim.maxScore) * 100);
     const filled = Math.round(pct / 5);
@@ -40888,11 +52178,9 @@ function dimensionBar(dim) {
     const bar = '█'.repeat(filled) + '░'.repeat(empty);
     return `  ${dim.name.padEnd(25)} ${bar} ${dim.score}/${dim.maxScore} (${pct}%)`;
 }
-/**
- * Grade emoji
- */
 function gradeEmoji(grade) {
     switch (grade) {
+        case 'A+': return '🏆';
         case 'A': return '🟢';
         case 'B': return '🔵';
         case 'C': return '🟡';
@@ -40901,9 +52189,32 @@ function gradeEmoji(grade) {
         default: return '⚪';
     }
 }
+function severityIcon(severity) {
+    switch (severity) {
+        case 'critical': return '🔴';
+        case 'high': return '🟠';
+        case 'medium': return '🟡';
+        case 'low': return '🔵';
+        case 'info': return '⚪';
+        default: return '⚪';
+    }
+}
+// ─── Report Generator ──────────────────────────────────────────────
 class ReportGenerator {
     /**
-     * Generate a report in the specified format
+     * Generate a V3 report with optional SLA metrics.
+     */
+    generateV3(result, format, slaMetrics) {
+        switch (format) {
+            case 'terminal': return this.formatTerminalV3(result, slaMetrics);
+            case 'json': return this.formatJSONV3(result, slaMetrics);
+            case 'markdown': return this.formatMarkdownV3(result, slaMetrics);
+            case 'gitlab-report': return this.formatGitLabReportV3(result);
+            default: return this.formatJSONV3(result, slaMetrics);
+        }
+    }
+    /**
+     * Generate a legacy report (backward compatible).
      */
     generate(result, format) {
         switch (format) {
@@ -40914,12 +52225,165 @@ class ReportGenerator {
             default: return this.formatJSON(result);
         }
     }
-    /** Terminal-friendly output */
+    // ─── V3 Terminal Format ──────────────────────────────────────
+    formatTerminalV3(result, sla) {
+        const lines = [];
+        lines.push('');
+        lines.push('╔══════════════════════════════════════════════════════════════╗');
+        lines.push('║           Open Code Review V3 — Quality Report              ║');
+        lines.push('╚══════════════════════════════════════════════════════════════╝');
+        lines.push('');
+        // Overall summary
+        lines.push(`  Overall Score: ${result.overallScore}/100  Grade: ${gradeEmoji(result.grade)} ${result.grade}`);
+        lines.push(`  Files Scanned: ${result.totalFiles}  Passed: ${result.passedFiles}  Failed: ${result.failedFiles}`);
+        lines.push(`  Issues Found: ${result.issueCount}  Threshold: ${result.threshold}`);
+        lines.push(`  Status: ${result.passed ? '✅ PASSED' : '❌ FAILED'}`);
+        lines.push('');
+        // Project-level dimension breakdown
+        lines.push('  ── Scoring Dimensions ──');
+        lines.push('');
+        for (const dim of Object.values(result.dimensions)) {
+            lines.push(dimensionBar(dim));
+        }
+        lines.push('');
+        // SLA metrics
+        if (sla) {
+            lines.push('  ═══════════════════════════════════════════');
+            lines.push('    Open Code Review — SLA Metrics');
+            lines.push('  ═══════════════════════════════════════════');
+            lines.push(`    Scan Level:      ${sla.level} (${slaLevelName(sla.level)})`);
+            lines.push(`    Files Scanned:   ${sla.filesScanned}`);
+            lines.push(`    Scan Duration:   ${(sla.scanDurationMs / 1000).toFixed(1)}s (target: ≤${(sla.targetDurationMs / 1000).toFixed(0)}s ${sla.withinTarget ? '✅' : '⚠️'})`);
+            lines.push(`    Detectors Used:  ${sla.detectorsUsed}/${sla.detectorsTotal}`);
+            lines.push(`    AI Analysis:     ${sla.aiAnalysis === 'none' ? 'None' : sla.aiAnalysis}`);
+            lines.push(`    Issues Found:    ${sla.issuesFound} (${sla.criticalCount} critical, ${sla.highCount} high, ${sla.mediumCount} medium)`);
+            if (sla.degraded) {
+                lines.push(`    ⚠️  DEGRADED:    ${sla.degradeReason}`);
+            }
+            lines.push('  ═══════════════════════════════════════════');
+            lines.push('');
+        }
+        // Per-file details
+        for (const file of result.files) {
+            lines.push(`  ─── ${file.file} ─── Score: ${file.totalScore}/100 ${gradeEmoji(file.grade)}`);
+            for (const dim of Object.values(file.dimensions)) {
+                lines.push(dimensionBar(dim));
+            }
+            // Show top issues per file
+            const allIssues = Object.values(file.dimensions)
+                .flatMap(d => d.issues ?? [])
+                .sort((a, b) => severityOrder(a.severity) - severityOrder(b.severity));
+            if (allIssues.length > 0) {
+                lines.push('');
+                lines.push('  Issues:');
+                for (const issue of allIssues.slice(0, 8)) {
+                    lines.push(`    ${severityIcon(issue.severity)} [${issue.severity}] L${issue.line}: ${issue.message}`);
+                }
+                if (allIssues.length > 8) {
+                    lines.push(`    ... and ${allIssues.length - 8} more`);
+                }
+            }
+            lines.push('');
+        }
+        lines.push('─'.repeat(62));
+        lines.push(`  Generated at: ${result.timestamp}`);
+        lines.push('');
+        return lines.join('\n');
+    }
+    // ─── V3 JSON Format ─────────────────────────────────────────
+    formatJSONV3(result, sla) {
+        const output = {
+            version: '3.0',
+            ...result,
+        };
+        // Strip full issue objects from dimension scores (they're in files already)
+        // Keep dimensions lightweight in JSON
+        if (sla) {
+            output.sla = sla;
+        }
+        return JSON.stringify(output, null, 2);
+    }
+    // ─── V3 Markdown Format ──────────────────────────────────────
+    formatMarkdownV3(result, sla) {
+        const lines = [];
+        lines.push(`## ${gradeEmoji(result.grade)} Open Code Review V3 Report`);
+        lines.push('');
+        lines.push(`**Overall Score:** ${result.overallScore}/100 (Grade: ${result.grade})`);
+        lines.push(`**Status:** ${result.passed ? '✅ Passed' : '❌ Failed'} (threshold: ${result.threshold})`);
+        lines.push(`**Files:** ${result.totalFiles} scanned, ${result.passedFiles} passed, ${result.failedFiles} failed`);
+        lines.push(`**Issues:** ${result.issueCount} total`);
+        lines.push('');
+        // Dimension breakdown
+        lines.push('### Scoring Dimensions');
+        lines.push('');
+        lines.push('| Dimension | Score | Issues |');
+        lines.push('|-----------|-------|--------|');
+        for (const dim of Object.values(result.dimensions)) {
+            const pct = Math.round((dim.score / dim.maxScore) * 100);
+            lines.push(`| ${dim.name} | ${dim.score}/${dim.maxScore} (${pct}%) | ${dim.issueCount} |`);
+        }
+        lines.push('');
+        // SLA metrics
+        if (sla) {
+            lines.push('<details>');
+            lines.push('<summary>📊 SLA Metrics</summary>');
+            lines.push('');
+            lines.push(`| Metric | Value |`);
+            lines.push(`|--------|-------|`);
+            lines.push(`| Scan Level | ${sla.level} (${slaLevelName(sla.level)}) |`);
+            lines.push(`| Duration | ${(sla.scanDurationMs / 1000).toFixed(1)}s (target: ≤${(sla.targetDurationMs / 1000).toFixed(0)}s) ${sla.withinTarget ? '✅' : '⚠️'} |`);
+            lines.push(`| Detectors | ${sla.detectorsUsed}/${sla.detectorsTotal} |`);
+            lines.push(`| AI Analysis | ${sla.aiAnalysis} |`);
+            if (sla.degraded) {
+                lines.push(`| ⚠️ Degraded | ${sla.degradeReason} |`);
+            }
+            lines.push('');
+            lines.push('</details>');
+            lines.push('');
+        }
+        // File details
+        if (result.files.length > 0) {
+            lines.push('### File Details');
+            lines.push('');
+            lines.push('| File | Score | AI Faith. | Freshness | Coherence | Quality |');
+            lines.push('|------|-------|-----------|-----------|-----------|---------|');
+            for (const file of result.files) {
+                const d = file.dimensions;
+                lines.push(`| \`${file.file}\` | ${file.totalScore}/100 ${gradeEmoji(file.grade)} | ${d.aiFaithfulness.score}/${d.aiFaithfulness.maxScore} | ${d.codeFreshness.score}/${d.codeFreshness.maxScore} | ${d.contextCoherence.score}/${d.contextCoherence.maxScore} | ${d.implementationQuality.score}/${d.implementationQuality.maxScore} |`);
+            }
+        }
+        lines.push('');
+        lines.push('---');
+        lines.push('*Powered by [Open Code Review](https://github.com/raye-deng/open-code-review) v3*');
+        return lines.join('\n');
+    }
+    // ─── V3 GitLab Report ────────────────────────────────────────
+    formatGitLabReportV3(result) {
+        const issues = [];
+        for (const file of result.files) {
+            const allIssues = Object.values(file.dimensions).flatMap(d => d.issues ?? []);
+            for (const issue of allIssues) {
+                const hash = Buffer.from(`${issue.file}:${issue.line}:${issue.message}`).toString('base64').slice(0, 32);
+                issues.push({
+                    description: `[${issue.severity}] ${issue.message}`,
+                    check_name: `ai-validator/${issue.category}`,
+                    fingerprint: hash,
+                    severity: mapToGitLabSeverity(issue.severity),
+                    location: {
+                        path: issue.file,
+                        lines: { begin: issue.line },
+                    },
+                });
+            }
+        }
+        return JSON.stringify(issues, null, 2);
+    }
+    // ─── Legacy Format Methods (backward compatible) ─────────────
     formatTerminal(result) {
         const lines = [];
         lines.push('');
         lines.push('╔══════════════════════════════════════════════════════════════╗');
-        lines.push('║              AI Code Validator — Quality Report              ║');
+        lines.push('║              Open Code Review — Quality Report              ║');
         lines.push('╚══════════════════════════════════════════════════════════════╝');
         lines.push('');
         lines.push(`  Overall Score: ${result.overallScore}/100  Grade: ${gradeEmoji(result.grade)} ${result.grade}`);
@@ -40932,7 +52396,6 @@ class ReportGenerator {
             lines.push(dimensionBar(file.dimensions.coherence));
             lines.push(dimensionBar(file.dimensions.consistency));
             lines.push(dimensionBar(file.dimensions.conciseness));
-            // Show top issues
             const allDetails = [
                 ...file.dimensions.completeness.details,
                 ...file.dimensions.coherence.details,
@@ -40956,14 +52419,12 @@ class ReportGenerator {
         lines.push('');
         return lines.join('\n');
     }
-    /** JSON output */
     formatJSON(result) {
         return JSON.stringify(result, null, 2);
     }
-    /** Markdown output (for PR comments) */
     formatMarkdown(result) {
         const lines = [];
-        lines.push(`## ${gradeEmoji(result.grade)} AI Code Validator Report`);
+        lines.push(`## ${gradeEmoji(result.grade)} Open Code Review Report`);
         lines.push('');
         lines.push(`**Overall Score:** ${result.overallScore}/100 (Grade: ${result.grade})`);
         lines.push(`**Status:** ${result.passed ? '✅ Passed' : '❌ Failed'}`);
@@ -40981,10 +52442,9 @@ class ReportGenerator {
         }
         lines.push('');
         lines.push('---');
-        lines.push('*Powered by [AI Code Validator](https://github.com/raye-deng/ai-code-validator)*');
+        lines.push('*Powered by [Open Code Review](https://github.com/raye-deng/open-code-review)*');
         return lines.join('\n');
     }
-    /** GitLab Code Quality report format */
     formatGitLabReport(result) {
         const issues = [];
         for (const file of result.files) {
@@ -41011,43 +52471,8890 @@ class ReportGenerator {
         return JSON.stringify(issues, null, 2);
     }
 }
+// ─── Helpers ───────────────────────────────────────────────────────
+function slaLevelName(level) {
+    switch (level) {
+        case 'L1': return 'Fast Scan';
+        case 'L2': return 'Standard';
+        case 'L3': return 'Deep Scan';
+        default: return level;
+    }
+}
+function severityOrder(severity) {
+    switch (severity) {
+        case 'critical': return 0;
+        case 'high': return 1;
+        case 'medium': return 2;
+        case 'low': return 3;
+        case 'info': return 4;
+        default: return 5;
+    }
+}
+function mapToGitLabSeverity(severity) {
+    switch (severity) {
+        case 'critical': return 'blocker';
+        case 'high': return 'critical';
+        case 'medium': return 'major';
+        case 'low': return 'minor';
+        case 'info': return 'info';
+        default: return 'minor';
+    }
+}
 /* harmony default export */ const report = ((/* unused pure expression or super */ null && (ReportGenerator)));
 //# sourceMappingURL=report.js.map
-;// CONCATENATED MODULE: ../core/dist/index.js
+;// CONCATENATED MODULE: ../core/dist/reporter/html-reporter.js
 /**
- * @ai-code-validator/core
+ * HTML Reporter
  *
- * Core detection engine for AI-generated code quality validation.
+ * Generates a self-contained HTML report file with no external dependencies.
+ * Inspired by Google Lighthouse report design.
+ *
+ * Features:
+ * - Overall score gauge with grade
+ * - Dimension bar charts (pure CSS)
+ * - Issue summary by severity
+ * - Issue list with collapsible source code
+ * - SLA metrics panel
+ * - Light/dark theme support
+ * - Responsive layout
+ *
+ * @since 0.3.0
+ */
+// ─── Color System ──────────────────────────────────────────────────
+const GRADE_COLORS = {
+    'A+': '#22c55e',
+    'A': '#22c55e',
+    'B': '#3b82f6',
+    'C': '#eab308',
+    'D': '#f97316',
+    'F': '#ef4444',
+};
+const SEVERITY_COLORS = {
+    critical: '#ef4444',
+    high: '#f97316',
+    medium: '#eab308',
+    low: '#3b82f6',
+    info: '#6b7280',
+};
+// ─── Helper Functions ──────────────────────────────────────────────
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+function gradeColor(grade) {
+    return GRADE_COLORS[grade] || '#6b7280';
+}
+function severityColor(severity) {
+    return SEVERITY_COLORS[severity] || '#6b7280';
+}
+function html_reporter_slaLevelName(level) {
+    switch (level) {
+        case 'L1': return 'Fast Scan';
+        case 'L2': return 'Standard';
+        case 'L3': return 'Deep Scan';
+        default: return level;
+    }
+}
+function html_reporter_severityOrder(severity) {
+    switch (severity) {
+        case 'critical': return 0;
+        case 'high': return 1;
+        case 'medium': return 2;
+        case 'low': return 3;
+        case 'info': return 4;
+        default: return 5;
+    }
+}
+// ─── CSS Styles ────────────────────────────────────────────────────
+function generateCSS(theme) {
+    const isDark = theme === 'dark';
+    return `
+    :root {
+      --bg-primary: ${isDark ? '#0f172a' : '#ffffff'};
+      --bg-secondary: ${isDark ? '#1e293b' : '#f8fafc'};
+      --bg-card: ${isDark ? '#1e293b' : '#ffffff'};
+      --text-primary: ${isDark ? '#f1f5f9' : '#0f172a'};
+      --text-secondary: ${isDark ? '#94a3b8' : '#64748b'};
+      --border: ${isDark ? '#334155' : '#e2e8f0'};
+      --shadow: ${isDark ? '0 1px 3px rgba(0,0,0,0.4)' : '0 1px 3px rgba(0,0,0,0.1)'};
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .header {
+      text-align: center;
+      padding: 32px 0 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+
+    .header h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .header .subtitle {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    .score-section {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 48px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+
+    .score-gauge {
+      width: 160px;
+      height: 160px;
+    }
+
+    .score-gauge circle {
+      transition: stroke-dashoffset 0.8s ease-in-out;
+    }
+
+    .score-info {
+      text-align: left;
+    }
+
+    .score-info .grade {
+      font-size: 36px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .score-info .status {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .score-info .meta {
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.8;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .card h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .dimensions-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+
+    .dim-card {
+      background: var(--bg-secondary);
+      border-radius: 6px;
+      padding: 16px;
+    }
+
+    .dim-card .dim-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .dim-card .dim-name {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .dim-card .dim-score {
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .bar-track {
+      width: 100%;
+      height: 8px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.6s ease-in-out;
+    }
+
+    .dim-card .dim-issues {
+      color: var(--text-secondary);
+      font-size: 12px;
+      margin-top: 6px;
+    }
+
+    .severity-grid {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .severity-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .severity-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .issue-list {
+      list-style: none;
+    }
+
+    .issue-item {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 8px;
+      overflow: hidden;
+    }
+
+    .issue-header {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      cursor: pointer;
+      gap: 12px;
+      background: var(--bg-secondary);
+      user-select: none;
+    }
+
+    .issue-header:hover {
+      opacity: 0.85;
+    }
+
+    .issue-sev {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #fff;
+      flex-shrink: 0;
+    }
+
+    .issue-file {
+      color: var(--text-secondary);
+      font-family: monospace;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .issue-msg {
+      flex: 1;
+      font-size: 14px;
+    }
+
+    .issue-toggle {
+      color: var(--text-secondary);
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    .issue-body {
+      display: none;
+      padding: 16px;
+      border-top: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    .issue-body.open {
+      display: block;
+    }
+
+    .issue-detail {
+      margin-bottom: 8px;
+    }
+
+    .issue-detail strong {
+      display: inline-block;
+      min-width: 100px;
+      color: var(--text-secondary);
+    }
+
+    .issue-source {
+      background: ${isDark ? '#0d1117' : '#f6f8fa'};
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 12px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 13px;
+      overflow-x: auto;
+      white-space: pre;
+      margin-top: 8px;
+    }
+
+    .sla-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .sla-table th,
+    .sla-table td {
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    .sla-table th {
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    .footer {
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 13px;
+      padding: 24px 0;
+      border-top: 1px solid var(--border);
+      margin-top: 32px;
+    }
+
+    .footer a {
+      color: var(--text-secondary);
+      text-decoration: underline;
+    }
+
+    @media (max-width: 640px) {
+      .container { padding: 16px; }
+      .score-section { gap: 24px; }
+      .score-gauge { width: 120px; height: 120px; }
+      .score-info .grade { font-size: 28px; }
+      .dimensions-grid { grid-template-columns: 1fr; }
+    }
+  `;
+}
+// ─── SVG Gauge ─────────────────────────────────────────────────────
+function scoreGaugeSVG(score, grade) {
+    const color = gradeColor(grade);
+    const circumference = 2 * Math.PI * 50;
+    const offset = circumference * (1 - score / 100);
+    return `<svg class="score-gauge" viewBox="0 0 120 120">
+    <circle cx="60" cy="60" r="50" fill="none" stroke="var(--border)" stroke-width="8"/>
+    <circle cx="60" cy="60" r="50" fill="none"
+            stroke="${color}" stroke-width="8"
+            stroke-dasharray="${circumference.toFixed(2)}"
+            stroke-dashoffset="${offset.toFixed(2)}"
+            stroke-linecap="round"
+            transform="rotate(-90 60 60)"/>
+    <text x="60" y="52" text-anchor="middle" font-size="28" font-weight="700"
+          fill="var(--text-primary)">${score}</text>
+    <text x="60" y="72" text-anchor="middle" font-size="13"
+          fill="var(--text-secondary)">Grade ${escapeHtml(grade)}</text>
+  </svg>`;
+}
+// ─── Section Generators ────────────────────────────────────────────
+function headerSection(data) {
+    return `
+    <div class="header">
+      <h1>🔬 Open Code Review Report</h1>
+      <div class="subtitle">${escapeHtml(data.projectName)} · ${escapeHtml(data.scanDate)}</div>
+    </div>`;
+}
+function scoreSection(data) {
+    const { score } = data;
+    const color = gradeColor(score.grade);
+    return `
+    <div class="score-section">
+      ${scoreGaugeSVG(score.overallScore, score.grade)}
+      <div class="score-info">
+        <div class="grade" style="color: ${color}">Grade ${escapeHtml(score.grade)}</div>
+        <div class="status">${score.passed
+        ? '✅ PASSED'
+        : '❌ FAILED'} (threshold: ${score.threshold})</div>
+        <div class="meta">
+          📁 ${data.filesScanned} files scanned (${score.passedFiles} passed, ${score.failedFiles} failed)<br>
+          ⚠️ ${score.issueCount} issues found<br>
+          ⏱️ ${(data.duration / 1000).toFixed(1)}s · 🌐 ${data.languages.map(l => escapeHtml(l)).join(', ')}
+        </div>
+      </div>
+    </div>`;
+}
+function dimensionsSection(data) {
+    const dims = Object.values(data.score.dimensions);
+    const dimCards = dims.map(dim => {
+        const pct = Math.round((dim.score / dim.maxScore) * 100);
+        const color = pct >= 90 ? '#22c55e' : pct >= 75 ? '#3b82f6' : pct >= 60 ? '#eab308' : '#ef4444';
+        return `
+      <div class="dim-card">
+        <div class="dim-header">
+          <span class="dim-name">${escapeHtml(dim.name)}</span>
+          <span class="dim-score">${dim.score}/${dim.maxScore}</span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: ${pct}%; background: ${color};"></div>
+        </div>
+        <div class="dim-issues">${dim.issueCount} issue${dim.issueCount !== 1 ? 's' : ''} · ${pct}%</div>
+      </div>`;
+    }).join('');
+    return `
+    <div class="card">
+      <h2>📊 Scoring Dimensions</h2>
+      <div class="dimensions-grid">
+        ${dimCards}
+      </div>
+    </div>`;
+}
+function severitySummarySection(issues) {
+    const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+    for (const issue of issues) {
+        counts[issue.severity] = (counts[issue.severity] || 0) + 1;
+    }
+    const badges = Object.entries(counts)
+        .filter(([, count]) => count > 0)
+        .map(([sev, count]) => {
+        const color = severityColor(sev);
+        return `
+        <div class="severity-badge" style="background: ${color}22;">
+          <span class="severity-dot" style="background: ${color};"></span>
+          ${sev.charAt(0).toUpperCase() + sev.slice(1)}: ${count}
+        </div>`;
+    }).join('');
+    if (!badges) {
+        return `
+      <div class="card">
+        <h2>✅ No Issues Found</h2>
+        <p style="color: var(--text-secondary);">Great job! No issues were detected in the scanned files.</p>
+      </div>`;
+    }
+    return `
+    <div class="card">
+      <h2>⚠️ Issue Summary</h2>
+      <div class="severity-grid">
+        ${badges}
+      </div>
+    </div>`;
+}
+function dimensionDetailsSection(data) {
+    const dims = Object.values(data.score.dimensions);
+    const details = dims.map(dim => {
+        const pct = Math.round((dim.score / dim.maxScore) * 100);
+        const topIssues = [...dim.issues]
+            .sort((a, b) => html_reporter_severityOrder(a.severity) - html_reporter_severityOrder(b.severity))
+            .slice(0, 3);
+        const issueRows = topIssues.map(issue => `
+      <div style="display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px;">
+        <span class="issue-sev" style="background: ${severityColor(issue.severity)};">${issue.severity}</span>
+        <span style="font-family: monospace; color: var(--text-secondary);">${escapeHtml(issue.file)}:${issue.line}</span>
+        <span>${escapeHtml(issue.message)}</span>
+      </div>`).join('');
+        return `
+      <div style="margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+          <strong>${escapeHtml(dim.name)}</strong>
+          <span>${dim.score}/${dim.maxScore} (${pct}%) · ${dim.issueCount} issues</span>
+        </div>
+        <div class="bar-track" style="margin-bottom: 8px;">
+          <div class="bar-fill" style="width: ${pct}%; background: ${pct >= 90 ? '#22c55e' : pct >= 75 ? '#3b82f6' : pct >= 60 ? '#eab308' : '#ef4444'};"></div>
+        </div>
+        ${issueRows || '<div style="color: var(--text-secondary); font-size: 13px;">No issues in this dimension.</div>'}
+      </div>`;
+    }).join('');
+    return `
+    <div class="card">
+      <h2>📋 Dimension Details</h2>
+      ${details}
+    </div>`;
+}
+function issueListSection(issues, includeSource) {
+    if (issues.length === 0)
+        return '';
+    const sorted = [...issues].sort((a, b) => html_reporter_severityOrder(a.severity) - html_reporter_severityOrder(b.severity));
+    const issueItems = sorted.map((issue, idx) => {
+        const bodyParts = [];
+        bodyParts.push(`<div class="issue-detail"><strong>Detector:</strong> ${escapeHtml(issue.detector)}</div>`);
+        bodyParts.push(`<div class="issue-detail"><strong>Category:</strong> ${escapeHtml(issue.category)}</div>`);
+        if (issue.suggestion) {
+            bodyParts.push(`<div class="issue-detail"><strong>Fix:</strong> ${escapeHtml(issue.suggestion)}</div>`);
+        }
+        if (issue.confidence !== undefined) {
+            bodyParts.push(`<div class="issue-detail"><strong>Confidence:</strong> ${(issue.confidence * 100).toFixed(0)}%</div>`);
+        }
+        if (includeSource && issue.source) {
+            bodyParts.push(`<div class="issue-source">${escapeHtml(issue.source)}</div>`);
+        }
+        return `
+      <li class="issue-item">
+        <div class="issue-header" onclick="toggleIssue(${idx})">
+          <span class="issue-sev" style="background: ${severityColor(issue.severity)};">${issue.severity}</span>
+          <span class="issue-file">${escapeHtml(issue.file)}:${issue.line}</span>
+          <span class="issue-msg">${escapeHtml(issue.message)}</span>
+          <span class="issue-toggle" id="toggle-${idx}">▶</span>
+        </div>
+        <div class="issue-body" id="issue-${idx}">
+          ${bodyParts.join('\n')}
+        </div>
+      </li>`;
+    }).join('');
+    return `
+    <div class="card">
+      <h2>🔍 Issue List (${issues.length})</h2>
+      <ul class="issue-list">
+        ${issueItems}
+      </ul>
+    </div>`;
+}
+function slaSection(sla) {
+    return `
+    <div class="card">
+      <h2>📊 SLA Metrics</h2>
+      <table class="sla-table">
+        <tr><th>Metric</th><th>Value</th></tr>
+        <tr><td>Scan Level</td><td>${sla.level} (${html_reporter_slaLevelName(sla.level)})</td></tr>
+        <tr><td>Files Scanned</td><td>${sla.filesScanned}</td></tr>
+        <tr>
+          <td>Scan Duration</td>
+          <td>${(sla.scanDurationMs / 1000).toFixed(1)}s
+            (target: ≤${(sla.targetDurationMs / 1000).toFixed(0)}s)
+            ${sla.withinTarget ? '✅' : '⚠️'}
+          </td>
+        </tr>
+        <tr><td>Detectors Used</td><td>${sla.detectorsUsed}/${sla.detectorsTotal}</td></tr>
+        <tr><td>AI Analysis</td><td>${sla.aiAnalysis === 'none' ? 'None' : sla.aiAnalysis}</td></tr>
+        <tr><td>Issues Found</td><td>${sla.issuesFound} (${sla.criticalCount} critical, ${sla.highCount} high, ${sla.mediumCount} medium)</td></tr>
+        ${sla.degraded ? `<tr><td>⚠️ Degraded</td><td>${escapeHtml(sla.degradeReason || 'Unknown')}</td></tr>` : ''}
+      </table>
+    </div>`;
+}
+function footerSection() {
+    return `
+    <div class="footer">
+      Powered by <a href="https://github.com/raye-deng/open-code-review">Open Code Review</a> v0.3.0
+    </div>`;
+}
+function toggleScript() {
+    return `
+    <script>
+      function toggleIssue(idx) {
+        var body = document.getElementById('issue-' + idx);
+        var toggle = document.getElementById('toggle-' + idx);
+        if (body.classList.contains('open')) {
+          body.classList.remove('open');
+          toggle.textContent = '▶';
+        } else {
+          body.classList.add('open');
+          toggle.textContent = '▼';
+        }
+      }
+    </script>`;
+}
+// ─── HTML Generator ────────────────────────────────────────────────
+function html_reporter_generateHTML(data, options) {
+    const theme = options.theme || 'light';
+    const includeSource = options.includeSource !== false;
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Code Review Report — ${escapeHtml(data.projectName)}</title>
+  <style>${generateCSS(theme)}</style>
+</head>
+<body>
+  <div class="container">
+    ${headerSection(data)}
+    ${scoreSection(data)}
+    ${dimensionsSection(data)}
+    ${severitySummarySection(data.issues)}
+    ${dimensionDetailsSection(data)}
+    ${issueListSection(data.issues, includeSource)}
+    ${data.sla ? slaSection(data.sla) : ''}
+    ${footerSection()}
+  </div>
+  ${toggleScript()}
+</body>
+</html>`;
+}
+//# sourceMappingURL=html-reporter.js.map
+;// CONCATENATED MODULE: ../core/dist/reporter/index.js
+/**
+ * Reporter Module — Unified Report Generation
+ *
+ * Supports multiple output formats:
+ * - terminal: Human-readable terminal output
+ * - json: Machine-readable JSON
+ * - html: Self-contained HTML report
+ * - markdown: Rich Markdown for PR comments
+ * - sarif: SARIF 2.1.0 for CI tool integration
+ *
+ * @since 0.3.0
+ */
+
+
+
+
+
+
+
+
+/**
+ * Generate a report in the specified format.
+ *
+ * @param data Report data (scores, issues, SLA metrics)
+ * @param options Report format and display options
+ * @returns Formatted report string
+ */
+function generateReport(data, options) {
+    switch (options.format) {
+        case 'html':
+            return generateHTML(data, options);
+        case 'sarif':
+            return JSON.stringify(generateSARIF(data), null, 2);
+        case 'markdown':
+            return generateMarkdown(data, options);
+        case 'json':
+            return JSON.stringify(data, null, 2);
+        case 'terminal':
+            return generateTerminal(data, options);
+        default: {
+            // Exhaustive check
+            const _never = options.format;
+            return JSON.stringify(data, null, 2);
+        }
+    }
+}
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ../core/dist/ai/orchestrator.js
+/**
+ * AI Orchestrator
+ *
+ * Manages multiple AI providers and executes analysis according to
+ * the configured strategy (local-first, remote-first, etc.).
+ *
+ * Also provides result fusion — merging static analysis issues
+ * with AI-detected issues, deduplicating by file+line+category.
+ *
+ * @since 0.3.0
+ */
+
+
+
+// ─── Severity ordering for comparison ──────────────────────────────
+const SEVERITY_ORDER = {
+    critical: 5,
+    high: 4,
+    medium: 3,
+    low: 2,
+    info: 1,
+};
+// ─── AI Orchestrator ───────────────────────────────────────────────
+class orchestrator_AIOrchestrator {
+    providers = [];
+    strategy;
+    constructor(config, strategy) {
+        this.strategy = strategy || config?.strategy || 'local-first';
+        this.initProviders(config);
+    }
+    /**
+     * Initialize providers based on configuration.
+     */
+    initProviders(config) {
+        // Local provider (Ollama)
+        if (config?.local?.enabled !== false) {
+            this.providers.push(new OllamaProvider({
+                endpoint: config?.local?.endpoint,
+                model: config?.local?.model,
+            }));
+        }
+        // Remote provider (OpenAI or Anthropic)
+        if (config?.remote?.enabled) {
+            const provider = config.remote.provider || 'openai';
+            if (provider === 'anthropic') {
+                this.providers.push(new AnthropicProvider({
+                    apiKey: config.remote.apiKey,
+                    model: config.remote.model,
+                }));
+            }
+            else {
+                // Default to OpenAI-compatible
+                this.providers.push(new OpenAIProvider({
+                    apiKey: config.remote.apiKey,
+                    model: config.remote.model,
+                }));
+            }
+        }
+    }
+    /**
+     * Get the list of configured providers (for testing/inspection).
+     */
+    getProviders() {
+        return this.providers;
+    }
+    /**
+     * Get the current strategy.
+     */
+    getStrategy() {
+        return this.strategy;
+    }
+    /**
+     * Execute AI analysis according to the configured strategy.
+     *
+     * @returns Analysis response, or null if no provider could complete
+     */
+    async analyze(request) {
+        switch (this.strategy) {
+            case 'local-first':
+                return this.tryWithFallback(request, 'local', 'remote');
+            case 'remote-first':
+                return this.tryWithFallback(request, 'remote', 'local');
+            case 'local-only':
+                return this.tryProvidersByType(request, 'local');
+            case 'remote-only':
+                return this.tryProvidersByType(request, 'remote');
+            default:
+                return this.tryWithFallback(request, 'local', 'remote');
+        }
+    }
+    /**
+     * Try providers of the primary type first, falling back to secondary type.
+     */
+    async tryWithFallback(request, primaryType, fallbackType) {
+        // Try primary type
+        const primaryResult = await this.tryProvidersByType(request, primaryType);
+        if (primaryResult)
+            return primaryResult;
+        // Fallback to secondary type
+        return this.tryProvidersByType(request, fallbackType);
+    }
+    /**
+     * Try all providers of a given type until one succeeds.
+     */
+    async tryProvidersByType(request, type) {
+        const candidates = this.providers.filter((p) => p.type === type);
+        for (const provider of candidates) {
+            try {
+                const available = await provider.isAvailable();
+                if (!available)
+                    continue;
+                return await provider.analyze(request);
+            }
+            catch {
+                // Provider failed, try next
+                continue;
+            }
+        }
+        return null;
+    }
+    // ─── Result Fusion (Static Method) ──────────────────────────────
+    /**
+     * Merge static analysis issues with AI-detected issues.
+     *
+     * Deduplication rules:
+     * - Same file + line (±3) + category → keep the one with higher severity
+     * - Static issues get detectionSource: 'static'
+     * - AI issues get detectionSource: 'ai'
+     * - Duplicates confirmed by both get detectionSource: 'both'
+     *
+     * @param staticIssues - Issues from static detectors (Tier 1/2)
+     * @param aiIssues - Issues from AI analysis (Tier 3)
+     * @returns Merged and deduplicated issue list
+     */
+    static mergeResults(staticIssues, aiIssues) {
+        // Mark sources
+        const markedStatic = staticIssues.map((issue) => ({
+            ...issue,
+            detectionSource: (issue.detectionSource || 'static'),
+        }));
+        const markedAI = aiIssues.map((issue) => ({
+            ...issue,
+            detectionSource: (issue.detectionSource || 'ai'),
+        }));
+        const result = [...markedStatic];
+        const usedStaticIndices = new Set();
+        for (const aiIssue of markedAI) {
+            // Check for duplicates in static issues
+            const duplicateIndex = result.findIndex((staticIssue, idx) => !usedStaticIndices.has(idx) &&
+                staticIssue.file === aiIssue.file &&
+                Math.abs(staticIssue.line - aiIssue.line) <= 3 &&
+                staticIssue.category === aiIssue.category);
+            if (duplicateIndex >= 0) {
+                // Merge: keep the one with higher severity, mark as 'both'
+                usedStaticIndices.add(duplicateIndex);
+                const existing = result[duplicateIndex];
+                const existingSev = SEVERITY_ORDER[existing.severity] || 0;
+                const aiSev = SEVERITY_ORDER[aiIssue.severity] || 0;
+                if (aiSev > existingSev) {
+                    // AI found higher severity — use AI issue but mark as both
+                    result[duplicateIndex] = {
+                        ...aiIssue,
+                        detectionSource: 'both',
+                        confidence: Math.min(1.0, (existing.confidence || 0.9) * 1.05),
+                    };
+                }
+                else {
+                    // Static found equal or higher — keep static but mark as both
+                    result[duplicateIndex] = {
+                        ...existing,
+                        detectionSource: 'both',
+                        confidence: Math.min(1.0, (existing.confidence || 0.9) * 1.05),
+                    };
+                }
+            }
+            else {
+                // New issue from AI — apply confidence discount
+                result.push({
+                    ...aiIssue,
+                    confidence: (aiIssue.confidence || 0.7) * 0.8,
+                });
+            }
+        }
+        // Filter out very low confidence issues
+        return result.filter((issue) => (issue.confidence || 1.0) >= 0.3);
+    }
+}
+//# sourceMappingURL=orchestrator.js.map
+;// CONCATENATED MODULE: ../core/dist/ai/index.js
+/**
+ * AI Analysis Module
+ *
+ * Provides AI-powered code analysis with support for local (Ollama)
+ * and remote (OpenAI, Anthropic) providers.
+ *
+ * @since 0.3.0
  *
  * @example
  * ```ts
- * import { HallucinationDetector, ScoringEngine, ReportGenerator } from '@ai-code-validator/core';
+ * import {
+ *   AIOrchestrator,
+ *   OllamaProvider,
+ *   OpenAIProvider,
+ *   AnthropicProvider,
+ *   buildAnalysisPrompt,
+ * } from '@open-code-review/core';
  *
- * const detector = new HallucinationDetector({ projectRoot: '.' });
- * const result = detector.analyze('./src/app.ts');
+ * // Create orchestrator with config
+ * const orchestrator = new AIOrchestrator({
+ *   local: { enabled: true, provider: 'ollama', model: 'codellama:13b', endpoint: 'http://localhost:11434' },
+ *   remote: { enabled: false, provider: 'openai', model: 'gpt-4o-mini', apiKey: '' },
+ *   strategy: 'local-first',
+ * });
  *
- * const engine = new ScoringEngine(70);
- * const score = engine.scoreFile('./src/app.ts', result, null, null, null);
- *
- * const reporter = new ReportGenerator();
- * console.log(reporter.generate(engine.aggregate([score]), 'terminal'));
+ * // Analyze files
+ * const result = await orchestrator.analyze({
+ *   files: [{ path: 'app.ts', content: '...', language: 'typescript' }],
+ *   mode: 'deep',
+ * });
  * ```
+ */
+// ─── Providers ───
+
+
+
+// ─── Orchestrator ───
+
+// ─── Prompts ───
+
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ../core/dist/detectors/ai-detector.js
+/**
+ * AI Detector (Tier 3)
+ *
+ * A special detector that delegates code analysis to AI providers
+ * (Ollama, OpenAI, Anthropic) via the AIOrchestrator.
+ *
+ * This detector is opt-in (activated with --ai flag) and runs after
+ * static analysis (Tier 1/2) is complete.
+ *
+ * Implements the unified Detector interface.
+ *
+ * @since 0.3.0
+ */
+
+// ─── AI Detector ───────────────────────────────────────────────────
+class AIDetector {
+    name = 'ai-analysis';
+    version = '1.0.0';
+    tier = 3;
+    orchestrator;
+    constructor(config) {
+        this.orchestrator = new AIOrchestrator(config);
+    }
+    /**
+     * Detect AI-specific code issues using LLM analysis.
+     *
+     * Converts FileAnalysis inputs to AIAnalysisRequest format,
+     * runs the orchestrator, and returns UnifiedIssue results.
+     *
+     * @param files - Files to analyze
+     * @returns Array of issues found by AI, or empty if provider unavailable
+     */
+    async detect(files) {
+        if (files.length === 0)
+            return [];
+        const request = {
+            files: files.map((f) => ({
+                path: f.path,
+                content: f.content,
+                language: f.language,
+            })),
+            mode: 'deep',
+        };
+        try {
+            const response = await this.orchestrator.analyze(request);
+            if (!response)
+                return [];
+            return response.issues;
+        }
+        catch {
+            // AI analysis failure should not break the pipeline
+            return [];
+        }
+    }
+    /**
+     * Get the underlying orchestrator (for testing/inspection).
+     */
+    getOrchestrator() {
+        return this.orchestrator;
+    }
+}
+//# sourceMappingURL=ai-detector.js.map
+;// CONCATENATED MODULE: external "node:os"
+const external_node_os_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:os");
+;// CONCATENATED MODULE: ../core/dist/registry/cache.js
+/**
+ * Registry Cache
+ *
+ * File-based cache for registry lookup results.
+ * Stored at ~/.ocr/registry-cache.json by default.
+ *
+ * Cache structure:
+ * {
+ *   "npm:express": { "result": {...}, "timestamp": 1710000000, "ttl": 86400 },
+ *   "pypi:requests": { "result": {...}, "timestamp": 1710000000, "ttl": 86400 }
+ * }
+ *
+ * @since 0.4.0 (V4)
+ */
+
+
+
+class cache_RegistryCache {
+    cacheDir;
+    cacheFile;
+    cache = new Map();
+    hits = 0;
+    misses = 0;
+    loaded = false;
+    constructor(cacheDir) {
+        this.cacheDir = cacheDir || path.join(os.homedir(), '.ocr');
+        this.cacheFile = path.join(this.cacheDir, 'registry-cache.json');
+    }
+    /**
+     * Get a cached result by key. Returns null on miss or expired entry.
+     */
+    async get(key) {
+        if (!this.loaded) {
+            await this.load();
+        }
+        const entry = this.cache.get(key);
+        if (!entry) {
+            this.misses++;
+            return null;
+        }
+        const now = Math.floor(Date.now() / 1000);
+        if (now - entry.timestamp > entry.ttl) {
+            // Expired
+            this.cache.delete(key);
+            this.misses++;
+            return null;
+        }
+        this.hits++;
+        return { ...entry.result, source: 'cache' };
+    }
+    /**
+     * Store a result in the cache.
+     */
+    async set(key, result, ttlSeconds) {
+        if (!this.loaded) {
+            await this.load();
+        }
+        this.cache.set(key, {
+            result: { ...result },
+            timestamp: Math.floor(Date.now() / 1000),
+            ttl: ttlSeconds,
+        });
+    }
+    /**
+     * Load cache from disk.
+     */
+    async load() {
+        this.loaded = true;
+        try {
+            if (!fs.existsSync(this.cacheFile)) {
+                return;
+            }
+            const data = fs.readFileSync(this.cacheFile, 'utf-8');
+            const parsed = JSON.parse(data);
+            this.cache = new Map(Object.entries(parsed));
+        }
+        catch {
+            // If cache file is corrupted, start fresh
+            this.cache = new Map();
+        }
+    }
+    /**
+     * Persist cache to disk.
+     */
+    async save() {
+        try {
+            if (!fs.existsSync(this.cacheDir)) {
+                fs.mkdirSync(this.cacheDir, { recursive: true });
+            }
+            // Prune expired entries before saving
+            const now = Math.floor(Date.now() / 1000);
+            for (const [key, entry] of this.cache) {
+                if (now - entry.timestamp > entry.ttl) {
+                    this.cache.delete(key);
+                }
+            }
+            const obj = {};
+            for (const [key, entry] of this.cache) {
+                obj[key] = entry;
+            }
+            fs.writeFileSync(this.cacheFile, JSON.stringify(obj, null, 2), 'utf-8');
+        }
+        catch {
+            // Cache persistence failure is non-fatal
+        }
+    }
+    /**
+     * Clear all cached entries.
+     */
+    async clear() {
+        this.cache = new Map();
+        this.hits = 0;
+        this.misses = 0;
+        try {
+            if (fs.existsSync(this.cacheFile)) {
+                fs.unlinkSync(this.cacheFile);
+            }
+        }
+        catch {
+            // Non-fatal
+        }
+    }
+    /**
+     * Get cache statistics.
+     */
+    stats() {
+        const total = this.hits + this.misses;
+        const hitRate = total > 0 ? this.hits / total : 0;
+        // Estimate size
+        let sizeBytes = 0;
+        try {
+            if (fs.existsSync(this.cacheFile)) {
+                sizeBytes = fs.statSync(this.cacheFile).size;
+            }
+        }
+        catch {
+            // Estimate from in-memory data
+            sizeBytes = JSON.stringify(Object.fromEntries(this.cache)).length;
+        }
+        return {
+            entries: this.cache.size,
+            hitRate,
+            sizeBytes,
+        };
+    }
+}
+//# sourceMappingURL=cache.js.map
+;// CONCATENATED MODULE: ../core/dist/registry/builtins/node-builtins.js
+/**
+ * Node.js built-in modules that don't need registry verification.
+ *
+ * These are core modules shipped with Node.js and should never be
+ * flagged as hallucinated packages.
+ *
+ * @since 0.4.0 (V4)
+ */
+const node_builtins_NODE_BUILTINS = new Set([
+    // Core modules
+    'assert', 'buffer', 'child_process', 'cluster', 'console', 'constants',
+    'crypto', 'dgram', 'dns', 'domain', 'events', 'fs', 'http', 'http2',
+    'https', 'inspector', 'module', 'net', 'os', 'path', 'perf_hooks',
+    'process', 'punycode', 'querystring', 'readline', 'repl', 'stream',
+    'string_decoder', 'sys', 'timers', 'tls', 'trace_events', 'tty',
+    'url', 'util', 'v8', 'vm', 'wasi', 'worker_threads', 'zlib',
+    // Newer modules
+    'async_hooks', 'diagnostics_channel', 'test',
+    // Subpath exports
+    'fs/promises', 'stream/promises', 'timers/promises',
+    'dns/promises', 'readline/promises',
+    // Node.js prefix imports (node: protocol)
+    'node:assert', 'node:buffer', 'node:child_process', 'node:cluster',
+    'node:console', 'node:constants', 'node:crypto', 'node:dgram',
+    'node:dns', 'node:domain', 'node:events', 'node:fs', 'node:http',
+    'node:http2', 'node:https', 'node:inspector', 'node:module',
+    'node:net', 'node:os', 'node:path', 'node:perf_hooks', 'node:process',
+    'node:punycode', 'node:querystring', 'node:readline', 'node:repl',
+    'node:stream', 'node:string_decoder', 'node:sys', 'node:timers',
+    'node:tls', 'node:trace_events', 'node:tty', 'node:url', 'node:util',
+    'node:v8', 'node:vm', 'node:wasi', 'node:worker_threads', 'node:zlib',
+    'node:async_hooks', 'node:diagnostics_channel', 'node:test',
+    'node:fs/promises', 'node:stream/promises', 'node:timers/promises',
+    'node:dns/promises', 'node:readline/promises',
+]);
+//# sourceMappingURL=node-builtins.js.map
+;// CONCATENATED MODULE: ../core/dist/registry/npm-registry.js
+/**
+ * npm Registry — package verification against the npm registry.
+ *
+ * Supports:
+ * - Regular packages (e.g. 'lodash')
+ * - Scoped packages (e.g. '@scope/name')
+ * - Custom registry URLs (enterprise Nexus/Artifactory)
+ * - Auth token headers
+ *
+ * @since 0.4.0 (V4)
+ */
+
+
+class npm_registry_NpmRegistry {
+    name = 'npm';
+    language = 'typescript';
+    baseUrl;
+    token;
+    timeout;
+    cacheTtl;
+    cache;
+    constructor(config, cache) {
+        this.baseUrl = config?.url || 'https://registry.npmjs.org';
+        this.token = config?.token;
+        this.timeout = config?.timeoutMs || 5000;
+        this.cacheTtl = config?.cacheTtlSeconds || 86400;
+        this.cache = cache || new RegistryCache();
+    }
+    /**
+     * Verify if an npm package exists.
+     *
+     * 1. Check if it's a Node.js built-in module
+     * 2. Check cache
+     * 3. Query registry: GET {baseUrl}/{packageName}
+     *    - 200 → exists, extract version from dist-tags.latest
+     *    - 404 → does not exist
+     *    - timeout/error → assume exists (conservative)
+     */
+    async verify(packageName) {
+        const start = Date.now();
+        // Check built-in modules first
+        const normalizedName = packageName.startsWith('node:')
+            ? packageName
+            : packageName;
+        if (NODE_BUILTINS.has(normalizedName) || NODE_BUILTINS.has(`node:${normalizedName}`)) {
+            return {
+                exists: true,
+                name: packageName,
+                source: 'builtin',
+                latencyMs: Date.now() - start,
+            };
+        }
+        // Check cache
+        const cacheKey = `npm:${packageName}`;
+        const cached = await this.cache.get(cacheKey);
+        if (cached) {
+            return { ...cached, latencyMs: Date.now() - start };
+        }
+        // Query registry
+        try {
+            // Scoped packages: @scope/name → @scope%2Fname
+            const encodedName = packageName.startsWith('@')
+                ? `@${encodeURIComponent(packageName.slice(1))}`
+                : encodeURIComponent(packageName);
+            const url = `${this.baseUrl}/${encodedName}`;
+            const headers = {
+                Accept: 'application/vnd.npm.install-v1+json',
+            };
+            if (this.token) {
+                headers['Authorization'] = `Bearer ${this.token}`;
+            }
+            const response = await fetch(url, {
+                method: 'GET',
+                headers,
+                signal: AbortSignal.timeout(this.timeout),
+            });
+            const latencyMs = Date.now() - start;
+            if (response.status === 404) {
+                const result = {
+                    exists: false,
+                    name: packageName,
+                    source: 'registry',
+                    latencyMs,
+                };
+                await this.cache.set(cacheKey, result, this.cacheTtl);
+                return result;
+            }
+            // Parse response to get version info
+            let version;
+            try {
+                const data = await response.json();
+                const distTags = data['dist-tags'];
+                version = distTags?.latest;
+            }
+            catch {
+                // Could not parse response body, but status was OK
+            }
+            const result = {
+                exists: true,
+                name: packageName,
+                version,
+                source: 'registry',
+                latencyMs,
+            };
+            await this.cache.set(cacheKey, result, this.cacheTtl);
+            return result;
+        }
+        catch {
+            // Network error or timeout → assume exists (conservative, avoid false positives)
+            return {
+                exists: true,
+                name: packageName,
+                source: 'registry',
+                latencyMs: Date.now() - start,
+            };
+        }
+    }
+    /**
+     * Check if an npm package is deprecated.
+     * GET {baseUrl}/{packageName}/latest and check the deprecated field.
+     */
+    async checkDeprecated(packageName) {
+        try {
+            const encodedName = packageName.startsWith('@')
+                ? `@${encodeURIComponent(packageName.slice(1))}`
+                : encodeURIComponent(packageName);
+            const url = `${this.baseUrl}/${encodedName}/latest`;
+            const headers = {};
+            if (this.token) {
+                headers['Authorization'] = `Bearer ${this.token}`;
+            }
+            const response = await fetch(url, {
+                method: 'GET',
+                headers,
+                signal: AbortSignal.timeout(this.timeout),
+            });
+            if (!response.ok) {
+                return null;
+            }
+            const data = await response.json();
+            const deprecated = data['deprecated'];
+            if (deprecated) {
+                return {
+                    deprecated: true,
+                    message: deprecated,
+                };
+            }
+            return null;
+        }
+        catch {
+            return null;
+        }
+    }
+}
+//# sourceMappingURL=npm-registry.js.map
+;// CONCATENATED MODULE: ../core/dist/registry/builtins/python-builtins.js
+/**
+ * Python standard library modules that don't need registry verification.
+ *
+ * These are modules shipped with CPython and should never be
+ * flagged as hallucinated packages.
+ *
+ * @since 0.4.0 (V4)
+ */
+const python_builtins_PYTHON_BUILTINS = new Set([
+    // Core
+    'os', 'sys', 're', 'json', 'math', 'random', 'datetime', 'time',
+    'pathlib', 'typing', 'collections', 'functools', 'itertools', 'io',
+    // System
+    'subprocess', 'shutil', 'tempfile', 'logging', 'unittest', 'argparse',
+    'signal', 'ctypes', 'platform',
+    // Crypto / encoding
+    'hashlib', 'hmac', 'secrets', 'base64',
+    // Network
+    'urllib', 'http', 'socket', 'ssl', 'email',
+    // Data formats
+    'csv', 'sqlite3', 'xml', 'html', 'configparser',
+    // OOP / patterns
+    'abc', 'enum', 'dataclasses', 'contextlib',
+    // Concurrency
+    'asyncio', 'concurrent', 'multiprocessing', 'threading', 'queue',
+    // Data manipulation
+    'struct', 'pickle', 'copy', 'pprint',
+    // Introspection / meta
+    'warnings', 'traceback', 'inspect', 'ast', 'importlib',
+    // Archive / compression
+    'zipfile', 'tarfile', 'gzip',
+    // Text
+    'string', 'textwrap',
+    // Compiler / parser
+    'dis', 'token', 'tokenize',
+    // Additional common stdlib modules
+    'types', 'array', 'bisect', 'heapq', 'operator', 'decimal',
+    'fractions', 'statistics', 'cmath', 'glob', 'fnmatch', 'linecache',
+    'codecs', 'unicodedata', 'locale', 'gettext', 'difflib',
+    'weakref', 'shelve', 'dbm', 'lzma', 'bz2', 'zlib',
+    'select', 'selectors', 'mmap', 'atexit', 'sched',
+]);
+//# sourceMappingURL=python-builtins.js.map
+;// CONCATENATED MODULE: ../core/dist/registry/pypi-registry.js
+/**
+ * PyPI Registry — package verification against the Python Package Index.
+ *
+ * Supports:
+ * - Regular packages (e.g. 'requests')
+ * - Name normalization (hyphens ↔ underscores, case-insensitive)
+ * - Deprecation detection from classifiers and description
+ * - Custom registry URLs (enterprise)
+ *
+ * @since 0.4.0 (V4)
+ */
+
+
+class pypi_registry_PyPIRegistry {
+    name = 'pypi';
+    language = 'python';
+    baseUrl;
+    token;
+    timeout;
+    cacheTtl;
+    cache;
+    constructor(config, cache) {
+        this.baseUrl = config?.url || 'https://pypi.org';
+        this.token = config?.token;
+        this.timeout = config?.timeoutMs || 5000;
+        this.cacheTtl = config?.cacheTtlSeconds || 86400;
+        this.cache = cache || new RegistryCache();
+    }
+    /**
+     * Normalize a PyPI package name.
+     * PyPI package names are case-insensitive and treat hyphens, underscores,
+     * and periods as equivalent.
+     * PEP 503: normalize by lowering and replacing [-_.] with hyphens.
+     */
+    normalizeName(name) {
+        return name.toLowerCase().replace(/[-_.]+/g, '-');
+    }
+    /**
+     * Verify if a Python package exists on PyPI.
+     *
+     * 1. Check if it's a Python standard library module
+     * 2. Check cache
+     * 3. Query PyPI JSON API: GET {baseUrl}/pypi/{packageName}/json
+     *    - 200 → exists
+     *    - 404 → does not exist
+     *    - error → assume exists (conservative)
+     */
+    async verify(packageName) {
+        const start = Date.now();
+        // Check Python stdlib first
+        // Python imports use the top-level module name
+        const topLevel = packageName.split('.')[0];
+        if (PYTHON_BUILTINS.has(topLevel)) {
+            return {
+                exists: true,
+                name: packageName,
+                source: 'builtin',
+                latencyMs: Date.now() - start,
+            };
+        }
+        // Normalize name for cache and lookup
+        const normalized = this.normalizeName(packageName);
+        const cacheKey = `pypi:${normalized}`;
+        const cached = await this.cache.get(cacheKey);
+        if (cached) {
+            return { ...cached, name: packageName, latencyMs: Date.now() - start };
+        }
+        // Query PyPI
+        try {
+            const url = `${this.baseUrl}/pypi/${encodeURIComponent(normalized)}/json`;
+            const headers = {
+                Accept: 'application/json',
+            };
+            if (this.token) {
+                headers['Authorization'] = `Bearer ${this.token}`;
+            }
+            const response = await fetch(url, {
+                method: 'GET',
+                headers,
+                signal: AbortSignal.timeout(this.timeout),
+            });
+            const latencyMs = Date.now() - start;
+            if (response.status === 404) {
+                const result = {
+                    exists: false,
+                    name: packageName,
+                    source: 'registry',
+                    latencyMs,
+                };
+                await this.cache.set(cacheKey, result, this.cacheTtl);
+                return result;
+            }
+            // Extract version from response
+            let version;
+            try {
+                const data = await response.json();
+                version = data.info?.version;
+            }
+            catch {
+                // Could not parse, but the package exists
+            }
+            const result = {
+                exists: true,
+                name: packageName,
+                version,
+                source: 'registry',
+                latencyMs,
+            };
+            await this.cache.set(cacheKey, result, this.cacheTtl);
+            return result;
+        }
+        catch {
+            // Network error → assume exists (conservative)
+            return {
+                exists: true,
+                name: packageName,
+                source: 'registry',
+                latencyMs: Date.now() - start,
+            };
+        }
+    }
+    /**
+     * Check if a Python package is deprecated.
+     * Looks for:
+     * - "Development Status :: 7 - Inactive" in classifiers
+     * - Deprecation notices in summary/description
+     */
+    async checkDeprecated(packageName) {
+        try {
+            const normalized = this.normalizeName(packageName);
+            const url = `${this.baseUrl}/pypi/${encodeURIComponent(normalized)}/json`;
+            const headers = {};
+            if (this.token) {
+                headers['Authorization'] = `Bearer ${this.token}`;
+            }
+            const response = await fetch(url, {
+                method: 'GET',
+                headers,
+                signal: AbortSignal.timeout(this.timeout),
+            });
+            if (!response.ok) {
+                return null;
+            }
+            const data = await response.json();
+            const info = data.info;
+            if (!info)
+                return null;
+            // Check classifiers for inactive status
+            const classifiers = info.classifiers || [];
+            const isInactive = classifiers.some((c) => c.includes('Development Status :: 7 - Inactive'));
+            if (isInactive) {
+                return {
+                    deprecated: true,
+                    message: 'Package is marked as inactive (Development Status :: 7 - Inactive)',
+                };
+            }
+            // Check summary for deprecation notice
+            const summary = (info.summary || '').toLowerCase();
+            const description = (info.description || '').toLowerCase();
+            if (summary.includes('deprecated') ||
+                summary.includes('no longer maintained') ||
+                description.startsWith('deprecated')) {
+                return {
+                    deprecated: true,
+                    message: info.summary || 'Package appears to be deprecated',
+                };
+            }
+            return null;
+        }
+        catch {
+            return null;
+        }
+    }
+}
+//# sourceMappingURL=pypi-registry.js.map
+;// CONCATENATED MODULE: ../core/dist/registry/builtins/java-builtins.js
+/**
+ * Java standard library top-level packages that don't need registry verification.
+ *
+ * These are packages shipped with the JDK and should never be
+ * flagged as hallucinated imports.
+ *
+ * @since 0.4.0 (V4)
+ */
+const java_builtins_JAVA_BUILTINS = new Set([
+    // Core java packages
+    'java.lang',
+    'java.util',
+    'java.io',
+    'java.nio',
+    'java.net',
+    'java.sql',
+    'java.time',
+    'java.math',
+    'java.security',
+    'java.text',
+    'java.beans',
+    'java.awt',
+    // javax packages
+    'javax.swing',
+    'javax.annotation',
+    'javax.xml',
+    'javax.crypto',
+    'javax.net',
+    'javax.security',
+    'javax.sql',
+    'javax.naming',
+    'javax.imageio',
+    'javax.sound',
+    'javax.print',
+    'javax.management',
+    'javax.script',
+    'javax.tools',
+    // Java module system (Java 9+)
+    'java.base',
+    'java.desktop',
+    'java.logging',
+    'java.rmi',
+    'java.xml',
+    'java.compiler',
+    'java.instrument',
+    'java.prefs',
+    'java.datatransfer',
+    // Jakarta (successor to javax in modern Java)
+    'jakarta.annotation',
+    'jakarta.servlet',
+    'jakarta.persistence',
+    'jakarta.transaction',
+    'jakarta.validation',
+    'jakarta.ws',
+    'jakarta.xml',
+    'jakarta.inject',
+    'jakarta.enterprise',
+]);
+//# sourceMappingURL=java-builtins.js.map
+;// CONCATENATED MODULE: ../core/dist/registry/maven-registry.js
+/**
+ * Maven Registry — package verification against Maven Central.
+ *
+ * Supports:
+ * - groupId:artifactId format (e.g. 'org.springframework.boot:spring-boot')
+ * - Java package name lookup (e.g. 'org.springframework.boot')
+ * - Custom Nexus/Artifactory URLs
+ *
+ * Used for both Java and Kotlin packages.
+ *
+ * @since 0.4.0 (V4)
+ */
+
+
+class maven_registry_MavenRegistry {
+    name = 'maven';
+    language = 'java';
+    baseUrl;
+    token;
+    timeout;
+    cacheTtl;
+    cache;
+    constructor(config, cache) {
+        this.baseUrl = config?.url || 'https://search.maven.org';
+        this.token = config?.token;
+        this.timeout = config?.timeoutMs || 5000;
+        this.cacheTtl = config?.cacheTtlSeconds || 86400;
+        this.cache = cache || new RegistryCache();
+    }
+    /**
+     * Check if a Java/Kotlin import is a standard library package.
+     * Matches against top-level prefixes (e.g. 'java.util' matches 'java.util.List').
+     */
+    isBuiltin(packageName) {
+        for (const builtin of JAVA_BUILTINS) {
+            if (packageName === builtin || packageName.startsWith(builtin + '.')) {
+                return true;
+            }
+        }
+        return false;
+    }
+    /**
+     * Extract groupId from a package name or groupId:artifactId format.
+     *
+     * Formats:
+     * - "org.springframework.boot:spring-boot" → groupId: "org.springframework.boot"
+     * - "org.springframework.boot" → groupId: "org.springframework.boot"
+     * - "com.google.guava" → groupId: "com.google.guava"
+     */
+    extractGroupId(packageName) {
+        if (packageName.includes(':')) {
+            const [groupId, artifactId] = packageName.split(':', 2);
+            return { groupId, artifactId };
+        }
+        return { groupId: packageName };
+    }
+    /**
+     * Verify if a Maven package/group exists.
+     *
+     * 1. Check if it's a Java/Kotlin standard library package
+     * 2. Check cache
+     * 3. Query Maven Central Search API:
+     *    GET {baseUrl}/solrsearch/select?q=g:{groupId}&rows=1&wt=json
+     *    - response.numFound > 0 → exists
+     *    - response.numFound === 0 → does not exist
+     *    - error → assume exists (conservative)
+     */
+    async verify(packageName) {
+        const start = Date.now();
+        // Check standard library first
+        if (this.isBuiltin(packageName)) {
+            return {
+                exists: true,
+                name: packageName,
+                source: 'builtin',
+                latencyMs: Date.now() - start,
+            };
+        }
+        // Check cache
+        const cacheKey = `maven:${packageName}`;
+        const cached = await this.cache.get(cacheKey);
+        if (cached) {
+            return { ...cached, name: packageName, latencyMs: Date.now() - start };
+        }
+        // Query Maven Central
+        try {
+            const { groupId, artifactId } = this.extractGroupId(packageName);
+            let query;
+            if (artifactId) {
+                query = `g:${encodeURIComponent(groupId)}+AND+a:${encodeURIComponent(artifactId)}`;
+            }
+            else {
+                query = `g:${encodeURIComponent(groupId)}`;
+            }
+            const url = `${this.baseUrl}/solrsearch/select?q=${query}&rows=1&wt=json`;
+            const headers = {
+                Accept: 'application/json',
+            };
+            if (this.token) {
+                headers['Authorization'] = `Bearer ${this.token}`;
+            }
+            const response = await fetch(url, {
+                method: 'GET',
+                headers,
+                signal: AbortSignal.timeout(this.timeout),
+            });
+            const latencyMs = Date.now() - start;
+            if (!response.ok) {
+                // Non-200 → assume exists (conservative)
+                return {
+                    exists: true,
+                    name: packageName,
+                    source: 'registry',
+                    latencyMs,
+                };
+            }
+            const data = await response.json();
+            const numFound = data.response?.numFound || 0;
+            const exists = numFound > 0;
+            let version;
+            if (exists && data.response?.docs?.[0]) {
+                version = data.response.docs[0].latestVersion || data.response.docs[0].v;
+            }
+            const result = {
+                exists,
+                name: packageName,
+                version,
+                source: 'registry',
+                latencyMs,
+            };
+            await this.cache.set(cacheKey, result, this.cacheTtl);
+            return result;
+        }
+        catch {
+            // Network error → assume exists (conservative)
+            return {
+                exists: true,
+                name: packageName,
+                source: 'registry',
+                latencyMs: Date.now() - start,
+            };
+        }
+    }
+    /**
+     * Check if a Maven package is deprecated.
+     * Maven Central doesn't have a native deprecation field.
+     * This is a best-effort check — returns null in most cases.
+     */
+    async checkDeprecated(_packageName, _version) {
+        // Maven Central does not provide deprecation info via API.
+        // Future: could check POM metadata or known deprecation databases.
+        return null;
+    }
+}
+//# sourceMappingURL=maven-registry.js.map
+;// CONCATENATED MODULE: ../core/dist/registry/builtins/go-builtins.js
+/**
+ * Go standard library packages (no proxy needed).
+ *
+ * These are packages shipped with the Go toolchain and don't go through
+ * the Go module proxy. They should never be flagged as hallucinated.
+ *
+ * Only top-level packages are listed. Sub-packages (e.g., "net/http",
+ * "encoding/json") are matched by prefix against this set.
+ *
+ * @since 0.4.0 (V4)
+ */
+const go_builtins_GO_BUILTINS = new Set([
+    // Core
+    'fmt', 'os', 'io', 'bufio', 'bytes', 'strings', 'strconv',
+    'unicode', 'regexp', 'sort', 'slices',
+    // Math / time
+    'math', 'time',
+    // Error handling
+    'errors', 'log',
+    // CLI
+    'flag',
+    // Concurrency / context
+    'context', 'sync',
+    // Reflection / runtime
+    'reflect', 'unsafe', 'runtime',
+    // Testing
+    'testing',
+    // Network
+    'net',
+    // Encoding
+    'encoding',
+    // Crypto
+    'crypto', 'hash',
+    // Compression / archive
+    'compress', 'archive',
+    // Database
+    'database',
+    // Web / markup
+    'html', 'text',
+    // Path
+    'path', 'filepath',
+    // Debugging
+    'debug',
+    // Go tooling
+    'go',
+    // Embedding
+    'embed',
+    // Plugin system
+    'plugin',
+    // System calls
+    'syscall',
+    // Image
+    'image',
+    // MIME
+    'mime',
+    // Expvar
+    'expvar',
+    // Index
+    'index',
+    // Container
+    'container',
+]);
+//# sourceMappingURL=go-builtins.js.map
+;// CONCATENATED MODULE: ../core/dist/registry/go-registry.js
+/**
+ * Go Proxy Registry — module verification against the Go module proxy.
+ *
+ * Supports:
+ * - Standard Go modules (e.g. 'github.com/gin-gonic/gin')
+ * - Go standard library detection (no proxy needed)
+ * - Custom proxy URLs (e.g. GOPROXY)
+ *
+ * @since 0.4.0 (V4)
+ */
+
+
+class go_registry_GoProxyRegistry {
+    name = 'go';
+    language = 'go';
+    baseUrl;
+    token;
+    timeout;
+    cacheTtl;
+    cache;
+    constructor(config, cache) {
+        this.baseUrl = config?.url || 'https://proxy.golang.org';
+        this.token = config?.token;
+        this.timeout = config?.timeoutMs || 5000;
+        this.cacheTtl = config?.cacheTtlSeconds || 86400;
+        this.cache = cache || new RegistryCache();
+    }
+    /**
+     * Check if an import path is a Go standard library package.
+     * Go stdlib packages don't have dots in the first path segment.
+     * Additionally, check against the known stdlib set for top-level packages.
+     */
+    isStdlib(modulePath) {
+        const topLevel = modulePath.split('/')[0];
+        // Go stdlib packages don't contain dots in the first path segment
+        // e.g., "fmt", "net/http", "crypto/tls" are stdlib
+        // e.g., "github.com/foo/bar" is not stdlib
+        if (!topLevel.includes('.')) {
+            // Additionally verify against our known stdlib set
+            return GO_BUILTINS.has(topLevel);
+        }
+        return false;
+    }
+    /**
+     * Verify if a Go module exists.
+     *
+     * 1. Check if it's a Go standard library package
+     * 2. Check cache
+     * 3. Query Go module proxy: GET {proxy}/{module}/@v/list
+     *    - 200 with version list → exists
+     *    - 404 or 410 → does not exist
+     *    - error → assume exists (conservative)
+     */
+    async verify(packageName) {
+        const start = Date.now();
+        // Check standard library first
+        if (this.isStdlib(packageName)) {
+            return {
+                exists: true,
+                name: packageName,
+                source: 'builtin',
+                latencyMs: Date.now() - start,
+            };
+        }
+        // Check cache
+        const cacheKey = `go:${packageName}`;
+        const cached = await this.cache.get(cacheKey);
+        if (cached) {
+            return { ...cached, name: packageName, latencyMs: Date.now() - start };
+        }
+        // Query Go module proxy
+        try {
+            // Module paths are case-sensitive in Go, but proxied with case-encoding
+            // Upper case letters are encoded as !{lowercase}
+            const encodedModule = this.encodeModulePath(packageName);
+            const url = `${this.baseUrl}/${encodedModule}/@v/list`;
+            const headers = {};
+            if (this.token) {
+                headers['Authorization'] = `Bearer ${this.token}`;
+            }
+            const response = await fetch(url, {
+                method: 'GET',
+                headers,
+                signal: AbortSignal.timeout(this.timeout),
+            });
+            const latencyMs = Date.now() - start;
+            if (response.status === 404 || response.status === 410) {
+                const result = {
+                    exists: false,
+                    name: packageName,
+                    source: 'registry',
+                    latencyMs,
+                };
+                await this.cache.set(cacheKey, result, this.cacheTtl);
+                return result;
+            }
+            // Parse version list — last line is latest
+            let version;
+            try {
+                const text = await response.text();
+                const versions = text.trim().split('\n').filter(Boolean);
+                if (versions.length > 0) {
+                    version = versions[versions.length - 1];
+                }
+            }
+            catch {
+                // Could not parse versions
+            }
+            const result = {
+                exists: true,
+                name: packageName,
+                version,
+                source: 'registry',
+                latencyMs,
+            };
+            await this.cache.set(cacheKey, result, this.cacheTtl);
+            return result;
+        }
+        catch {
+            // Network error → assume exists (conservative)
+            return {
+                exists: true,
+                name: packageName,
+                source: 'registry',
+                latencyMs: Date.now() - start,
+            };
+        }
+    }
+    /**
+     * Encode a module path for the Go proxy.
+     * Upper case letters are encoded as !{lowercase}.
+     * e.g., "github.com/Azure/azure-sdk" → "github.com/!azure/azure-sdk"
+     */
+    encodeModulePath(modulePath) {
+        return modulePath.replace(/[A-Z]/g, (c) => `!${c.toLowerCase()}`);
+    }
+    /**
+     * Check if a Go module is deprecated.
+     * The Go module proxy doesn't directly expose deprecation info.
+     * Future: could check go.mod for "Deprecated:" comments.
+     */
+    async checkDeprecated(_packageName, _version) {
+        // Go module proxy does not provide deprecation info via API.
+        // Deprecation is indicated in go.mod with a "Deprecated:" comment.
+        return null;
+    }
+}
+//# sourceMappingURL=go-registry.js.map
+;// CONCATENATED MODULE: ../core/dist/registry/registry-manager.js
+/**
+ * Registry Manager — manages all language-specific registries.
+ *
+ * Provides a unified interface for verifying packages across
+ * all supported languages. Routes verification requests to the
+ * appropriate registry based on language.
+ *
+ * @since 0.4.0 (V4)
+ */
+
+
+
+
+
+class registry_manager_RegistryManager {
+    registries = new Map();
+    cache;
+    constructor(options, cache) {
+        this.cache = cache || new RegistryCache();
+        // Initialize registries based on config
+        const npmRegistry = new NpmRegistry(options?.npm, this.cache);
+        const pypiRegistry = new PyPIRegistry(options?.pypi, this.cache);
+        const mavenRegistry = new MavenRegistry(options?.maven, this.cache);
+        const goRegistry = new GoProxyRegistry(options?.go, this.cache);
+        this.registries.set('typescript', npmRegistry);
+        this.registries.set('javascript', npmRegistry);
+        this.registries.set('python', pypiRegistry);
+        this.registries.set('java', mavenRegistry);
+        this.registries.set('kotlin', mavenRegistry);
+        this.registries.set('go', goRegistry);
+    }
+    /**
+     * Get the registry for a given language.
+     */
+    getRegistry(language) {
+        return this.registries.get(language);
+    }
+    /**
+     * Verify a package exists for a given language.
+     * If no registry is configured for the language, returns a graceful result.
+     */
+    async verifyPackage(language, packageName) {
+        const registry = this.registries.get(language);
+        if (!registry) {
+            return {
+                exists: false,
+                name: packageName,
+                source: 'builtin',
+                latencyMs: 0,
+            };
+        }
+        return registry.verify(packageName);
+    }
+    /**
+     * Batch verify multiple packages concurrently with rate limiting.
+     *
+     * @param language Target language
+     * @param packageNames Packages to verify
+     * @param concurrency Max concurrent verifications (default: 5)
+     */
+    async verifyBatch(language, packageNames, concurrency = 5) {
+        const results = new Map();
+        const registry = this.registries.get(language);
+        if (!registry) {
+            for (const name of packageNames) {
+                results.set(name, {
+                    exists: false,
+                    name,
+                    source: 'builtin',
+                    latencyMs: 0,
+                });
+            }
+            return results;
+        }
+        // Deduplicate package names
+        const uniqueNames = [...new Set(packageNames)];
+        // Process in batches with concurrency limit
+        for (let i = 0; i < uniqueNames.length; i += concurrency) {
+            const batch = uniqueNames.slice(i, i + concurrency);
+            const batchResults = await Promise.all(batch.map(async (name) => {
+                const result = await registry.verify(name);
+                return { name, result };
+            }));
+            for (const { name, result } of batchResults) {
+                results.set(name, result);
+            }
+        }
+        return results;
+    }
+    /**
+     * Get cache statistics.
+     */
+    cacheStats() {
+        const stats = this.cache.stats();
+        return {
+            entries: stats.entries,
+            hitRate: stats.hitRate,
+        };
+    }
+    /**
+     * Persist the cache to disk.
+     */
+    async persistCache() {
+        await this.cache.save();
+    }
+}
+//# sourceMappingURL=registry-manager.js.map
+;// CONCATENATED MODULE: ../core/dist/registry/builtins/kotlin-builtins.js
+/**
+ * Kotlin standard library packages.
+ *
+ * Includes both Kotlin-specific stdlib and Java stdlib packages
+ * (since Kotlin runs on the JVM and can use all Java stdlib).
+ *
+ * @since 0.4.0 (V4)
+ */
+
+const KOTLIN_BUILTINS = new Set([
+    // Kotlin stdlib
+    'kotlin',
+    'kotlin.collections',
+    'kotlin.sequences',
+    'kotlin.text',
+    'kotlin.io',
+    'kotlin.math',
+    'kotlin.random',
+    'kotlin.time',
+    'kotlin.reflect',
+    'kotlin.coroutines',
+    'kotlin.ranges',
+    'kotlin.comparisons',
+    'kotlin.properties',
+    'kotlin.annotation',
+    'kotlin.contracts',
+    'kotlin.js',
+    'kotlin.jvm',
+    'kotlin.native',
+    'kotlin.system',
+    'kotlin.concurrent',
+    // Kotlinx common packages (bundled with Kotlin)
+    'kotlinx.coroutines',
+    'kotlinx.serialization',
+    // Kotlin also uses Java stdlib
+    ...java_builtins_JAVA_BUILTINS,
+]);
+//# sourceMappingURL=kotlin-builtins.js.map
+;// CONCATENATED MODULE: ../core/dist/registry/index.js
+/**
+ * Registry module — Dynamic package verification.
+ *
+ * @since 0.4.0 (V4)
+ */
+// Cache
+
+// Registry implementations
+
+
+
+
+// Manager
+
+// Built-in module lists
+
+
+
+
+
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ../core/dist/license/validator.js
+/**
+ * License Validator
+ *
+ * Validates license keys with local caching and API fallback.
+ *
+ * Validation flow:
+ * 1. Check local cache (~/.aicv/license-cache.json, TTL 24h)
+ * 2. Cache hit → return cached result
+ * 3. Cache miss → call API to verify
+ * 4. API success → update cache → return result
+ * 5. API failure → if expired cache within grace period (7 days) → return cached (degraded)
+ * 6. No cache + API failure → return valid (free product, don't block users)
+ *
+ * @since 0.3.0
+ */
+
+
+
+
+// ─── Constants ─────────────────────────────────────────────────────
+/** Default cache TTL: 24 hours */
+const DEFAULT_CACHE_TTL_MS = (/* unused pure expression or super */ null && (24 * 60 * 60 * 1000));
+/** Default grace period: 7 days */
+const DEFAULT_GRACE_PERIOD_MS = (/* unused pure expression or super */ null && (7 * 24 * 60 * 60 * 1000));
+/** Default API endpoint */
+const DEFAULT_API_ENDPOINT = 'https://codes.evallab.ai/api/license/verify';
+/** Cache filename */
+const CACHE_FILENAME = 'license-cache.json';
+/** License file (stores key from login) */
+const LICENSE_FILENAME = 'license';
+// ─── LicenseValidator Class ────────────────────────────────────────
+/**
+ * Validates license keys against API with local caching.
+ *
+ * Design principle: as a free product, we never block users due to
+ * API failures. If the API is unreachable, we treat the license as valid.
+ */
+class LicenseValidator {
+    cacheDir;
+    apiEndpoint;
+    cacheTtlMs;
+    gracePeriodMs;
+    constructor(options) {
+        this.cacheDir = options?.cacheDir ?? join(homedir(), '.aicv');
+        this.apiEndpoint = options?.apiEndpoint ?? DEFAULT_API_ENDPOINT;
+        this.cacheTtlMs = options?.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS;
+        this.gracePeriodMs = options?.gracePeriodMs ?? DEFAULT_GRACE_PERIOD_MS;
+    }
+    /**
+     * Validate a license key.
+     *
+     * @param licenseKey - License key to validate (AICV-XXXX-XXXX-XXXX-XXXX)
+     * @returns Validation result with license info and cache status
+     */
+    async validate(licenseKey) {
+        // Step 0: Format check
+        if (!isValidLicenseFormat(licenseKey)) {
+            return {
+                valid: false,
+                error: `Invalid license key format: ${licenseKey}. Expected: AICV-XXXX-XXXX-XXXX-XXXX`,
+                cached: false,
+            };
+        }
+        // Step 1: Check local cache
+        const cached = this.readCache(licenseKey);
+        if (cached) {
+            const age = Date.now() - cached.timestamp;
+            if (age < cached.ttl) {
+                // Cache hit (not expired)
+                return { ...cached.result, cached: true };
+            }
+        }
+        // Step 2: Call API for verification
+        try {
+            const apiResult = await this.callAPI(licenseKey);
+            // Step 3: Update cache on API success
+            this.writeCache({
+                key: licenseKey,
+                result: apiResult,
+                timestamp: Date.now(),
+                ttl: this.cacheTtlMs,
+            });
+            return { ...apiResult, cached: false };
+        }
+        catch (_error) {
+            // Step 4: API failed — try degraded cache
+            if (cached) {
+                const age = Date.now() - cached.timestamp;
+                if (age < this.gracePeriodMs) {
+                    // Expired cache within grace period → return degraded
+                    return {
+                        ...cached.result,
+                        cached: true,
+                        degraded: true,
+                    };
+                }
+            }
+            // Step 5: No cache + API failure → treat as valid (free product)
+            return {
+                valid: true,
+                cached: false,
+                degraded: true,
+                error: 'API unreachable, operating in offline mode',
+                info: {
+                    key: licenseKey,
+                    valid: true,
+                    plan: 'free',
+                },
+            };
+        }
+    }
+    /**
+     * Resolve a license key from multiple sources.
+     *
+     * Priority:
+     * 1. CLI parameter (--license)
+     * 2. Environment variable (AICV_LICENSE)
+     * 3. Config file (.aicv.yml)
+     * 4. Stored license file (~/.aicv/license)
+     *
+     * @param options - Sources to check
+     * @returns License key or null if not found
+     */
+    static resolveLicenseKey(options) {
+        // Priority 1: CLI argument
+        if (options?.cli) {
+            return options.cli;
+        }
+        // Priority 2: Environment variable
+        const envKey = options?.env ?? process.env.AICV_LICENSE;
+        if (envKey) {
+            return envKey;
+        }
+        // Priority 3: Config file (.aicv.yml license field)
+        if (options?.config) {
+            return options.config;
+        }
+        // Priority 4: Stored license file (~/.aicv/license)
+        try {
+            const licensePath = join(homedir(), '.aicv', LICENSE_FILENAME);
+            if (existsSync(licensePath)) {
+                const key = readFileSync(licensePath, 'utf-8').trim();
+                if (key)
+                    return key;
+            }
+        }
+        catch {
+            // Ignore read errors
+        }
+        return null;
+    }
+    /**
+     * Save a license key to the user's home directory (~/.aicv/license).
+     *
+     * @param key - License key to save
+     */
+    static saveLicenseKey(key) {
+        const dir = join(homedir(), '.aicv');
+        if (!existsSync(dir)) {
+            mkdirSync(dir, { recursive: true });
+        }
+        const filePath = join(dir, LICENSE_FILENAME);
+        writeFileSync(filePath, key, 'utf-8');
+        try {
+            chmodSync(filePath, 0o600);
+        }
+        catch {
+            // chmod may fail on some platforms (Windows)
+        }
+    }
+    // ─── Private: Cache Operations ─────────────────────────────────
+    /**
+     * Read cache entry for a specific key.
+     * Returns null if cache doesn't exist or is for a different key.
+     */
+    readCache(licenseKey) {
+        try {
+            const cachePath = join(this.cacheDir, CACHE_FILENAME);
+            if (!existsSync(cachePath))
+                return null;
+            const raw = readFileSync(cachePath, 'utf-8');
+            const entry = JSON.parse(raw);
+            // Validate cache entry structure
+            if (!entry || typeof entry !== 'object')
+                return null;
+            if (entry.key !== licenseKey)
+                return null;
+            if (typeof entry.timestamp !== 'number')
+                return null;
+            if (!entry.result)
+                return null;
+            return entry;
+        }
+        catch {
+            return null;
+        }
+    }
+    /**
+     * Write a cache entry to disk.
+     * Creates the cache directory if it doesn't exist.
+     * Sets file permissions to 0600 (user-only read/write).
+     */
+    writeCache(entry) {
+        try {
+            if (!existsSync(this.cacheDir)) {
+                mkdirSync(this.cacheDir, { recursive: true });
+            }
+            const cachePath = join(this.cacheDir, CACHE_FILENAME);
+            writeFileSync(cachePath, JSON.stringify(entry, null, 2), 'utf-8');
+            try {
+                chmodSync(cachePath, 0o600);
+            }
+            catch {
+                // chmod may fail on some platforms (Windows)
+            }
+        }
+        catch {
+            // Silently fail on cache write errors — don't block the user
+        }
+    }
+    // ─── Private: API Call ─────────────────────────────────────────
+    /**
+     * Call the license verification API.
+     *
+     * POST {apiEndpoint}
+     * Body: { "key": "AICV-..." }
+     * Response: { "valid": true, "info": {...} }
+     *
+     * @throws Error if the API request fails
+     */
+    async callAPI(key) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+        try {
+            const response = await fetch(this.apiEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'open-code-review-cli/0.3.0',
+                },
+                body: JSON.stringify({ key }),
+                signal: controller.signal,
+            });
+            if (response.ok) {
+                const data = (await response.json());
+                return {
+                    valid: data.valid,
+                    info: data.info
+                        ? {
+                            key,
+                            valid: data.valid,
+                            plan: 'free',
+                            userId: data.info.userId,
+                            email: data.info.email,
+                            createdAt: data.info.createdAt,
+                            expiresAt: data.info.expiresAt,
+                            usageCount: data.info.usageCount,
+                        }
+                        : { key, valid: data.valid, plan: 'free' },
+                    cached: false,
+                };
+            }
+            // Non-OK response (401, 403, etc.)
+            return {
+                valid: false,
+                error: `License verification failed: HTTP ${response.status}`,
+                cached: false,
+            };
+        }
+        finally {
+            clearTimeout(timeout);
+        }
+    }
+}
+//# sourceMappingURL=validator.js.map
+;// CONCATENATED MODULE: ../core/dist/license/index.js
+/**
+ * License Module — Public API
+ *
+ * Provides license key generation, validation, and caching.
+ *
+ * @since 0.3.0
+ */
+// Generator
+
+// Validator
+
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ../core/dist/parser/manager.js
+/**
+ * Open Code Review V4 — Tree-sitter Parser Manager
+ *
+ * Manages tree-sitter WASM initialization, grammar loading, and parsing.
+ * Uses `web-tree-sitter` with pre-built WASM grammars from `tree-sitter-wasms`.
+ *
+ * @since 0.4.0
+ */
+
+
+
+
+// We use createRequire to get the real Parser class because vitest's
+// ESM module proxy doesn't propagate static property changes after
+// Parser.init() modifies the class (e.g., Parser.Language).
+const _require = (0,external_node_module_.createRequire)(import.meta.url);
+const Parser = _require('web-tree-sitter');
+// ─── Grammar File Resolution ───────────────────────────────────────
+/**
+ * Map from SupportedLanguage to the WASM grammar filename.
+ * TypeScript and JavaScript share grammars with TSX/JSX variants.
+ */
+const GRAMMAR_FILES = {
+    typescript: 'tree-sitter-typescript.wasm',
+    javascript: 'tree-sitter-javascript.wasm',
+    python: 'tree-sitter-python.wasm',
+    java: 'tree-sitter-java.wasm',
+    go: 'tree-sitter-go.wasm',
+    kotlin: 'tree-sitter-kotlin.wasm',
+};
+/**
+ * Resolve the path to a WASM grammar file.
+ * Searches for grammars in the `tree-sitter-wasms` package.
+ */
+function resolveGrammarPath(grammarFile) {
+    // Try to find tree-sitter-wasms in node_modules
+    // Strategy: walk up from this file's directory looking for node_modules
+    const candidates = [];
+    // Use import.meta.url to find our location
+    try {
+        const thisDir = dirname(fileURLToPath(import.meta.url));
+        // Walk up looking for node_modules/tree-sitter-wasms
+        let dir = thisDir;
+        for (let i = 0; i < 10; i++) {
+            candidates.push(resolve(dir, 'node_modules', 'tree-sitter-wasms', 'out', grammarFile));
+            const parent = dirname(dir);
+            if (parent === dir)
+                break;
+            dir = parent;
+        }
+    }
+    catch {
+        // import.meta.url not available in some environments
+    }
+    // Also try relative to CWD
+    candidates.push(resolve(process.cwd(), 'node_modules', 'tree-sitter-wasms', 'out', grammarFile));
+    for (const candidate of candidates) {
+        if (existsSync(candidate)) {
+            return candidate;
+        }
+    }
+    throw new Error(`Grammar file not found: ${grammarFile}. ` +
+        `Ensure 'tree-sitter-wasms' is installed. Searched:\n` +
+        candidates.map(c => `  - ${c}`).join('\n'));
+}
+// ─── ParserManager ─────────────────────────────────────────────────
+/**
+ * Manages tree-sitter parser initialization and grammar loading.
+ *
+ * Usage:
+ * ```typescript
+ * const manager = new ParserManager();
+ * await manager.init();
+ * const tree = manager.parse('const x = 1;', 'typescript');
+ * ```
+ */
+class manager_ParserManager {
+    languages = new Map();
+    _initialized = false;
+    /** Whether the parser has been initialized */
+    get initialized() {
+        return this._initialized;
+    }
+    /**
+     * Initialize tree-sitter WASM runtime and load all supported grammars.
+     * Must be called before any parse() calls.
+     * Safe to call multiple times (idempotent).
+     */
+    async init() {
+        if (this._initialized)
+            return;
+        // Resolve the tree-sitter WASM binary path.
+        // web-tree-sitter needs its own .wasm file to initialize the runtime.
+        // In bundled environments (vitest, webpack), the auto-detection may fail,
+        // so we provide an explicit locateFile function.
+        let treeSitterWasmDir;
+        try {
+            const req = createRequire(import.meta.url);
+            const treeSitterMainPath = req.resolve('web-tree-sitter');
+            treeSitterWasmDir = dirname(treeSitterMainPath);
+        }
+        catch {
+            treeSitterWasmDir = '';
+        }
+        await Parser.init({
+            locateFile: (scriptName) => {
+                if (treeSitterWasmDir && scriptName.endsWith('.wasm')) {
+                    const candidate = join(treeSitterWasmDir, scriptName);
+                    if (existsSync(candidate))
+                        return candidate;
+                }
+                return scriptName;
+            },
+        });
+        // Load grammars for all supported languages
+        const languages = Object.keys(GRAMMAR_FILES);
+        const loadPromises = languages.map(async (lang) => {
+            const grammarFile = GRAMMAR_FILES[lang];
+            const grammarPath = resolveGrammarPath(grammarFile);
+            const language = await Parser.Language.load(grammarPath);
+            this.languages.set(lang, language);
+        });
+        await Promise.all(loadPromises);
+        this._initialized = true;
+    }
+    /**
+     * Parse source code into a tree-sitter CST.
+     *
+     * @param source - Source code string
+     * @param language - Programming language
+     * @returns Parsed tree-sitter tree
+     * @throws Error if not initialized or language not supported
+     */
+    parse(source, language) {
+        if (!this._initialized) {
+            throw new Error('ParserManager not initialized. Call init() first.');
+        }
+        const lang = this.languages.get(language);
+        if (!lang) {
+            throw new Error(`No grammar loaded for language: ${language}`);
+        }
+        const parser = new Parser();
+        parser.setLanguage(lang);
+        return parser.parse(source);
+    }
+    /**
+     * Get list of languages that have been loaded.
+     */
+    getSupportedLanguages() {
+        return [...this.languages.keys()];
+    }
+    /**
+     * Check if a specific language grammar is loaded.
+     */
+    hasLanguage(language) {
+        return this.languages.has(language);
+    }
+}
+//# sourceMappingURL=manager.js.map
+;// CONCATENATED MODULE: ../core/dist/parser/extractors/typescript.js
+/**
+ * Open Code Review V4 — TypeScript/JavaScript Extractor
+ *
+ * Extracts CodeUnits from TypeScript and JavaScript tree-sitter CSTs.
+ * Handles: imports, functions, classes, methods, calls, complexity, symbols.
+ *
+ * @since 0.4.0
+ */
+
+// ─── Tree-sitter node type constants ───────────────────────────────
+/** Node types that represent branching (for cyclomatic complexity) */
+const BRANCHING_NODES = new Set([
+    'if_statement',
+    'else_clause',
+    'for_statement',
+    'for_in_statement',
+    'while_statement',
+    'do_statement',
+    'switch_case',
+    'catch_clause',
+    'ternary_expression',
+    'binary_expression', // for && and ||
+]);
+/** Node types that increase cognitive complexity nesting */
+const NESTING_NODES = new Set([
+    'if_statement',
+    'for_statement',
+    'for_in_statement',
+    'while_statement',
+    'do_statement',
+    'switch_statement',
+    'try_statement',
+    'catch_clause',
+]);
+/** Node types that increase cognitive complexity (structural) */
+const COGNITIVE_NODES = new Set([
+    'if_statement',
+    'else_clause',
+    'for_statement',
+    'for_in_statement',
+    'while_statement',
+    'do_statement',
+    'switch_case',
+    'catch_clause',
+    'ternary_expression',
+]);
+// ─── Helper: Get node location ─────────────────────────────────────
+function getLocation(node) {
+    return {
+        startLine: node.startPosition.row,
+        startColumn: node.startPosition.column,
+        endLine: node.endPosition.row,
+        endColumn: node.endPosition.column,
+    };
+}
+// ─── Helper: Count lines of code ───────────────────────────────────
+function countLinesOfCode(source) {
+    const lines = source.split('\n');
+    let count = 0;
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.length > 0 && !trimmed.startsWith('//') && !trimmed.startsWith('/*') && !trimmed.startsWith('*')) {
+            count++;
+        }
+    }
+    return count;
+}
+// ─── Helper: Extract import from an import_statement node ──────────
+function extractImport(node) {
+    if (node.type !== 'import_statement')
+        return null;
+    const sourceNode = node.childForFieldName('source') ?? node.children.find(c => c.type === 'string');
+    if (!sourceNode)
+        return null;
+    const moduleName = sourceNode.text.replace(/['"]/g, '');
+    const symbols = [];
+    const importClause = node.children.find(c => c.type === 'import_clause');
+    if (importClause) {
+        for (const child of importClause.children) {
+            if (child.type === 'named_imports') {
+                for (const spec of child.children) {
+                    if (spec.type === 'import_specifier') {
+                        const nameNode = spec.childForFieldName('name') ?? spec.children.find(c => c.type === 'identifier');
+                        if (nameNode)
+                            symbols.push(nameNode.text);
+                    }
+                }
+            }
+            else if (child.type === 'namespace_import') {
+                // import * as foo
+                const asName = child.children.find(c => c.type === 'identifier');
+                if (asName)
+                    symbols.push(`* as ${asName.text}`);
+            }
+            else if (child.type === 'identifier') {
+                // default import
+                symbols.push(child.text);
+            }
+        }
+    }
+    return {
+        module: moduleName,
+        symbols,
+        line: node.startPosition.row,
+        isRelative: moduleName.startsWith('.') || moduleName.startsWith('/'),
+        raw: node.text,
+    };
+}
+// ─── Helper: Extract require() call as import ──────────────────────
+function extractRequireImport(node) {
+    // Pattern: const x = require('module')
+    if (node.type !== 'lexical_declaration' && node.type !== 'variable_declaration')
+        return null;
+    for (const declarator of node.children) {
+        if (declarator.type !== 'variable_declarator')
+            continue;
+        const init = declarator.childForFieldName('value') ?? declarator.children.find(c => c.type === 'call_expression');
+        if (!init || init.type !== 'call_expression')
+            continue;
+        const funcNode = init.childForFieldName('function') ?? init.children[0];
+        if (!funcNode || funcNode.text !== 'require')
+            continue;
+        const argsNode = init.childForFieldName('arguments') ?? init.children.find(c => c.type === 'arguments');
+        if (!argsNode)
+            continue;
+        const stringArg = argsNode.children.find(c => c.type === 'string');
+        if (!stringArg)
+            continue;
+        const moduleName = stringArg.text.replace(/['"]/g, '');
+        const nameNode = declarator.childForFieldName('name') ?? declarator.children.find(c => c.type === 'identifier');
+        const symbols = nameNode ? [nameNode.text] : [];
+        return {
+            module: moduleName,
+            symbols,
+            line: node.startPosition.row,
+            isRelative: moduleName.startsWith('.') || moduleName.startsWith('/'),
+            raw: node.text,
+        };
+    }
+    return null;
+}
+// ─── Helper: Extract calls from a subtree ──────────────────────────
+function extractCalls(node) {
+    const calls = [];
+    function walk(n) {
+        if (n.type === 'call_expression') {
+            const funcNode = n.childForFieldName('function') ?? n.children[0];
+            const argsNode = n.childForFieldName('arguments') ?? n.children.find(c => c.type === 'arguments');
+            if (funcNode) {
+                const callee = funcNode.text;
+                let object;
+                let method;
+                if (funcNode.type === 'member_expression') {
+                    const objectNode = funcNode.childForFieldName('object') ?? funcNode.children[0];
+                    const propertyNode = funcNode.childForFieldName('property') ?? funcNode.children[funcNode.childCount - 1];
+                    object = objectNode?.text;
+                    method = propertyNode?.text ?? callee;
+                }
+                else {
+                    method = callee;
+                }
+                // Count arguments (exclude commas and parens)
+                let argCount = 0;
+                if (argsNode) {
+                    for (const arg of argsNode.children) {
+                        if (arg.type !== ',' && arg.type !== '(' && arg.type !== ')') {
+                            argCount++;
+                        }
+                    }
+                }
+                calls.push({
+                    callee,
+                    object,
+                    method,
+                    line: n.startPosition.row,
+                    argCount,
+                });
+            }
+        }
+        for (let i = 0; i < n.childCount; i++) {
+            walk(n.child(i));
+        }
+    }
+    walk(node);
+    return calls;
+}
+// ─── Helper: Compute complexity from a subtree ────────────────────
+function computeComplexity(node, source) {
+    let cyclomatic = 1; // base complexity
+    let cognitive = 0;
+    let maxDepth = 0;
+    function walk(n, nestingDepth) {
+        // Cyclomatic complexity
+        if (BRANCHING_NODES.has(n.type)) {
+            if (n.type === 'binary_expression') {
+                const operator = n.children.find(c => c.type === '&&' || c.type === '||' || c.text === '&&' || c.text === '||');
+                if (operator) {
+                    cyclomatic++;
+                }
+            }
+            else if (n.type !== 'else_clause') {
+                cyclomatic++;
+            }
+        }
+        // Cognitive complexity
+        if (COGNITIVE_NODES.has(n.type)) {
+            if (n.type === 'else_clause') {
+                cognitive += 1; // else doesn't get nesting increment
+            }
+            else {
+                cognitive += 1 + nestingDepth;
+            }
+        }
+        // Nesting depth
+        let newDepth = nestingDepth;
+        if (NESTING_NODES.has(n.type)) {
+            newDepth = nestingDepth + 1;
+            if (newDepth > maxDepth)
+                maxDepth = newDepth;
+        }
+        for (let i = 0; i < n.childCount; i++) {
+            walk(n.child(i), newDepth);
+        }
+    }
+    walk(node, 0);
+    return {
+        cyclomaticComplexity: cyclomatic,
+        cognitiveComplexity: cognitive,
+        maxNestingDepth: maxDepth,
+        linesOfCode: countLinesOfCode(source),
+    };
+}
+// ─── Helper: Extract symbol definitions ────────────────────────────
+function extractDefinitions(node, isExported) {
+    const defs = [];
+    function walkTopLevel(n, exported) {
+        const isExport = n.type === 'export_statement';
+        if (isExport) {
+            for (let i = 0; i < n.childCount; i++) {
+                walkTopLevel(n.child(i), true);
+            }
+            return;
+        }
+        if (n.type === 'function_declaration') {
+            const nameNode = n.childForFieldName('name') ?? n.children.find(c => c.type === 'identifier');
+            if (nameNode) {
+                defs.push({
+                    name: nameNode.text,
+                    kind: 'function',
+                    line: n.startPosition.row,
+                    exported,
+                });
+            }
+        }
+        else if (n.type === 'class_declaration') {
+            const nameNode = n.childForFieldName('name') ?? n.children.find(c => c.type === 'type_identifier');
+            if (nameNode) {
+                defs.push({
+                    name: nameNode.text,
+                    kind: 'class',
+                    line: n.startPosition.row,
+                    exported,
+                });
+            }
+        }
+        else if (n.type === 'lexical_declaration' || n.type === 'variable_declaration') {
+            for (const child of n.children) {
+                if (child.type === 'variable_declarator') {
+                    const nameNode = child.childForFieldName('name') ?? child.children.find(c => c.type === 'identifier');
+                    if (nameNode) {
+                        defs.push({
+                            name: nameNode.text,
+                            kind: 'variable',
+                            line: n.startPosition.row,
+                            exported,
+                        });
+                    }
+                }
+            }
+        }
+        else if (n.type === 'type_alias_declaration') {
+            const nameNode = n.childForFieldName('name') ?? n.children.find(c => c.type === 'type_identifier');
+            if (nameNode) {
+                defs.push({
+                    name: nameNode.text,
+                    kind: 'type',
+                    line: n.startPosition.row,
+                    exported,
+                });
+            }
+        }
+        else if (n.type === 'interface_declaration') {
+            const nameNode = n.childForFieldName('name') ?? n.children.find(c => c.type === 'type_identifier');
+            if (nameNode) {
+                defs.push({
+                    name: nameNode.text,
+                    kind: 'interface',
+                    line: n.startPosition.row,
+                    exported,
+                });
+            }
+        }
+        else if (n.type === 'enum_declaration') {
+            const nameNode = n.childForFieldName('name') ?? n.children.find(c => c.type === 'identifier');
+            if (nameNode) {
+                defs.push({
+                    name: nameNode.text,
+                    kind: 'enum',
+                    line: n.startPosition.row,
+                    exported,
+                });
+            }
+        }
+    }
+    walkTopLevel(node, isExported);
+    return defs;
+}
+// ─── Helper: Count parameters ──────────────────────────────────────
+function countParameters(paramsNode) {
+    let count = 0;
+    for (const child of paramsNode.children) {
+        if (child.type === 'required_parameter' ||
+            child.type === 'optional_parameter' ||
+            child.type === 'rest_parameter' ||
+            child.type === 'identifier' || // JS style params
+            child.type === 'assignment_pattern') {
+            count++;
+        }
+    }
+    return count;
+}
+// ─── TypeScriptExtractor ───────────────────────────────────────────
+class typescript_TypeScriptExtractor {
+    language;
+    constructor(language = 'typescript') {
+        this.language = language;
+    }
+    extract(tree, filePath, source) {
+        const units = [];
+        const root = tree.rootNode;
+        // 1. Create the file-level CodeUnit
+        const fileImports = this.extractFileImports(root);
+        const fileCalls = extractCalls(root);
+        const fileDefs = this.extractFileDefinitions(root);
+        const fileComplexity = computeComplexity(root, source);
+        const fileUnit = createCodeUnit({
+            id: `file:${filePath}`,
+            file: filePath,
+            language: this.language,
+            kind: 'file',
+            location: getLocation(root),
+            source,
+            imports: fileImports,
+            calls: fileCalls,
+            complexity: fileComplexity,
+            definitions: fileDefs,
+            references: [], // Will be populated later
+            childIds: [],
+        });
+        units.push(fileUnit);
+        // 2. Extract functions and classes
+        this.extractFunctions(root, filePath, source, fileUnit, units);
+        this.extractClasses(root, filePath, source, fileUnit, units);
+        return units;
+    }
+    // ─── File-level imports ──────────────────────────────────────────
+    extractFileImports(root) {
+        const imports = [];
+        for (let i = 0; i < root.childCount; i++) {
+            const child = root.child(i);
+            if (child.type === 'import_statement') {
+                const info = extractImport(child);
+                if (info)
+                    imports.push(info);
+            }
+            // Check for require() calls
+            if (child.type === 'lexical_declaration' || child.type === 'variable_declaration') {
+                const info = extractRequireImport(child);
+                if (info)
+                    imports.push(info);
+            }
+            // Handle export { ... } from 'module' (re-exports)
+            if (child.type === 'export_statement') {
+                const sourceNode = child.children.find(c => c.type === 'string');
+                if (sourceNode) {
+                    const moduleName = sourceNode.text.replace(/['"]/g, '');
+                    const symbols = [];
+                    const exportClause = child.children.find(c => c.type === 'export_clause');
+                    if (exportClause) {
+                        for (const spec of exportClause.children) {
+                            if (spec.type === 'export_specifier') {
+                                const nameNode = spec.childForFieldName('name') ?? spec.children.find(c => c.type === 'identifier');
+                                if (nameNode)
+                                    symbols.push(nameNode.text);
+                            }
+                        }
+                    }
+                    imports.push({
+                        module: moduleName,
+                        symbols,
+                        line: child.startPosition.row,
+                        isRelative: moduleName.startsWith('.') || moduleName.startsWith('/'),
+                        raw: child.text,
+                    });
+                }
+            }
+        }
+        return imports;
+    }
+    // ─── File-level definitions ──────────────────────────────────────
+    extractFileDefinitions(root) {
+        const defs = [];
+        for (let i = 0; i < root.childCount; i++) {
+            const child = root.child(i);
+            defs.push(...extractDefinitions(child, false));
+        }
+        return defs;
+    }
+    // ─── Extract top-level and nested functions ──────────────────────
+    extractFunctions(root, filePath, _source, fileUnit, units, parentId) {
+        for (let i = 0; i < root.childCount; i++) {
+            const child = root.child(i);
+            // Handle export_statement wrapping
+            let funcNode = null;
+            let isExported = false;
+            if (child.type === 'export_statement') {
+                isExported = true;
+                for (let j = 0; j < child.childCount; j++) {
+                    const exportChild = child.child(j);
+                    if (exportChild.type === 'function_declaration') {
+                        funcNode = exportChild;
+                        break;
+                    }
+                }
+            }
+            else if (child.type === 'function_declaration') {
+                funcNode = child;
+            }
+            // Handle arrow functions assigned to variables
+            if (child.type === 'lexical_declaration' || child.type === 'variable_declaration') {
+                for (const declarator of child.children) {
+                    if (declarator.type !== 'variable_declarator')
+                        continue;
+                    const value = declarator.childForFieldName('value') ?? declarator.children.find(c => c.type === 'arrow_function');
+                    if (value && value.type === 'arrow_function') {
+                        const nameNode = declarator.childForFieldName('name') ?? declarator.children.find(c => c.type === 'identifier');
+                        if (nameNode) {
+                            this.createFunctionUnit(nameNode.text, value, filePath, fileUnit, units, false, parentId);
+                        }
+                    }
+                }
+            }
+            // Handle export_statement wrapping variable declarations (arrow functions)
+            if (child.type === 'export_statement') {
+                for (let j = 0; j < child.childCount; j++) {
+                    const exportChild = child.child(j);
+                    if (exportChild.type === 'lexical_declaration' || exportChild.type === 'variable_declaration') {
+                        for (const declarator of exportChild.children) {
+                            if (declarator.type !== 'variable_declarator')
+                                continue;
+                            const value = declarator.childForFieldName('value') ?? declarator.children.find(c => c.type === 'arrow_function');
+                            if (value && value.type === 'arrow_function') {
+                                const nameNode = declarator.childForFieldName('name') ?? declarator.children.find(c => c.type === 'identifier');
+                                if (nameNode) {
+                                    this.createFunctionUnit(nameNode.text, value, filePath, fileUnit, units, true, parentId);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (funcNode) {
+                const nameNode = funcNode.childForFieldName('name') ?? funcNode.children.find(c => c.type === 'identifier');
+                if (nameNode) {
+                    this.createFunctionUnit(nameNode.text, funcNode, filePath, fileUnit, units, isExported, parentId);
+                }
+            }
+        }
+    }
+    createFunctionUnit(name, node, filePath, fileUnit, units, isExported, parentId) {
+        const funcId = `func:${filePath}:${name}`;
+        const funcSource = node.text;
+        const paramsNode = node.children.find(c => c.type === 'formal_parameters');
+        const paramCount = paramsNode ? countParameters(paramsNode) : 0;
+        const complexity = computeComplexity(node, funcSource);
+        complexity.parameterCount = paramCount;
+        const calls = extractCalls(node);
+        const funcDefs = [{
+                name,
+                kind: 'function',
+                line: node.startPosition.row,
+                exported: isExported,
+            }];
+        // Extract parameter definitions
+        if (paramsNode) {
+            for (const param of paramsNode.children) {
+                if (param.type === 'required_parameter' || param.type === 'optional_parameter' || param.type === 'identifier') {
+                    const paramName = param.type === 'identifier' ? param.text :
+                        (param.childForFieldName('pattern') ?? param.children.find(c => c.type === 'identifier'))?.text;
+                    if (paramName) {
+                        funcDefs.push({
+                            name: paramName,
+                            kind: 'parameter',
+                            line: param.startPosition.row,
+                            exported: false,
+                        });
+                    }
+                }
+            }
+        }
+        const funcUnit = createCodeUnit({
+            id: funcId,
+            file: filePath,
+            language: this.language,
+            kind: 'function',
+            location: getLocation(node),
+            source: funcSource,
+            calls,
+            complexity,
+            definitions: funcDefs,
+            parentId: parentId ?? fileUnit.id,
+        });
+        units.push(funcUnit);
+        if (parentId) {
+            const parent = units.find(u => u.id === parentId);
+            if (parent)
+                parent.childIds.push(funcId);
+        }
+        else {
+            fileUnit.childIds.push(funcId);
+        }
+    }
+    // ─── Extract classes and their methods ───────────────────────────
+    extractClasses(root, filePath, source, fileUnit, units) {
+        for (let i = 0; i < root.childCount; i++) {
+            const child = root.child(i);
+            let classNode = null;
+            let isExported = false;
+            if (child.type === 'export_statement') {
+                isExported = true;
+                for (let j = 0; j < child.childCount; j++) {
+                    const exportChild = child.child(j);
+                    if (exportChild.type === 'class_declaration') {
+                        classNode = exportChild;
+                        break;
+                    }
+                }
+            }
+            else if (child.type === 'class_declaration') {
+                classNode = child;
+            }
+            if (!classNode)
+                continue;
+            const nameNode = classNode.childForFieldName('name') ?? classNode.children.find(c => c.type === 'type_identifier');
+            if (!nameNode)
+                continue;
+            const className = nameNode.text;
+            const classId = `class:${filePath}:${className}`;
+            const classSource = classNode.text;
+            const classCalls = extractCalls(classNode);
+            const classComplexity = computeComplexity(classNode, classSource);
+            const classDefs = [{
+                    name: className,
+                    kind: 'class',
+                    line: classNode.startPosition.row,
+                    exported: isExported,
+                }];
+            const classUnit = createCodeUnit({
+                id: classId,
+                file: filePath,
+                language: this.language,
+                kind: 'class',
+                location: getLocation(classNode),
+                source: classSource,
+                calls: classCalls,
+                complexity: classComplexity,
+                definitions: classDefs,
+                parentId: fileUnit.id,
+            });
+            units.push(classUnit);
+            fileUnit.childIds.push(classId);
+            // Extract methods from class body
+            const classBody = classNode.children.find(c => c.type === 'class_body');
+            if (classBody) {
+                this.extractMethods(classBody, className, filePath, classUnit, units);
+            }
+        }
+    }
+    extractMethods(classBody, className, filePath, classUnit, units) {
+        for (let i = 0; i < classBody.childCount; i++) {
+            const member = classBody.child(i);
+            if (member.type === 'method_definition') {
+                const nameNode = member.childForFieldName('name') ?? member.children.find(c => c.type === 'property_identifier');
+                if (!nameNode)
+                    continue;
+                const methodName = nameNode.text;
+                const methodId = `method:${filePath}:${className}.${methodName}`;
+                const methodSource = member.text;
+                const paramsNode = member.children.find(c => c.type === 'formal_parameters');
+                const paramCount = paramsNode ? countParameters(paramsNode) : 0;
+                const complexity = computeComplexity(member, methodSource);
+                complexity.parameterCount = paramCount;
+                const calls = extractCalls(member);
+                // Check if public/private/protected
+                const isPublic = !member.children.some(c => c.type === 'accessibility_modifier' && (c.text === 'private' || c.text === 'protected'));
+                const methodDefs = [{
+                        name: methodName,
+                        kind: 'method',
+                        line: member.startPosition.row,
+                        exported: isPublic,
+                    }];
+                const methodUnit = createCodeUnit({
+                    id: methodId,
+                    file: filePath,
+                    language: this.language,
+                    kind: 'method',
+                    location: getLocation(member),
+                    source: methodSource,
+                    calls,
+                    complexity,
+                    definitions: methodDefs,
+                    parentId: classUnit.id,
+                });
+                units.push(methodUnit);
+                classUnit.childIds.push(methodId);
+            }
+            // Also handle property declarations with arrow function values
+            if (member.type === 'public_field_definition') {
+                const nameNode = member.childForFieldName('name') ?? member.children.find(c => c.type === 'property_identifier');
+                const valueNode = member.childForFieldName('value') ?? member.children.find(c => c.type === 'arrow_function');
+                if (nameNode && valueNode && valueNode.type === 'arrow_function') {
+                    const methodName = nameNode.text;
+                    const methodId = `method:${filePath}:${className}.${methodName}`;
+                    const methodSource = member.text;
+                    const paramsNode = valueNode.children.find(c => c.type === 'formal_parameters');
+                    const paramCount = paramsNode ? countParameters(paramsNode) : 0;
+                    const complexity = computeComplexity(valueNode, methodSource);
+                    complexity.parameterCount = paramCount;
+                    const calls = extractCalls(valueNode);
+                    const methodUnit = createCodeUnit({
+                        id: methodId,
+                        file: filePath,
+                        language: this.language,
+                        kind: 'method',
+                        location: getLocation(member),
+                        source: methodSource,
+                        calls,
+                        complexity,
+                        definitions: [{
+                                name: methodName,
+                                kind: 'method',
+                                line: member.startPosition.row,
+                                exported: true,
+                            }],
+                        parentId: classUnit.id,
+                    });
+                    units.push(methodUnit);
+                    classUnit.childIds.push(methodId);
+                }
+            }
+        }
+    }
+}
+//# sourceMappingURL=typescript.js.map
+;// CONCATENATED MODULE: ../core/dist/parser/extractors/python.js
+/**
+ * Open Code Review V4 — Python Extractor
+ *
+ * Extracts CodeUnits from Python tree-sitter CSTs.
+ * Handles: imports, functions (def/async def), classes, methods, calls, complexity, symbols.
+ *
+ * @since 0.4.0
+ */
+
+// ─── Tree-sitter node type constants ───────────────────────────────
+/** Node types that represent branching (for cyclomatic complexity) */
+const python_BRANCHING_NODES = new Set([
+    'if_statement',
+    'elif_clause',
+    'for_statement',
+    'while_statement',
+    'except_clause',
+    'with_statement',
+    'conditional_expression', // ternary: x if cond else y
+    'boolean_operator', // and / or
+]);
+/** Node types that increase nesting depth */
+const python_NESTING_NODES = new Set([
+    'if_statement',
+    'for_statement',
+    'while_statement',
+    'try_statement',
+    'with_statement',
+    'except_clause',
+]);
+/** Node types for cognitive complexity */
+const python_COGNITIVE_NODES = new Set([
+    'if_statement',
+    'elif_clause',
+    'else_clause',
+    'for_statement',
+    'while_statement',
+    'except_clause',
+    'with_statement',
+    'conditional_expression',
+]);
+// ─── Helper: Get node location ─────────────────────────────────────
+function python_getLocation(node) {
+    return {
+        startLine: node.startPosition.row,
+        startColumn: node.startPosition.column,
+        endLine: node.endPosition.row,
+        endColumn: node.endPosition.column,
+    };
+}
+// ─── Helper: Count lines of code ───────────────────────────────────
+function python_countLinesOfCode(source) {
+    const lines = source.split('\n');
+    let count = 0;
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.length > 0 && !trimmed.startsWith('#')) {
+            count++;
+        }
+    }
+    return count;
+}
+// ─── Helper: Extract imports ───────────────────────────────────────
+function extractImportStatement(node) {
+    const imports = [];
+    if (node.type === 'import_statement') {
+        // import os / import sys as system
+        for (const child of node.children) {
+            if (child.type === 'dotted_name') {
+                imports.push({
+                    module: child.text,
+                    symbols: [],
+                    line: node.startPosition.row,
+                    isRelative: false,
+                    raw: node.text,
+                });
+            }
+            else if (child.type === 'aliased_import') {
+                const dottedName = child.children.find(c => c.type === 'dotted_name');
+                if (dottedName) {
+                    imports.push({
+                        module: dottedName.text,
+                        symbols: [],
+                        line: node.startPosition.row,
+                        isRelative: false,
+                        raw: node.text,
+                    });
+                }
+            }
+        }
+    }
+    else if (node.type === 'import_from_statement') {
+        // from pathlib import Path, PurePath / from . import utils
+        let moduleName = '';
+        let isRelative = false;
+        const symbols = [];
+        for (const child of node.children) {
+            if (child.type === 'dotted_name' && moduleName === '') {
+                moduleName = child.text;
+            }
+            else if (child.type === 'relative_import') {
+                isRelative = true;
+                const prefix = child.children.find(c => c.type === 'import_prefix');
+                const dotted = child.children.find(c => c.type === 'dotted_name');
+                moduleName = (prefix?.text ?? '') + (dotted?.text ?? '');
+            }
+            else if (child.type === 'dotted_name' && moduleName !== '') {
+                // These are the imported symbols
+                symbols.push(child.text);
+            }
+            else if (child.type === 'aliased_import') {
+                const nameNode = child.children.find(c => c.type === 'dotted_name');
+                if (nameNode)
+                    symbols.push(nameNode.text);
+            }
+            else if (child.type === 'wildcard_import') {
+                symbols.push('*');
+            }
+        }
+        imports.push({
+            module: moduleName,
+            symbols,
+            line: node.startPosition.row,
+            isRelative,
+            raw: node.text,
+        });
+    }
+    return imports;
+}
+// ─── Helper: Extract calls from a subtree ──────────────────────────
+function python_extractCalls(node) {
+    const calls = [];
+    function walk(n) {
+        if (n.type === 'call') {
+            const funcNode = n.childForFieldName('function') ?? n.children[0];
+            const argsNode = n.childForFieldName('arguments') ?? n.children.find(c => c.type === 'argument_list');
+            if (funcNode) {
+                const callee = funcNode.text;
+                let object;
+                let method;
+                if (funcNode.type === 'attribute') {
+                    const objectNode = funcNode.childForFieldName('object') ?? funcNode.children[0];
+                    const attrNode = funcNode.childForFieldName('attribute') ?? funcNode.children[funcNode.childCount - 1];
+                    object = objectNode?.text;
+                    method = attrNode?.text ?? callee;
+                }
+                else {
+                    method = callee;
+                }
+                // Count arguments
+                let argCount = 0;
+                if (argsNode) {
+                    for (const arg of argsNode.children) {
+                        if (arg.type !== ',' && arg.type !== '(' && arg.type !== ')') {
+                            argCount++;
+                        }
+                    }
+                }
+                calls.push({
+                    callee,
+                    object,
+                    method,
+                    line: n.startPosition.row,
+                    argCount,
+                });
+            }
+        }
+        for (let i = 0; i < n.childCount; i++) {
+            walk(n.child(i));
+        }
+    }
+    walk(node);
+    return calls;
+}
+// ─── Helper: Compute complexity ────────────────────────────────────
+function python_computeComplexity(node, source) {
+    let cyclomatic = 1; // base
+    let cognitive = 0;
+    let maxDepth = 0;
+    function walk(n, nestingDepth) {
+        // Cyclomatic complexity
+        if (python_BRANCHING_NODES.has(n.type)) {
+            if (n.type === 'boolean_operator') {
+                cyclomatic++;
+            }
+            else {
+                cyclomatic++;
+            }
+        }
+        // Cognitive complexity
+        if (python_COGNITIVE_NODES.has(n.type)) {
+            if (n.type === 'else_clause' || n.type === 'elif_clause') {
+                cognitive += 1; // no nesting increment for else/elif
+            }
+            else {
+                cognitive += 1 + nestingDepth;
+            }
+        }
+        if (n.type === 'boolean_operator') {
+            cognitive += 1;
+        }
+        // Nesting
+        let newDepth = nestingDepth;
+        if (python_NESTING_NODES.has(n.type)) {
+            newDepth = nestingDepth + 1;
+            if (newDepth > maxDepth)
+                maxDepth = newDepth;
+        }
+        for (let i = 0; i < n.childCount; i++) {
+            walk(n.child(i), newDepth);
+        }
+    }
+    walk(node, 0);
+    return {
+        cyclomaticComplexity: cyclomatic,
+        cognitiveComplexity: cognitive,
+        maxNestingDepth: maxDepth,
+        linesOfCode: python_countLinesOfCode(source),
+    };
+}
+// ─── Helper: Count parameters (excluding 'self' and 'cls') ────────
+function python_countParameters(paramsNode) {
+    let count = 0;
+    for (const child of paramsNode.children) {
+        if (child.type === 'identifier' ||
+            child.type === 'typed_parameter' ||
+            child.type === 'default_parameter' ||
+            child.type === 'typed_default_parameter' ||
+            child.type === 'list_splat_pattern' ||
+            child.type === 'dictionary_splat_pattern') {
+            // Skip 'self' and 'cls'
+            const name = child.type === 'identifier' ? child.text :
+                (child.children.find(c => c.type === 'identifier')?.text ?? '');
+            if (name !== 'self' && name !== 'cls') {
+                count++;
+            }
+        }
+    }
+    return count;
+}
+// ─── Helper: Check if a function has decorators ────────────────────
+function getDecorators(node) {
+    // If parent is decorated_definition, extract decorators
+    const decorators = [];
+    if (node.parent?.type === 'decorated_definition') {
+        for (const child of node.parent.children) {
+            if (child.type === 'decorator') {
+                const nameNode = child.children.find(c => c.type === 'identifier' || c.type === 'attribute' || c.type === 'call');
+                if (nameNode)
+                    decorators.push(nameNode.text);
+            }
+        }
+    }
+    return decorators;
+}
+// ─── PythonExtractor ───────────────────────────────────────────────
+class python_PythonExtractor {
+    language = 'python';
+    extract(tree, filePath, source) {
+        const units = [];
+        const root = tree.rootNode;
+        // 1. File-level CodeUnit
+        const fileImports = this.extractFileImports(root);
+        const fileCalls = python_extractCalls(root);
+        const fileDefs = this.extractFileDefinitions(root);
+        const fileComplexity = python_computeComplexity(root, source);
+        const fileUnit = createCodeUnit({
+            id: `file:${filePath}`,
+            file: filePath,
+            language: 'python',
+            kind: 'file',
+            location: python_getLocation(root),
+            source,
+            imports: fileImports,
+            calls: fileCalls,
+            complexity: fileComplexity,
+            definitions: fileDefs,
+            references: [],
+            childIds: [],
+        });
+        units.push(fileUnit);
+        // 2. Extract top-level functions
+        this.extractFunctions(root, filePath, fileUnit, units);
+        // 3. Extract classes
+        this.extractClasses(root, filePath, fileUnit, units);
+        return units;
+    }
+    // ─── File-level imports ──────────────────────────────────────────
+    extractFileImports(root) {
+        const imports = [];
+        for (let i = 0; i < root.childCount; i++) {
+            const child = root.child(i);
+            if (child.type === 'import_statement' || child.type === 'import_from_statement') {
+                imports.push(...extractImportStatement(child));
+            }
+        }
+        return imports;
+    }
+    // ─── File-level definitions ──────────────────────────────────────
+    extractFileDefinitions(root) {
+        const defs = [];
+        for (let i = 0; i < root.childCount; i++) {
+            const child = root.child(i);
+            if (child.type === 'function_definition' || (child.type === 'decorated_definition' && child.children.some(c => c.type === 'function_definition'))) {
+                const funcNode = child.type === 'function_definition' ? child :
+                    child.children.find(c => c.type === 'function_definition');
+                const nameNode = funcNode.childForFieldName('name') ?? funcNode.children.find(c => c.type === 'identifier');
+                if (nameNode) {
+                    defs.push({
+                        name: nameNode.text,
+                        kind: 'function',
+                        line: funcNode.startPosition.row,
+                        exported: !nameNode.text.startsWith('_'),
+                    });
+                }
+            }
+            else if (child.type === 'class_definition' || (child.type === 'decorated_definition' && child.children.some(c => c.type === 'class_definition'))) {
+                const classNode = child.type === 'class_definition' ? child :
+                    child.children.find(c => c.type === 'class_definition');
+                const nameNode = classNode.childForFieldName('name') ?? classNode.children.find(c => c.type === 'identifier');
+                if (nameNode) {
+                    defs.push({
+                        name: nameNode.text,
+                        kind: 'class',
+                        line: classNode.startPosition.row,
+                        exported: !nameNode.text.startsWith('_'),
+                    });
+                }
+            }
+            else if (child.type === 'expression_statement') {
+                // Variable assignments at module level: x = 1
+                const assignNode = child.children.find(c => c.type === 'assignment');
+                if (assignNode) {
+                    const left = assignNode.childForFieldName('left') ?? assignNode.children[0];
+                    if (left && left.type === 'identifier') {
+                        defs.push({
+                            name: left.text,
+                            kind: 'variable',
+                            line: child.startPosition.row,
+                            exported: !left.text.startsWith('_'),
+                        });
+                    }
+                }
+            }
+        }
+        return defs;
+    }
+    // ─── Extract functions ───────────────────────────────────────────
+    extractFunctions(parent, filePath, parentUnit, units) {
+        for (let i = 0; i < parent.childCount; i++) {
+            const child = parent.child(i);
+            let funcNode = null;
+            if (child.type === 'function_definition') {
+                funcNode = child;
+            }
+            else if (child.type === 'decorated_definition') {
+                funcNode = child.children.find(c => c.type === 'function_definition') ?? null;
+            }
+            if (!funcNode)
+                continue;
+            const nameNode = funcNode.childForFieldName('name') ?? funcNode.children.find(c => c.type === 'identifier');
+            if (!nameNode)
+                continue;
+            const funcName = nameNode.text;
+            const funcId = `func:${filePath}:${funcName}`;
+            const funcSource = (child.type === 'decorated_definition' ? child : funcNode).text;
+            const isAsync = funcNode.children.some(c => c.type === 'async');
+            const decorators = getDecorators(funcNode);
+            const paramsNode = funcNode.childForFieldName('parameters') ?? funcNode.children.find(c => c.type === 'parameters');
+            const paramCount = paramsNode ? python_countParameters(paramsNode) : 0;
+            const complexity = python_computeComplexity(funcNode, funcSource);
+            complexity.parameterCount = paramCount;
+            const calls = python_extractCalls(funcNode);
+            const funcDefs = [{
+                    name: funcName,
+                    kind: 'function',
+                    line: funcNode.startPosition.row,
+                    exported: !funcName.startsWith('_'),
+                }];
+            // Extract parameter definitions
+            if (paramsNode) {
+                for (const param of paramsNode.children) {
+                    let paramName;
+                    if (param.type === 'identifier') {
+                        paramName = param.text;
+                    }
+                    else if (param.type === 'typed_parameter' || param.type === 'default_parameter' || param.type === 'typed_default_parameter') {
+                        paramName = param.children.find(c => c.type === 'identifier')?.text;
+                    }
+                    if (paramName && paramName !== 'self' && paramName !== 'cls') {
+                        funcDefs.push({
+                            name: paramName,
+                            kind: 'parameter',
+                            line: param.startPosition.row,
+                            exported: false,
+                        });
+                    }
+                }
+            }
+            const funcUnit = createCodeUnit({
+                id: funcId,
+                file: filePath,
+                language: 'python',
+                kind: 'function',
+                location: python_getLocation(child.type === 'decorated_definition' ? child : funcNode),
+                source: funcSource,
+                calls,
+                complexity,
+                definitions: funcDefs,
+                parentId: parentUnit.id,
+            });
+            units.push(funcUnit);
+            parentUnit.childIds.push(funcId);
+        }
+    }
+    // ─── Extract classes ─────────────────────────────────────────────
+    extractClasses(root, filePath, fileUnit, units) {
+        for (let i = 0; i < root.childCount; i++) {
+            const child = root.child(i);
+            let classNode = null;
+            if (child.type === 'class_definition') {
+                classNode = child;
+            }
+            else if (child.type === 'decorated_definition') {
+                classNode = child.children.find(c => c.type === 'class_definition') ?? null;
+            }
+            if (!classNode)
+                continue;
+            const nameNode = classNode.childForFieldName('name') ?? classNode.children.find(c => c.type === 'identifier');
+            if (!nameNode)
+                continue;
+            const className = nameNode.text;
+            const classId = `class:${filePath}:${className}`;
+            const classSource = (child.type === 'decorated_definition' ? child : classNode).text;
+            const classCalls = python_extractCalls(classNode);
+            const classComplexity = python_computeComplexity(classNode, classSource);
+            const classDefs = [{
+                    name: className,
+                    kind: 'class',
+                    line: classNode.startPosition.row,
+                    exported: !className.startsWith('_'),
+                }];
+            const classUnit = createCodeUnit({
+                id: classId,
+                file: filePath,
+                language: 'python',
+                kind: 'class',
+                location: python_getLocation(child.type === 'decorated_definition' ? child : classNode),
+                source: classSource,
+                calls: classCalls,
+                complexity: classComplexity,
+                definitions: classDefs,
+                parentId: fileUnit.id,
+            });
+            units.push(classUnit);
+            fileUnit.childIds.push(classId);
+            // Extract methods from class body
+            const classBody = classNode.childForFieldName('body') ?? classNode.children.find(c => c.type === 'block');
+            if (classBody) {
+                this.extractMethods(classBody, className, filePath, classUnit, units);
+            }
+        }
+    }
+    // ─── Extract methods from a class body ───────────────────────────
+    extractMethods(classBody, className, filePath, classUnit, units) {
+        for (let i = 0; i < classBody.childCount; i++) {
+            const member = classBody.child(i);
+            let funcNode = null;
+            let decoratedNode = null;
+            if (member.type === 'function_definition') {
+                funcNode = member;
+            }
+            else if (member.type === 'decorated_definition') {
+                funcNode = member.children.find(c => c.type === 'function_definition') ?? null;
+                decoratedNode = member;
+            }
+            if (!funcNode)
+                continue;
+            const nameNode = funcNode.childForFieldName('name') ?? funcNode.children.find(c => c.type === 'identifier');
+            if (!nameNode)
+                continue;
+            const methodName = nameNode.text;
+            const methodId = `method:${filePath}:${className}.${methodName}`;
+            const methodSource = (decoratedNode ?? funcNode).text;
+            const paramsNode = funcNode.childForFieldName('parameters') ?? funcNode.children.find(c => c.type === 'parameters');
+            const paramCount = paramsNode ? python_countParameters(paramsNode) : 0;
+            const complexity = python_computeComplexity(funcNode, methodSource);
+            complexity.parameterCount = paramCount;
+            const calls = python_extractCalls(funcNode);
+            const isPublic = !methodName.startsWith('_') || methodName === '__init__';
+            const methodDefs = [{
+                    name: methodName,
+                    kind: 'method',
+                    line: funcNode.startPosition.row,
+                    exported: isPublic,
+                }];
+            const methodUnit = createCodeUnit({
+                id: methodId,
+                file: filePath,
+                language: 'python',
+                kind: 'method',
+                location: python_getLocation(decoratedNode ?? funcNode),
+                source: methodSource,
+                calls,
+                complexity,
+                definitions: methodDefs,
+                parentId: classUnit.id,
+            });
+            units.push(methodUnit);
+            classUnit.childIds.push(methodId);
+        }
+    }
+}
+//# sourceMappingURL=python.js.map
+;// CONCATENATED MODULE: ../core/dist/parser/extractors/java.js
+/**
+ * Open Code Review V4 — Java Extractor
+ *
+ * Extracts CodeUnits from Java tree-sitter CSTs.
+ * Handles: imports, classes, interfaces, enums, methods, constructors,
+ * calls (method invocation, object creation), complexity, symbols.
+ *
+ * @since 0.4.0
+ */
+
+// ─── Tree-sitter node type constants ───────────────────────────────
+/** Node types that represent branching (for cyclomatic complexity) */
+const java_BRANCHING_NODES = new Set([
+    'if_statement',
+    'for_statement',
+    'enhanced_for_statement',
+    'while_statement',
+    'do_statement',
+    'switch_expression',
+    'catch_clause',
+    'ternary_expression',
+    'binary_expression', // for && and ||
+]);
+/** Node types that increase nesting depth */
+const java_NESTING_NODES = new Set([
+    'if_statement',
+    'for_statement',
+    'enhanced_for_statement',
+    'while_statement',
+    'do_statement',
+    'switch_expression',
+    'try_statement',
+    'catch_clause',
+]);
+/** Node types for cognitive complexity */
+const java_COGNITIVE_NODES = new Set([
+    'if_statement',
+    'for_statement',
+    'enhanced_for_statement',
+    'while_statement',
+    'do_statement',
+    'switch_expression',
+    'catch_clause',
+    'ternary_expression',
+]);
+// ─── Helper: Get node location ─────────────────────────────────────
+function java_getLocation(node) {
+    return {
+        startLine: node.startPosition.row,
+        startColumn: node.startPosition.column,
+        endLine: node.endPosition.row,
+        endColumn: node.endPosition.column,
+    };
+}
+// ─── Helper: Count lines of code ───────────────────────────────────
+function java_countLinesOfCode(source) {
+    const lines = source.split('\n');
+    let count = 0;
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.length > 0 &&
+            !trimmed.startsWith('//') &&
+            !trimmed.startsWith('/*') &&
+            !trimmed.startsWith('*')) {
+            count++;
+        }
+    }
+    return count;
+}
+// ─── Helper: Check if node has a modifier ──────────────────────────
+function hasModifier(node, modifier) {
+    const modifiers = node.children.find(c => c.type === 'modifiers');
+    if (!modifiers)
+        return false;
+    return modifiers.children.some(c => c.text === modifier);
+}
+// ─── Helper: Check if public (exported equivalent) ─────────────────
+function isPublic(node) {
+    return hasModifier(node, 'public');
+}
+// ─── Helper: Extract import from an import_declaration node ────────
+function java_extractImport(node) {
+    if (node.type !== 'import_declaration')
+        return null;
+    const isStatic = node.children.some(c => c.type === 'static');
+    const hasWildcard = node.children.some(c => c.type === 'asterisk');
+    // Collect all scoped_identifier parts to reconstruct the full path
+    const scopedIdNode = node.children.find(c => c.type === 'scoped_identifier') ??
+        node.children.find(c => c.type === 'identifier');
+    if (!scopedIdNode)
+        return null;
+    const fullPath = scopedIdNode.text;
+    let moduleName;
+    let symbols;
+    if (hasWildcard) {
+        // import java.util.* → module = "java.util", symbols = ["*"]
+        moduleName = fullPath;
+        symbols = ['*'];
+    }
+    else {
+        // import java.util.List → module = "java.util", symbol = "List"
+        const lastDot = fullPath.lastIndexOf('.');
+        if (lastDot >= 0) {
+            moduleName = fullPath.substring(0, lastDot);
+            symbols = [fullPath.substring(lastDot + 1)];
+        }
+        else {
+            moduleName = fullPath;
+            symbols = [];
+        }
+    }
+    return {
+        module: moduleName,
+        symbols,
+        line: node.startPosition.row,
+        isRelative: false,
+        raw: node.text,
+    };
+}
+// ─── Helper: Extract calls from a subtree ──────────────────────────
+function java_extractCalls(node) {
+    const calls = [];
+    function walk(n) {
+        if (n.type === 'method_invocation') {
+            // method_invocation children: [object, ".", name, argument_list]
+            // or [name, argument_list] for unqualified calls
+            const children = n.children.filter(c => c.type !== '.' && c.type !== '(' && c.type !== ')' && c.type !== ',');
+            const argListNode = n.children.find(c => c.type === 'argument_list');
+            let argCount = 0;
+            if (argListNode) {
+                for (const arg of argListNode.children) {
+                    if (arg.type !== ',' && arg.type !== '(' && arg.type !== ')') {
+                        argCount++;
+                    }
+                }
+            }
+            // The last identifier before argument_list is the method name
+            // Everything before that (if any) is the object/receiver
+            const identifiers = children.filter(c => c.type === 'identifier' || c.type === 'field_access' || c.type === 'this' || c.type === 'super');
+            let object;
+            let method;
+            let callee;
+            if (identifiers.length >= 2) {
+                // object.method(args)
+                object = identifiers.slice(0, -1).map(i => i.text).join('.');
+                method = identifiers[identifiers.length - 1].text;
+                callee = `${object}.${method}`;
+            }
+            else if (identifiers.length === 1) {
+                method = identifiers[0].text;
+                callee = method;
+            }
+            else {
+                return; // Cannot parse
+            }
+            calls.push({
+                callee,
+                object,
+                method,
+                line: n.startPosition.row,
+                argCount,
+            });
+        }
+        else if (n.type === 'object_creation_expression') {
+            // new ClassName(args) → callee = "ClassName", method = "ClassName"
+            const typeNode = n.children.find(c => c.type === 'type_identifier') ??
+                n.children.find(c => c.type === 'generic_type') ??
+                n.children.find(c => c.type === 'scoped_type_identifier');
+            if (typeNode) {
+                let typeName;
+                if (typeNode.type === 'generic_type') {
+                    // e.g., ArrayList<String> → extract ArrayList
+                    const baseType = typeNode.children.find(c => c.type === 'type_identifier');
+                    typeName = baseType?.text ?? typeNode.text;
+                }
+                else {
+                    typeName = typeNode.text;
+                }
+                const argListNode = n.children.find(c => c.type === 'argument_list');
+                let argCount = 0;
+                if (argListNode) {
+                    for (const arg of argListNode.children) {
+                        if (arg.type !== ',' && arg.type !== '(' && arg.type !== ')') {
+                            argCount++;
+                        }
+                    }
+                }
+                calls.push({
+                    callee: `new ${typeName}`,
+                    method: typeName,
+                    line: n.startPosition.row,
+                    argCount,
+                });
+            }
+        }
+        for (let i = 0; i < n.childCount; i++) {
+            walk(n.child(i));
+        }
+    }
+    walk(node);
+    return calls;
+}
+// ─── Helper: Compute complexity ────────────────────────────────────
+function java_computeComplexity(node, source) {
+    let cyclomatic = 1; // base complexity
+    let cognitive = 0;
+    let maxDepth = 0;
+    function walk(n, nestingDepth) {
+        // Cyclomatic complexity
+        if (java_BRANCHING_NODES.has(n.type)) {
+            if (n.type === 'binary_expression') {
+                // Only count && and ||
+                const op = n.children.find(c => c.text === '&&' || c.text === '||');
+                if (op) {
+                    cyclomatic++;
+                }
+            }
+            else {
+                cyclomatic++;
+            }
+        }
+        // Cognitive complexity
+        if (java_COGNITIVE_NODES.has(n.type)) {
+            cognitive += 1 + nestingDepth;
+        }
+        // Also count && / || for cognitive complexity
+        if (n.type === 'binary_expression') {
+            const op = n.children.find(c => c.text === '&&' || c.text === '||');
+            if (op) {
+                cognitive += 1;
+            }
+        }
+        // Nesting
+        let newDepth = nestingDepth;
+        if (java_NESTING_NODES.has(n.type)) {
+            newDepth = nestingDepth + 1;
+            if (newDepth > maxDepth)
+                maxDepth = newDepth;
+        }
+        for (let i = 0; i < n.childCount; i++) {
+            walk(n.child(i), newDepth);
+        }
+    }
+    walk(node, 0);
+    return {
+        cyclomaticComplexity: cyclomatic,
+        cognitiveComplexity: cognitive,
+        maxNestingDepth: maxDepth,
+        linesOfCode: java_countLinesOfCode(source),
+    };
+}
+// ─── Helper: Count parameters ──────────────────────────────────────
+function java_countParameters(paramsNode) {
+    let count = 0;
+    for (const child of paramsNode.children) {
+        if (child.type === 'formal_parameter' || child.type === 'spread_parameter') {
+            count++;
+        }
+    }
+    return count;
+}
+// ─── JavaExtractor ─────────────────────────────────────────────────
+class java_JavaExtractor {
+    language = 'java';
+    extract(tree, filePath, source) {
+        const units = [];
+        const root = tree.rootNode;
+        // 1. File-level CodeUnit
+        const fileImports = this.extractFileImports(root);
+        const fileCalls = java_extractCalls(root);
+        const fileDefs = this.extractFileDefinitions(root);
+        const fileComplexity = java_computeComplexity(root, source);
+        const fileUnit = createCodeUnit({
+            id: `file:${filePath}`,
+            file: filePath,
+            language: 'java',
+            kind: 'file',
+            location: java_getLocation(root),
+            source,
+            imports: fileImports,
+            calls: fileCalls,
+            complexity: fileComplexity,
+            definitions: fileDefs,
+            references: [],
+            childIds: [],
+        });
+        units.push(fileUnit);
+        // 2. Extract classes, interfaces, enums (top-level)
+        this.extractClassLikeDeclarations(root, filePath, fileUnit, units);
+        return units;
+    }
+    // ─── File-level imports ──────────────────────────────────────────
+    extractFileImports(root) {
+        const imports = [];
+        for (let i = 0; i < root.childCount; i++) {
+            const child = root.child(i);
+            if (child.type === 'import_declaration') {
+                const info = java_extractImport(child);
+                if (info)
+                    imports.push(info);
+            }
+        }
+        return imports;
+    }
+    // ─── File-level definitions ──────────────────────────────────────
+    extractFileDefinitions(root) {
+        const defs = [];
+        for (let i = 0; i < root.childCount; i++) {
+            const child = root.child(i);
+            if (child.type === 'class_declaration') {
+                const nameNode = child.children.find(c => c.type === 'identifier');
+                if (nameNode) {
+                    defs.push({
+                        name: nameNode.text,
+                        kind: 'class',
+                        line: child.startPosition.row,
+                        exported: isPublic(child),
+                    });
+                }
+            }
+            else if (child.type === 'interface_declaration') {
+                const nameNode = child.children.find(c => c.type === 'identifier');
+                if (nameNode) {
+                    defs.push({
+                        name: nameNode.text,
+                        kind: 'interface',
+                        line: child.startPosition.row,
+                        exported: isPublic(child),
+                    });
+                }
+            }
+            else if (child.type === 'enum_declaration') {
+                const nameNode = child.children.find(c => c.type === 'identifier');
+                if (nameNode) {
+                    defs.push({
+                        name: nameNode.text,
+                        kind: 'enum',
+                        line: child.startPosition.row,
+                        exported: isPublic(child),
+                    });
+                }
+            }
+        }
+        return defs;
+    }
+    // ─── Extract classes, interfaces, enums ──────────────────────────
+    extractClassLikeDeclarations(parent, filePath, parentUnit, units) {
+        for (let i = 0; i < parent.childCount; i++) {
+            const child = parent.child(i);
+            if (child.type === 'class_declaration') {
+                this.extractClass(child, filePath, parentUnit, units);
+            }
+            else if (child.type === 'interface_declaration') {
+                this.extractInterface(child, filePath, parentUnit, units);
+            }
+            else if (child.type === 'enum_declaration') {
+                this.extractEnum(child, filePath, parentUnit, units);
+            }
+        }
+    }
+    // ─── Extract a single class ──────────────────────────────────────
+    extractClass(classNode, filePath, parentUnit, units) {
+        const nameNode = classNode.children.find(c => c.type === 'identifier');
+        if (!nameNode)
+            return;
+        const className = nameNode.text;
+        const classId = `class:${filePath}:${className}`;
+        const classSource = classNode.text;
+        const classCalls = java_extractCalls(classNode);
+        const classComplexity = java_computeComplexity(classNode, classSource);
+        const exported = isPublic(classNode);
+        const classDefs = [
+            {
+                name: className,
+                kind: 'class',
+                line: classNode.startPosition.row,
+                exported,
+            },
+        ];
+        // Extract field definitions from class body
+        const classBody = classNode.children.find(c => c.type === 'class_body');
+        if (classBody) {
+            for (const member of classBody.children) {
+                if (member.type === 'field_declaration') {
+                    for (const child of member.children) {
+                        if (child.type === 'variable_declarator') {
+                            const varName = child.children.find(c => c.type === 'identifier');
+                            if (varName) {
+                                classDefs.push({
+                                    name: varName.text,
+                                    kind: 'variable',
+                                    line: member.startPosition.row,
+                                    exported: isPublic(member),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        const classUnit = createCodeUnit({
+            id: classId,
+            file: filePath,
+            language: 'java',
+            kind: 'class',
+            location: java_getLocation(classNode),
+            source: classSource,
+            calls: classCalls,
+            complexity: classComplexity,
+            definitions: classDefs,
+            parentId: parentUnit.id,
+        });
+        units.push(classUnit);
+        parentUnit.childIds.push(classId);
+        // Extract methods and constructors from class body
+        if (classBody) {
+            this.extractMethods(classBody, className, filePath, classUnit, units);
+            // Extract nested classes/interfaces/enums
+            this.extractClassLikeDeclarations(classBody, filePath, classUnit, units);
+        }
+    }
+    // ─── Extract an interface ────────────────────────────────────────
+    extractInterface(ifaceNode, filePath, parentUnit, units) {
+        const nameNode = ifaceNode.children.find(c => c.type === 'identifier');
+        if (!nameNode)
+            return;
+        const ifaceName = nameNode.text;
+        const ifaceId = `class:${filePath}:${ifaceName}`;
+        const ifaceSource = ifaceNode.text;
+        const ifaceCalls = java_extractCalls(ifaceNode);
+        const ifaceComplexity = java_computeComplexity(ifaceNode, ifaceSource);
+        const exported = isPublic(ifaceNode);
+        const ifaceDefs = [
+            {
+                name: ifaceName,
+                kind: 'interface',
+                line: ifaceNode.startPosition.row,
+                exported,
+            },
+        ];
+        const ifaceUnit = createCodeUnit({
+            id: ifaceId,
+            file: filePath,
+            language: 'java',
+            kind: 'class',
+            location: java_getLocation(ifaceNode),
+            source: ifaceSource,
+            calls: ifaceCalls,
+            complexity: ifaceComplexity,
+            definitions: ifaceDefs,
+            parentId: parentUnit.id,
+        });
+        units.push(ifaceUnit);
+        parentUnit.childIds.push(ifaceId);
+        // Extract methods from interface body
+        const ifaceBody = ifaceNode.children.find(c => c.type === 'interface_body');
+        if (ifaceBody) {
+            this.extractMethods(ifaceBody, ifaceName, filePath, ifaceUnit, units);
+        }
+    }
+    // ─── Extract an enum ─────────────────────────────────────────────
+    extractEnum(enumNode, filePath, parentUnit, units) {
+        const nameNode = enumNode.children.find(c => c.type === 'identifier');
+        if (!nameNode)
+            return;
+        const enumName = nameNode.text;
+        const enumId = `class:${filePath}:${enumName}`;
+        const enumSource = enumNode.text;
+        const enumCalls = java_extractCalls(enumNode);
+        const enumComplexity = java_computeComplexity(enumNode, enumSource);
+        const exported = isPublic(enumNode);
+        const enumDefs = [
+            {
+                name: enumName,
+                kind: 'enum',
+                line: enumNode.startPosition.row,
+                exported,
+            },
+        ];
+        // Extract enum constants as definitions
+        const enumBody = enumNode.children.find(c => c.type === 'enum_body');
+        if (enumBody) {
+            for (const child of enumBody.children) {
+                if (child.type === 'enum_constant') {
+                    const constName = child.children.find(c => c.type === 'identifier');
+                    if (constName) {
+                        enumDefs.push({
+                            name: constName.text,
+                            kind: 'variable',
+                            line: child.startPosition.row,
+                            exported: true, // enum constants are always public
+                        });
+                    }
+                }
+            }
+        }
+        const enumUnit = createCodeUnit({
+            id: enumId,
+            file: filePath,
+            language: 'java',
+            kind: 'class',
+            location: java_getLocation(enumNode),
+            source: enumSource,
+            calls: enumCalls,
+            complexity: enumComplexity,
+            definitions: enumDefs,
+            parentId: parentUnit.id,
+        });
+        units.push(enumUnit);
+        parentUnit.childIds.push(enumId);
+        // Extract methods from enum body (enums can have methods)
+        if (enumBody) {
+            this.extractMethods(enumBody, enumName, filePath, enumUnit, units);
+        }
+    }
+    // ─── Extract methods and constructors from a class/interface body ─
+    extractMethods(body, className, filePath, classUnit, units) {
+        for (let i = 0; i < body.childCount; i++) {
+            const member = body.child(i);
+            if (member.type === 'method_declaration') {
+                const nameNode = member.children.find(c => c.type === 'identifier');
+                if (!nameNode)
+                    continue;
+                const methodName = nameNode.text;
+                const methodId = `method:${filePath}:${className}.${methodName}`;
+                const methodSource = member.text;
+                const paramsNode = member.children.find(c => c.type === 'formal_parameters');
+                const paramCount = paramsNode ? java_countParameters(paramsNode) : 0;
+                const complexity = java_computeComplexity(member, methodSource);
+                complexity.parameterCount = paramCount;
+                const calls = java_extractCalls(member);
+                const exported = isPublic(member);
+                const methodDefs = [
+                    {
+                        name: methodName,
+                        kind: 'method',
+                        line: member.startPosition.row,
+                        exported,
+                    },
+                ];
+                // Extract parameter definitions
+                if (paramsNode) {
+                    for (const param of paramsNode.children) {
+                        if (param.type === 'formal_parameter' || param.type === 'spread_parameter') {
+                            const paramNameNode = param.children.find(c => c.type === 'identifier');
+                            if (paramNameNode) {
+                                methodDefs.push({
+                                    name: paramNameNode.text,
+                                    kind: 'parameter',
+                                    line: param.startPosition.row,
+                                    exported: false,
+                                });
+                            }
+                        }
+                    }
+                }
+                const methodUnit = createCodeUnit({
+                    id: methodId,
+                    file: filePath,
+                    language: 'java',
+                    kind: 'method',
+                    location: java_getLocation(member),
+                    source: methodSource,
+                    calls,
+                    complexity,
+                    definitions: methodDefs,
+                    parentId: classUnit.id,
+                });
+                units.push(methodUnit);
+                classUnit.childIds.push(methodId);
+            }
+            else if (member.type === 'constructor_declaration') {
+                const nameNode = member.children.find(c => c.type === 'identifier');
+                if (!nameNode)
+                    continue;
+                const ctorName = nameNode.text;
+                const ctorId = `method:${filePath}:${className}.${ctorName}`;
+                const ctorSource = member.text;
+                const paramsNode = member.children.find(c => c.type === 'formal_parameters');
+                const paramCount = paramsNode ? java_countParameters(paramsNode) : 0;
+                const complexity = java_computeComplexity(member, ctorSource);
+                complexity.parameterCount = paramCount;
+                const calls = java_extractCalls(member);
+                const exported = isPublic(member);
+                const ctorDefs = [
+                    {
+                        name: ctorName,
+                        kind: 'method',
+                        line: member.startPosition.row,
+                        exported,
+                    },
+                ];
+                const ctorUnit = createCodeUnit({
+                    id: ctorId,
+                    file: filePath,
+                    language: 'java',
+                    kind: 'method',
+                    location: java_getLocation(member),
+                    source: ctorSource,
+                    calls,
+                    complexity,
+                    definitions: ctorDefs,
+                    parentId: classUnit.id,
+                });
+                units.push(ctorUnit);
+                classUnit.childIds.push(ctorId);
+            }
+        }
+    }
+}
+//# sourceMappingURL=java.js.map
+;// CONCATENATED MODULE: ../core/dist/parser/extractors/go.js
+/**
+ * Open Code Review V4 — Go Extractor
+ *
+ * Extracts CodeUnits from Go tree-sitter CSTs.
+ * Handles: imports (single, grouped, aliased, dot, blank), functions, methods (with receiver),
+ * calls, structs, type declarations, complexity, symbols.
+ *
+ * @since 0.4.0
+ */
+
+// ─── Tree-sitter node type constants ───────────────────────────────
+/** Node types that represent branching (for cyclomatic complexity) */
+const go_BRANCHING_NODES = new Set([
+    'if_statement',
+    'for_statement',
+    'expression_switch_statement',
+    'type_switch_statement',
+    'expression_case',
+    'type_case',
+    'communication_case',
+    'select_statement',
+    'binary_expression', // for && and ||
+]);
+/** Node types that increase nesting depth */
+const go_NESTING_NODES = new Set([
+    'if_statement',
+    'for_statement',
+    'expression_switch_statement',
+    'type_switch_statement',
+    'select_statement',
+]);
+/** Node types for cognitive complexity */
+const go_COGNITIVE_NODES = new Set([
+    'if_statement',
+    'for_statement',
+    'expression_switch_statement',
+    'type_switch_statement',
+    'select_statement',
+    'expression_case',
+    'type_case',
+    'communication_case',
+]);
+// ─── Helper: Get node location ─────────────────────────────────────
+function go_getLocation(node) {
+    return {
+        startLine: node.startPosition.row,
+        startColumn: node.startPosition.column,
+        endLine: node.endPosition.row,
+        endColumn: node.endPosition.column,
+    };
+}
+// ─── Helper: Count lines of code ───────────────────────────────────
+function go_countLinesOfCode(source) {
+    const lines = source.split('\n');
+    let count = 0;
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.length > 0 && !trimmed.startsWith('//') && !trimmed.startsWith('/*') && !trimmed.startsWith('*')) {
+            count++;
+        }
+    }
+    return count;
+}
+// ─── Helper: Check if name is exported (capitalized) ───────────────
+function isExportedName(name) {
+    if (name.length === 0)
+        return false;
+    const first = name.charAt(0);
+    return first === first.toUpperCase() && first !== first.toLowerCase();
+}
+// ─── Helper: Extract string literal content ────────────────────────
+function extractStringContent(node) {
+    // Go string literals: "fmt" or `fmt`
+    const text = node.text;
+    if (text.startsWith('"') && text.endsWith('"')) {
+        return text.slice(1, -1);
+    }
+    if (text.startsWith('`') && text.endsWith('`')) {
+        return text.slice(1, -1);
+    }
+    return text;
+}
+// ─── Helper: Extract imports from import_declaration ───────────────
+function go_extractImports(node) {
+    const imports = [];
+    if (node.type !== 'import_declaration')
+        return imports;
+    // Can be single: import "fmt"
+    // Or grouped: import ( "fmt" ; "os" )
+    const specList = node.children.find(c => c.type === 'import_spec_list');
+    if (specList) {
+        // Grouped imports
+        for (const spec of specList.children) {
+            if (spec.type === 'import_spec') {
+                const info = extractImportSpec(spec);
+                if (info)
+                    imports.push(info);
+            }
+        }
+    }
+    else {
+        // Single import
+        const spec = node.children.find(c => c.type === 'import_spec');
+        if (spec) {
+            const info = extractImportSpec(spec);
+            if (info)
+                imports.push(info);
+        }
+        else {
+            // Fallback: look for a string literal directly
+            const strNode = node.children.find(c => c.type === 'interpreted_string_literal' || c.type === 'raw_string_literal');
+            if (strNode) {
+                const modulePath = extractStringContent(strNode);
+                imports.push({
+                    module: modulePath,
+                    symbols: [],
+                    line: node.startPosition.row,
+                    isRelative: modulePath.startsWith('.'),
+                    raw: node.text,
+                });
+            }
+        }
+    }
+    return imports;
+}
+function extractImportSpec(spec) {
+    const strNode = spec.children.find(c => c.type === 'interpreted_string_literal' || c.type === 'raw_string_literal');
+    if (!strNode)
+        return null;
+    const modulePath = extractStringContent(strNode);
+    const symbols = [];
+    // Check for alias, dot import, or blank import
+    const aliasNode = spec.children.find(c => c.type === 'package_identifier');
+    const dotNode = spec.children.find(c => c.type === 'dot');
+    const blankNode = spec.children.find(c => c.type === 'blank_identifier');
+    if (dotNode) {
+        symbols.push('.');
+    }
+    else if (blankNode) {
+        symbols.push('_');
+    }
+    else if (aliasNode) {
+        symbols.push(aliasNode.text);
+    }
+    return {
+        module: modulePath,
+        symbols,
+        line: spec.startPosition.row,
+        isRelative: modulePath.startsWith('.'),
+        raw: spec.text,
+    };
+}
+// ─── Helper: Extract calls from a subtree ──────────────────────────
+function go_extractCalls(node) {
+    const calls = [];
+    function walk(n) {
+        if (n.type === 'call_expression') {
+            const funcNode = n.children[0];
+            const argListNode = n.children.find(c => c.type === 'argument_list');
+            if (funcNode) {
+                const callee = funcNode.text;
+                let object;
+                let method;
+                if (funcNode.type === 'selector_expression') {
+                    // e.g., fmt.Println
+                    const objectNode = funcNode.children[0];
+                    const fieldNode = funcNode.children.find(c => c.type === 'field_identifier');
+                    object = objectNode?.text;
+                    method = fieldNode?.text ?? callee;
+                }
+                else if (funcNode.type === 'identifier') {
+                    method = funcNode.text;
+                }
+                else {
+                    // Could be a func literal call or other complex expression
+                    method = callee;
+                }
+                let argCount = 0;
+                if (argListNode) {
+                    for (const arg of argListNode.children) {
+                        if (arg.type !== ',' && arg.type !== '(' && arg.type !== ')') {
+                            argCount++;
+                        }
+                    }
+                }
+                calls.push({
+                    callee,
+                    object,
+                    method,
+                    line: n.startPosition.row,
+                    argCount,
+                });
+            }
+        }
+        for (let i = 0; i < n.childCount; i++) {
+            walk(n.child(i));
+        }
+    }
+    walk(node);
+    return calls;
+}
+// ─── Helper: Compute complexity ────────────────────────────────────
+function go_computeComplexity(node, source) {
+    let cyclomatic = 1; // base complexity
+    let cognitive = 0;
+    let maxDepth = 0;
+    function walk(n, nestingDepth) {
+        // Cyclomatic complexity
+        if (go_BRANCHING_NODES.has(n.type)) {
+            if (n.type === 'binary_expression') {
+                const op = n.children.find(c => c.text === '&&' || c.text === '||');
+                if (op) {
+                    cyclomatic++;
+                }
+            }
+            else {
+                cyclomatic++;
+            }
+        }
+        // Cognitive complexity
+        if (go_COGNITIVE_NODES.has(n.type)) {
+            if (n.type === 'expression_case' ||
+                n.type === 'type_case' ||
+                n.type === 'communication_case') {
+                cognitive += 1; // cases don't get nesting increment
+            }
+            else {
+                cognitive += 1 + nestingDepth;
+            }
+        }
+        if (n.type === 'binary_expression') {
+            const op = n.children.find(c => c.text === '&&' || c.text === '||');
+            if (op) {
+                cognitive += 1;
+            }
+        }
+        // Nesting
+        let newDepth = nestingDepth;
+        if (go_NESTING_NODES.has(n.type)) {
+            newDepth = nestingDepth + 1;
+            if (newDepth > maxDepth)
+                maxDepth = newDepth;
+        }
+        for (let i = 0; i < n.childCount; i++) {
+            walk(n.child(i), newDepth);
+        }
+    }
+    walk(node, 0);
+    return {
+        cyclomaticComplexity: cyclomatic,
+        cognitiveComplexity: cognitive,
+        maxNestingDepth: maxDepth,
+        linesOfCode: go_countLinesOfCode(source),
+    };
+}
+// ─── Helper: Count parameters (Go) ────────────────────────────────
+function go_countParameters(paramsNode) {
+    let count = 0;
+    for (const child of paramsNode.children) {
+        if (child.type === 'parameter_declaration') {
+            // A parameter_declaration can declare multiple params: x, y int
+            const identifiers = child.children.filter(c => c.type === 'identifier');
+            count += Math.max(identifiers.length, 1);
+        }
+        else if (child.type === 'variadic_parameter_declaration') {
+            count++;
+        }
+    }
+    return count;
+}
+// ─── GoExtractor ───────────────────────────────────────────────────
+class go_GoExtractor {
+    language = 'go';
+    extract(tree, filePath, source) {
+        const units = [];
+        const root = tree.rootNode;
+        // 1. File-level CodeUnit
+        const fileImports = this.extractFileImports(root);
+        const fileCalls = go_extractCalls(root);
+        const fileDefs = this.extractFileDefinitions(root);
+        const fileComplexity = go_computeComplexity(root, source);
+        const fileUnit = createCodeUnit({
+            id: `file:${filePath}`,
+            file: filePath,
+            language: 'go',
+            kind: 'file',
+            location: go_getLocation(root),
+            source,
+            imports: fileImports,
+            calls: fileCalls,
+            complexity: fileComplexity,
+            definitions: fileDefs,
+            references: [],
+            childIds: [],
+        });
+        units.push(fileUnit);
+        // 2. Extract functions and methods
+        this.extractFunctions(root, filePath, fileUnit, units);
+        // 3. Extract type declarations (structs, interfaces) as class-like units
+        this.extractTypeDeclarations(root, filePath, fileUnit, units);
+        return units;
+    }
+    // ─── File-level imports ──────────────────────────────────────────
+    extractFileImports(root) {
+        const imports = [];
+        for (let i = 0; i < root.childCount; i++) {
+            const child = root.child(i);
+            if (child.type === 'import_declaration') {
+                imports.push(...go_extractImports(child));
+            }
+        }
+        return imports;
+    }
+    // ─── File-level definitions ──────────────────────────────────────
+    extractFileDefinitions(root) {
+        const defs = [];
+        for (let i = 0; i < root.childCount; i++) {
+            const child = root.child(i);
+            if (child.type === 'function_declaration') {
+                const nameNode = child.children.find(c => c.type === 'identifier');
+                if (nameNode) {
+                    defs.push({
+                        name: nameNode.text,
+                        kind: 'function',
+                        line: child.startPosition.row,
+                        exported: isExportedName(nameNode.text),
+                    });
+                }
+            }
+            else if (child.type === 'method_declaration') {
+                const nameNode = child.children.find(c => c.type === 'field_identifier');
+                if (nameNode) {
+                    defs.push({
+                        name: nameNode.text,
+                        kind: 'method',
+                        line: child.startPosition.row,
+                        exported: isExportedName(nameNode.text),
+                    });
+                }
+            }
+            else if (child.type === 'type_declaration') {
+                for (const spec of child.children) {
+                    if (spec.type === 'type_spec') {
+                        const nameNode = spec.children.find(c => c.type === 'type_identifier');
+                        if (nameNode) {
+                            defs.push({
+                                name: nameNode.text,
+                                kind: 'type',
+                                line: spec.startPosition.row,
+                                exported: isExportedName(nameNode.text),
+                            });
+                        }
+                    }
+                }
+            }
+            else if (child.type === 'var_declaration') {
+                for (const spec of child.children) {
+                    if (spec.type === 'var_spec') {
+                        for (const id of spec.children) {
+                            if (id.type === 'identifier') {
+                                defs.push({
+                                    name: id.text,
+                                    kind: 'variable',
+                                    line: spec.startPosition.row,
+                                    exported: isExportedName(id.text),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            else if (child.type === 'const_declaration') {
+                for (const spec of child.children) {
+                    if (spec.type === 'const_spec') {
+                        for (const id of spec.children) {
+                            if (id.type === 'identifier') {
+                                defs.push({
+                                    name: id.text,
+                                    kind: 'variable',
+                                    line: spec.startPosition.row,
+                                    exported: isExportedName(id.text),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return defs;
+    }
+    // ─── Extract functions and methods ───────────────────────────────
+    extractFunctions(root, filePath, fileUnit, units) {
+        for (let i = 0; i < root.childCount; i++) {
+            const child = root.child(i);
+            if (child.type === 'function_declaration') {
+                const nameNode = child.children.find(c => c.type === 'identifier');
+                if (!nameNode)
+                    continue;
+                const funcName = nameNode.text;
+                const funcId = `func:${filePath}:${funcName}`;
+                const funcSource = child.text;
+                // Get parameters (first parameter_list is params, second is return types)
+                const paramLists = child.children.filter(c => c.type === 'parameter_list');
+                const paramsNode = paramLists[0];
+                const paramCount = paramsNode ? go_countParameters(paramsNode) : 0;
+                const complexity = go_computeComplexity(child, funcSource);
+                complexity.parameterCount = paramCount;
+                const calls = go_extractCalls(child);
+                const funcDefs = [
+                    {
+                        name: funcName,
+                        kind: 'function',
+                        line: child.startPosition.row,
+                        exported: isExportedName(funcName),
+                    },
+                ];
+                // Extract parameter definitions
+                if (paramsNode) {
+                    for (const param of paramsNode.children) {
+                        if (param.type === 'parameter_declaration') {
+                            const ids = param.children.filter(c => c.type === 'identifier');
+                            for (const id of ids) {
+                                funcDefs.push({
+                                    name: id.text,
+                                    kind: 'parameter',
+                                    line: param.startPosition.row,
+                                    exported: false,
+                                });
+                            }
+                        }
+                    }
+                }
+                const funcUnit = createCodeUnit({
+                    id: funcId,
+                    file: filePath,
+                    language: 'go',
+                    kind: 'function',
+                    location: go_getLocation(child),
+                    source: funcSource,
+                    calls,
+                    complexity,
+                    definitions: funcDefs,
+                    parentId: fileUnit.id,
+                });
+                units.push(funcUnit);
+                fileUnit.childIds.push(funcId);
+            }
+            else if (child.type === 'method_declaration') {
+                // Go methods have a receiver parameter list
+                const nameNode = child.children.find(c => c.type === 'field_identifier');
+                if (!nameNode)
+                    continue;
+                const methodName = nameNode.text;
+                // Extract receiver type
+                const paramLists = child.children.filter(c => c.type === 'parameter_list');
+                const receiverList = paramLists[0]; // First param list is receiver
+                const paramsNode = paramLists[1]; // Second is actual params
+                let receiverType = '';
+                if (receiverList) {
+                    const paramDecl = receiverList.children.find(c => c.type === 'parameter_declaration');
+                    if (paramDecl) {
+                        const typeNode = paramDecl.children.find(c => c.type === 'type_identifier') ??
+                            paramDecl.children.find(c => c.type === 'pointer_type');
+                        if (typeNode) {
+                            if (typeNode.type === 'pointer_type') {
+                                const inner = typeNode.children.find(c => c.type === 'type_identifier');
+                                receiverType = inner?.text ?? typeNode.text;
+                            }
+                            else {
+                                receiverType = typeNode.text;
+                            }
+                        }
+                    }
+                }
+                const paramCount = paramsNode ? go_countParameters(paramsNode) : 0;
+                const methodId = `method:${filePath}:${receiverType}.${methodName}`;
+                const methodSource = child.text;
+                const complexity = go_computeComplexity(child, methodSource);
+                complexity.parameterCount = paramCount;
+                const calls = go_extractCalls(child);
+                const methodDefs = [
+                    {
+                        name: methodName,
+                        kind: 'method',
+                        line: child.startPosition.row,
+                        exported: isExportedName(methodName),
+                    },
+                ];
+                const methodUnit = createCodeUnit({
+                    id: methodId,
+                    file: filePath,
+                    language: 'go',
+                    kind: 'method',
+                    location: go_getLocation(child),
+                    source: methodSource,
+                    calls,
+                    complexity,
+                    definitions: methodDefs,
+                    parentId: fileUnit.id,
+                });
+                units.push(methodUnit);
+                fileUnit.childIds.push(methodId);
+            }
+        }
+    }
+    // ─── Extract type declarations (struct, interface) ───────────────
+    extractTypeDeclarations(root, filePath, fileUnit, units) {
+        for (let i = 0; i < root.childCount; i++) {
+            const child = root.child(i);
+            if (child.type !== 'type_declaration')
+                continue;
+            for (const spec of child.children) {
+                if (spec.type !== 'type_spec')
+                    continue;
+                const nameNode = spec.children.find(c => c.type === 'type_identifier');
+                if (!nameNode)
+                    continue;
+                const typeName = nameNode.text;
+                const typeId = `class:${filePath}:${typeName}`;
+                const typeSource = child.text;
+                const typeCalls = go_extractCalls(child);
+                const typeComplexity = go_computeComplexity(child, typeSource);
+                const typeDefs = [
+                    {
+                        name: typeName,
+                        kind: 'type',
+                        line: spec.startPosition.row,
+                        exported: isExportedName(typeName),
+                    },
+                ];
+                // Extract struct field definitions
+                const structType = spec.children.find(c => c.type === 'struct_type');
+                if (structType) {
+                    const fieldList = structType.children.find(c => c.type === 'field_declaration_list');
+                    if (fieldList) {
+                        for (const field of fieldList.children) {
+                            if (field.type === 'field_declaration') {
+                                const fieldName = field.children.find(c => c.type === 'field_identifier');
+                                if (fieldName) {
+                                    typeDefs.push({
+                                        name: fieldName.text,
+                                        kind: 'variable',
+                                        line: field.startPosition.row,
+                                        exported: isExportedName(fieldName.text),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+                const typeUnit = createCodeUnit({
+                    id: typeId,
+                    file: filePath,
+                    language: 'go',
+                    kind: 'class',
+                    location: go_getLocation(child),
+                    source: typeSource,
+                    calls: typeCalls,
+                    complexity: typeComplexity,
+                    definitions: typeDefs,
+                    parentId: fileUnit.id,
+                });
+                units.push(typeUnit);
+                fileUnit.childIds.push(typeId);
+            }
+        }
+    }
+}
+//# sourceMappingURL=go.js.map
+;// CONCATENATED MODULE: ../core/dist/parser/extractors/kotlin.js
+/**
+ * Open Code Review V4 — Kotlin Extractor
+ *
+ * Extracts CodeUnits from Kotlin tree-sitter CSTs.
+ * Handles: imports (basic, aliased), classes (regular, data, sealed),
+ * object declarations (singletons), functions (regular, extension),
+ * companion objects, properties, calls, complexity, symbols.
+ *
+ * @since 0.4.0
+ */
+
+// ─── Tree-sitter node type constants ───────────────────────────────
+/** Node types that represent branching (for cyclomatic complexity) */
+const kotlin_BRANCHING_NODES = new Set([
+    'if_expression',
+    'for_statement',
+    'while_statement',
+    'do_while_statement',
+    'when_expression',
+    'when_entry',
+    'catch_block',
+    'conjunction_expression', // &&
+    'disjunction_expression', // ||
+    'elvis_expression', // ?:
+]);
+/** Node types that increase nesting depth */
+const kotlin_NESTING_NODES = new Set([
+    'if_expression',
+    'for_statement',
+    'while_statement',
+    'do_while_statement',
+    'when_expression',
+    'try_expression',
+    'catch_block',
+]);
+/** Node types for cognitive complexity */
+const kotlin_COGNITIVE_NODES = new Set([
+    'if_expression',
+    'for_statement',
+    'while_statement',
+    'do_while_statement',
+    'when_expression',
+    'catch_block',
+]);
+// ─── Helper: Get node location ─────────────────────────────────────
+function kotlin_getLocation(node) {
+    return {
+        startLine: node.startPosition.row,
+        startColumn: node.startPosition.column,
+        endLine: node.endPosition.row,
+        endColumn: node.endPosition.column,
+    };
+}
+// ─── Helper: Count lines of code ───────────────────────────────────
+function kotlin_countLinesOfCode(source) {
+    const lines = source.split('\n');
+    let count = 0;
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.length > 0 && !trimmed.startsWith('//') && !trimmed.startsWith('/*') && !trimmed.startsWith('*')) {
+            count++;
+        }
+    }
+    return count;
+}
+// ─── Helper: Check if Kotlin declaration is exported (public) ──────
+/**
+ * In Kotlin, default visibility is public. So exported = NOT private/protected/internal.
+ */
+function isExported(node) {
+    const modifiers = node.children.find(c => c.type === 'modifiers');
+    if (!modifiers)
+        return true; // default = public = exported
+    for (const mod of modifiers.children) {
+        if (mod.type === 'visibility_modifier') {
+            const text = mod.text;
+            if (text === 'private' || text === 'protected' || text === 'internal') {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+// ─── Helper: Extract import from import_header ─────────────────────
+function kotlin_extractImport(node) {
+    if (node.type !== 'import_header')
+        return null;
+    // import_header children: import, identifier, ['.', wildcard_import], [import_alias]
+    const identNode = node.children.find(c => c.type === 'identifier');
+    if (!identNode)
+        return null;
+    const fullPath = identNode.text;
+    const aliasNode = node.children.find(c => c.type === 'import_alias');
+    const hasWildcard = node.children.some(c => c.type === 'wildcard_import');
+    const symbols = [];
+    let moduleName;
+    if (hasWildcard) {
+        // import kotlin.collections.* → identifier = "kotlin.collections", wildcard_import = "*"
+        // The identifier already contains the full module path
+        moduleName = fullPath;
+        symbols.push('*');
+    }
+    else {
+        // Split into module and symbol
+        const lastDot = fullPath.lastIndexOf('.');
+        if (lastDot >= 0) {
+            moduleName = fullPath.substring(0, lastDot);
+            symbols.push(fullPath.substring(lastDot + 1));
+        }
+        else {
+            moduleName = fullPath;
+        }
+    }
+    return {
+        module: moduleName,
+        symbols,
+        line: node.startPosition.row,
+        isRelative: false,
+        raw: node.text,
+    };
+}
+// ─── Helper: Extract calls from a subtree ──────────────────────────
+function kotlin_extractCalls(node) {
+    const calls = [];
+    function walk(n) {
+        if (n.type === 'call_expression') {
+            // call_expression children: [callee_expr, call_suffix]
+            // callee_expr can be: simple_identifier, navigation_expression, etc.
+            const calleeNode = n.children[0];
+            const callSuffix = n.children.find(c => c.type === 'call_suffix');
+            if (calleeNode) {
+                const callee = calleeNode.text;
+                let object;
+                let method;
+                if (calleeNode.type === 'navigation_expression') {
+                    // navigation_expression children: [object_expr, navigation_suffix]
+                    // navigation_suffix children: ["." or "?.", simple_identifier]
+                    const objectExpr = calleeNode.children[0];
+                    const navSuffix = calleeNode.children.find(c => c.type === 'navigation_suffix');
+                    if (navSuffix) {
+                        const nameInSuffix = navSuffix.children.find(c => c.type === 'simple_identifier');
+                        object = objectExpr?.text;
+                        method = nameInSuffix?.text ?? callee;
+                    }
+                    else {
+                        // Fallback: parse as flat children
+                        const parts = calleeNode.children.filter(c => c.type !== '.' && c.type !== '?.');
+                        if (parts.length >= 2) {
+                            object = parts.slice(0, -1).map(p => p.text).join('.');
+                            method = parts[parts.length - 1].text;
+                        }
+                        else {
+                            method = callee;
+                        }
+                    }
+                }
+                else if (calleeNode.type === 'simple_identifier') {
+                    method = calleeNode.text;
+                }
+                else {
+                    method = callee;
+                }
+                // Count arguments from call_suffix
+                let argCount = 0;
+                if (callSuffix) {
+                    const valueArgs = callSuffix.children.find(c => c.type === 'value_arguments');
+                    if (valueArgs) {
+                        for (const arg of valueArgs.children) {
+                            if (arg.type === 'value_argument') {
+                                argCount++;
+                            }
+                        }
+                    }
+                    // Check for trailing lambda
+                    const annotatedLambda = callSuffix.children.find(c => c.type === 'annotated_lambda');
+                    const lambdaLiteral = callSuffix.children.find(c => c.type === 'lambda_literal');
+                    if (annotatedLambda || lambdaLiteral) {
+                        argCount++;
+                    }
+                }
+                calls.push({
+                    callee,
+                    object,
+                    method,
+                    line: n.startPosition.row,
+                    argCount,
+                });
+            }
+        }
+        for (let i = 0; i < n.childCount; i++) {
+            walk(n.child(i));
+        }
+    }
+    walk(node);
+    return calls;
+}
+// ─── Helper: Compute complexity ────────────────────────────────────
+function kotlin_computeComplexity(node, source) {
+    let cyclomatic = 1; // base complexity
+    let cognitive = 0;
+    let maxDepth = 0;
+    function walk(n, nestingDepth) {
+        // Cyclomatic complexity
+        if (kotlin_BRANCHING_NODES.has(n.type)) {
+            if (n.type === 'conjunction_expression' ||
+                n.type === 'disjunction_expression') {
+                cyclomatic++;
+            }
+            else if (n.type === 'elvis_expression') {
+                cyclomatic++;
+            }
+            else if (n.type === 'when_entry') {
+                // Each when entry adds a branch
+                cyclomatic++;
+            }
+            else {
+                cyclomatic++;
+            }
+        }
+        // Cognitive complexity
+        if (kotlin_COGNITIVE_NODES.has(n.type)) {
+            cognitive += 1 + nestingDepth;
+        }
+        // && / || / ?: add cognitive complexity
+        if (n.type === 'conjunction_expression' ||
+            n.type === 'disjunction_expression' ||
+            n.type === 'elvis_expression') {
+            cognitive += 1;
+        }
+        // Nesting
+        let newDepth = nestingDepth;
+        if (kotlin_NESTING_NODES.has(n.type)) {
+            newDepth = nestingDepth + 1;
+            if (newDepth > maxDepth)
+                maxDepth = newDepth;
+        }
+        for (let i = 0; i < n.childCount; i++) {
+            walk(n.child(i), newDepth);
+        }
+    }
+    walk(node, 0);
+    return {
+        cyclomaticComplexity: cyclomatic,
+        cognitiveComplexity: cognitive,
+        maxNestingDepth: maxDepth,
+        linesOfCode: kotlin_countLinesOfCode(source),
+    };
+}
+// ─── Helper: Count parameters (Kotlin) ─────────────────────────────
+function kotlin_countParameters(paramsNode) {
+    let count = 0;
+    for (const child of paramsNode.children) {
+        if (child.type === 'parameter') {
+            count++;
+        }
+    }
+    return count;
+}
+// ─── KotlinExtractor ───────────────────────────────────────────────
+class kotlin_KotlinExtractor {
+    language = 'kotlin';
+    extract(tree, filePath, source) {
+        const units = [];
+        const root = tree.rootNode;
+        // 1. File-level CodeUnit
+        const fileImports = this.extractFileImports(root);
+        const fileCalls = kotlin_extractCalls(root);
+        const fileDefs = this.extractFileDefinitions(root);
+        const fileComplexity = kotlin_computeComplexity(root, source);
+        const fileUnit = createCodeUnit({
+            id: `file:${filePath}`,
+            file: filePath,
+            language: 'kotlin',
+            kind: 'file',
+            location: kotlin_getLocation(root),
+            source,
+            imports: fileImports,
+            calls: fileCalls,
+            complexity: fileComplexity,
+            definitions: fileDefs,
+            references: [],
+            childIds: [],
+        });
+        units.push(fileUnit);
+        // 2. Extract top-level declarations
+        this.extractTopLevelDeclarations(root, filePath, fileUnit, units);
+        return units;
+    }
+    // ─── File-level imports ──────────────────────────────────────────
+    extractFileImports(root) {
+        const imports = [];
+        // In Kotlin, imports are under import_list
+        for (let i = 0; i < root.childCount; i++) {
+            const child = root.child(i);
+            if (child.type === 'import_list') {
+                for (const importHeader of child.children) {
+                    if (importHeader.type === 'import_header') {
+                        const info = kotlin_extractImport(importHeader);
+                        if (info)
+                            imports.push(info);
+                    }
+                }
+            }
+            else if (child.type === 'import_header') {
+                const info = kotlin_extractImport(child);
+                if (info)
+                    imports.push(info);
+            }
+        }
+        return imports;
+    }
+    // ─── File-level definitions ──────────────────────────────────────
+    extractFileDefinitions(root) {
+        const defs = [];
+        for (let i = 0; i < root.childCount; i++) {
+            const child = root.child(i);
+            if (child.type === 'class_declaration') {
+                const nameNode = child.children.find(c => c.type === 'type_identifier');
+                if (nameNode) {
+                    defs.push({
+                        name: nameNode.text,
+                        kind: 'class',
+                        line: child.startPosition.row,
+                        exported: isExported(child),
+                    });
+                }
+            }
+            else if (child.type === 'object_declaration') {
+                const nameNode = child.children.find(c => c.type === 'type_identifier');
+                if (nameNode) {
+                    defs.push({
+                        name: nameNode.text,
+                        kind: 'class',
+                        line: child.startPosition.row,
+                        exported: isExported(child),
+                    });
+                }
+            }
+            else if (child.type === 'function_declaration') {
+                const nameNode = child.children.find(c => c.type === 'simple_identifier');
+                if (nameNode) {
+                    defs.push({
+                        name: nameNode.text,
+                        kind: 'function',
+                        line: child.startPosition.row,
+                        exported: isExported(child),
+                    });
+                }
+            }
+            else if (child.type === 'property_declaration') {
+                const varDecl = child.children.find(c => c.type === 'variable_declaration');
+                if (varDecl) {
+                    const nameNode = varDecl.children.find(c => c.type === 'simple_identifier');
+                    if (nameNode) {
+                        defs.push({
+                            name: nameNode.text,
+                            kind: 'variable',
+                            line: child.startPosition.row,
+                            exported: isExported(child),
+                        });
+                    }
+                }
+            }
+        }
+        return defs;
+    }
+    // ─── Extract top-level declarations ──────────────────────────────
+    extractTopLevelDeclarations(root, filePath, fileUnit, units) {
+        for (let i = 0; i < root.childCount; i++) {
+            const child = root.child(i);
+            if (child.type === 'class_declaration') {
+                this.extractClass(child, filePath, fileUnit, units);
+            }
+            else if (child.type === 'object_declaration') {
+                this.extractObjectDeclaration(child, filePath, fileUnit, units);
+            }
+            else if (child.type === 'function_declaration') {
+                this.extractFunction(child, filePath, fileUnit, units);
+            }
+        }
+    }
+    // ─── Extract a class declaration ─────────────────────────────────
+    extractClass(classNode, filePath, parentUnit, units) {
+        const nameNode = classNode.children.find(c => c.type === 'type_identifier');
+        if (!nameNode)
+            return;
+        const className = nameNode.text;
+        const classId = `class:${filePath}:${className}`;
+        const classSource = classNode.text;
+        const classCalls = kotlin_extractCalls(classNode);
+        const classComplexity = kotlin_computeComplexity(classNode, classSource);
+        const exported = isExported(classNode);
+        // Determine class kind (data, sealed, enum, interface, regular)
+        const modifiers = classNode.children.find(c => c.type === 'modifiers');
+        let symbolKind = 'class';
+        // Check if it's an interface
+        if (classNode.children.some(c => c.type === 'interface')) {
+            symbolKind = 'interface';
+        }
+        // Check for enum_class_body
+        const classBody = classNode.children.find(c => c.type === 'class_body');
+        const enumBody = classNode.children.find(c => c.type === 'enum_class_body');
+        if (enumBody) {
+            symbolKind = 'enum';
+        }
+        const classDefs = [
+            {
+                name: className,
+                kind: symbolKind,
+                line: classNode.startPosition.row,
+                exported,
+            },
+        ];
+        // Extract primary constructor parameters as definitions
+        const primaryCtor = classNode.children.find(c => c.type === 'primary_constructor');
+        if (primaryCtor) {
+            for (const param of primaryCtor.children) {
+                if (param.type === 'class_parameter') {
+                    const paramName = param.children.find(c => c.type === 'simple_identifier');
+                    if (paramName) {
+                        const hasValOrVar = param.children.some(c => c.type === 'binding_pattern_kind');
+                        classDefs.push({
+                            name: paramName.text,
+                            kind: hasValOrVar ? 'variable' : 'parameter',
+                            line: param.startPosition.row,
+                            exported: hasValOrVar, // val/var params are effectively public properties
+                        });
+                    }
+                }
+            }
+        }
+        const classUnit = createCodeUnit({
+            id: classId,
+            file: filePath,
+            language: 'kotlin',
+            kind: 'class',
+            location: kotlin_getLocation(classNode),
+            source: classSource,
+            calls: classCalls,
+            complexity: classComplexity,
+            definitions: classDefs,
+            parentId: parentUnit.id,
+        });
+        units.push(classUnit);
+        parentUnit.childIds.push(classId);
+        // Extract members from class body
+        const body = classBody ?? enumBody;
+        if (body) {
+            this.extractClassMembers(body, className, filePath, classUnit, units);
+        }
+    }
+    // ─── Extract an object declaration (singleton) ───────────────────
+    extractObjectDeclaration(objNode, filePath, parentUnit, units) {
+        const nameNode = objNode.children.find(c => c.type === 'type_identifier');
+        if (!nameNode)
+            return;
+        const objName = nameNode.text;
+        const objId = `class:${filePath}:${objName}`;
+        const objSource = objNode.text;
+        const objCalls = kotlin_extractCalls(objNode);
+        const objComplexity = kotlin_computeComplexity(objNode, objSource);
+        const exported = isExported(objNode);
+        const objDefs = [
+            {
+                name: objName,
+                kind: 'class',
+                line: objNode.startPosition.row,
+                exported,
+            },
+        ];
+        const objUnit = createCodeUnit({
+            id: objId,
+            file: filePath,
+            language: 'kotlin',
+            kind: 'class',
+            location: kotlin_getLocation(objNode),
+            source: objSource,
+            calls: objCalls,
+            complexity: objComplexity,
+            definitions: objDefs,
+            parentId: parentUnit.id,
+        });
+        units.push(objUnit);
+        parentUnit.childIds.push(objId);
+        // Extract members from object body
+        const body = objNode.children.find(c => c.type === 'class_body');
+        if (body) {
+            this.extractClassMembers(body, objName, filePath, objUnit, units);
+        }
+    }
+    // ─── Extract members from a class/object body ───────────────────
+    extractClassMembers(body, className, filePath, classUnit, units) {
+        for (let i = 0; i < body.childCount; i++) {
+            const member = body.child(i);
+            if (member.type === 'function_declaration') {
+                const nameNode = member.children.find(c => c.type === 'simple_identifier');
+                if (!nameNode)
+                    continue;
+                const methodName = nameNode.text;
+                const methodId = `method:${filePath}:${className}.${methodName}`;
+                const methodSource = member.text;
+                const paramsNode = member.children.find(c => c.type === 'function_value_parameters');
+                const paramCount = paramsNode ? kotlin_countParameters(paramsNode) : 0;
+                const complexity = kotlin_computeComplexity(member, methodSource);
+                complexity.parameterCount = paramCount;
+                const calls = kotlin_extractCalls(member);
+                const exported = isExported(member);
+                const methodDefs = [
+                    {
+                        name: methodName,
+                        kind: 'method',
+                        line: member.startPosition.row,
+                        exported,
+                    },
+                ];
+                // Extract parameter definitions
+                if (paramsNode) {
+                    for (const param of paramsNode.children) {
+                        if (param.type === 'parameter') {
+                            const paramName = param.children.find(c => c.type === 'simple_identifier');
+                            if (paramName) {
+                                methodDefs.push({
+                                    name: paramName.text,
+                                    kind: 'parameter',
+                                    line: param.startPosition.row,
+                                    exported: false,
+                                });
+                            }
+                        }
+                    }
+                }
+                const methodUnit = createCodeUnit({
+                    id: methodId,
+                    file: filePath,
+                    language: 'kotlin',
+                    kind: 'method',
+                    location: kotlin_getLocation(member),
+                    source: methodSource,
+                    calls,
+                    complexity,
+                    definitions: methodDefs,
+                    parentId: classUnit.id,
+                });
+                units.push(methodUnit);
+                classUnit.childIds.push(methodId);
+            }
+            else if (member.type === 'companion_object') {
+                // Extract companion object as a nested class-like unit
+                const companionName = `${className}.Companion`;
+                const companionId = `class:${filePath}:${companionName}`;
+                const companionSource = member.text;
+                const companionCalls = kotlin_extractCalls(member);
+                const companionComplexity = kotlin_computeComplexity(member, companionSource);
+                const companionDefs = [
+                    {
+                        name: 'Companion',
+                        kind: 'class',
+                        line: member.startPosition.row,
+                        exported: true,
+                    },
+                ];
+                const companionUnit = createCodeUnit({
+                    id: companionId,
+                    file: filePath,
+                    language: 'kotlin',
+                    kind: 'class',
+                    location: kotlin_getLocation(member),
+                    source: companionSource,
+                    calls: companionCalls,
+                    complexity: companionComplexity,
+                    definitions: companionDefs,
+                    parentId: classUnit.id,
+                });
+                units.push(companionUnit);
+                classUnit.childIds.push(companionId);
+                // Extract functions inside companion object body
+                const companionBody = member.children.find(c => c.type === 'class_body');
+                if (companionBody) {
+                    this.extractClassMembers(companionBody, companionName, filePath, companionUnit, units);
+                }
+            }
+            else if (member.type === 'property_declaration') {
+                // Properties add to the parent class definitions
+                const varDecl = member.children.find(c => c.type === 'variable_declaration');
+                if (varDecl) {
+                    const nameNode = varDecl.children.find(c => c.type === 'simple_identifier');
+                    if (nameNode) {
+                        classUnit.definitions.push({
+                            name: nameNode.text,
+                            kind: 'variable',
+                            line: member.startPosition.row,
+                            exported: isExported(member),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    // ─── Extract top-level functions ─────────────────────────────────
+    extractFunction(funcNode, filePath, parentUnit, units) {
+        const nameNode = funcNode.children.find(c => c.type === 'simple_identifier');
+        if (!nameNode)
+            return;
+        const funcName = nameNode.text;
+        // Check if it's an extension function
+        // Extension functions have a user_type (receiver) before the dot before the name
+        const dotIndex = funcNode.children.findIndex(c => c.text === '.');
+        let receiverType;
+        if (dotIndex > 0) {
+            const possibleReceiver = funcNode.children[dotIndex - 1];
+            if (possibleReceiver && possibleReceiver.type === 'user_type') {
+                receiverType = possibleReceiver.text;
+            }
+        }
+        const funcId = receiverType
+            ? `func:${filePath}:${receiverType}.${funcName}`
+            : `func:${filePath}:${funcName}`;
+        const funcSource = funcNode.text;
+        const paramsNode = funcNode.children.find(c => c.type === 'function_value_parameters');
+        const paramCount = paramsNode ? kotlin_countParameters(paramsNode) : 0;
+        const complexity = kotlin_computeComplexity(funcNode, funcSource);
+        complexity.parameterCount = paramCount;
+        const calls = kotlin_extractCalls(funcNode);
+        const exported = isExported(funcNode);
+        const funcDefs = [
+            {
+                name: funcName,
+                kind: 'function',
+                line: funcNode.startPosition.row,
+                exported,
+            },
+        ];
+        // Extract parameter definitions
+        if (paramsNode) {
+            for (const param of paramsNode.children) {
+                if (param.type === 'parameter') {
+                    const paramName = param.children.find(c => c.type === 'simple_identifier');
+                    if (paramName) {
+                        funcDefs.push({
+                            name: paramName.text,
+                            kind: 'parameter',
+                            line: param.startPosition.row,
+                            exported: false,
+                        });
+                    }
+                }
+            }
+        }
+        const funcUnit = createCodeUnit({
+            id: funcId,
+            file: filePath,
+            language: 'kotlin',
+            kind: 'function',
+            location: kotlin_getLocation(funcNode),
+            source: funcSource,
+            calls,
+            complexity,
+            definitions: funcDefs,
+            parentId: parentUnit.id,
+        });
+        units.push(funcUnit);
+        parentUnit.childIds.push(funcId);
+    }
+}
+//# sourceMappingURL=kotlin.js.map
+;// CONCATENATED MODULE: ../core/dist/parser/index.js
+/**
+ * Open Code Review V4 — Parser Module
+ *
+ * Exports tree-sitter parser manager, extractor interface, and language extractors.
+ *
+ * @since 0.4.0
+ */
+
+
+
+
+
+
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ../core/dist/detectors/v4/hallucinated-import.js
+/**
+ * HallucinatedImportDetector — V4 detector for hallucinated imports.
+ *
+ * Detects imports of packages/modules that don't exist in the package registry.
+ * This is THE core differentiator of Open Code Review: AI code generators
+ * frequently hallucinate package names that look plausible but don't exist.
+ *
+ * V4 improvements over V3:
+ * - Uses dynamic registry verification (npm, PyPI, Maven, Go proxy) instead of hardcoded whitelists
+ * - Operates on CodeUnit IR instead of raw source
+ * - Language-aware built-in module filtering
+ * - Batch verification to minimize HTTP calls
+ *
+ * @since 0.4.0
+ */
+
+
+
+
+
+// ─── Built-in module sets by language ──────────────────────────────
+const BUILTIN_SETS = {
+    typescript: node_builtins_NODE_BUILTINS,
+    javascript: node_builtins_NODE_BUILTINS,
+    python: python_builtins_PYTHON_BUILTINS,
+    java: java_builtins_JAVA_BUILTINS,
+    go: go_builtins_GO_BUILTINS,
+    kotlin: KOTLIN_BUILTINS,
+};
+// ─── Detector ──────────────────────────────────────────────────────
+class hallucinated_import_HallucinatedImportDetector {
+    id = 'hallucinated-import';
+    name = 'Hallucinated Import Detector';
+    category = 'ai-faithfulness';
+    supportedLanguages = []; // All languages
+    async detect(units, context) {
+        // If no registry manager is provided (offline mode), skip detection
+        if (!context.registryManager) {
+            return [];
+        }
+        const results = [];
+        // Group imports by language, deduplicating by package name
+        const importsByLanguage = this.groupImportsByLanguage(units);
+        for (const [language, packageMap] of importsByLanguage.entries()) {
+            const builtins = BUILTIN_SETS[language];
+            if (!builtins)
+                continue;
+            // Collect non-relative, non-builtin package names
+            const packagesToVerify = [];
+            for (const [packageName] of packageMap) {
+                if (!this.isBuiltin(packageName, language, builtins)) {
+                    packagesToVerify.push(packageName);
+                }
+            }
+            if (packagesToVerify.length === 0)
+                continue;
+            // Batch verify against registry
+            const verifyResults = await context.registryManager.verifyBatch(language, packagesToVerify);
+            // Generate results for packages that don't exist
+            for (const [packageName, verifyResult] of verifyResults.entries()) {
+                if (!verifyResult.exists) {
+                    const occurrences = packageMap.get(packageName);
+                    if (!occurrences)
+                        continue;
+                    // Create a result for each occurrence
+                    for (const occurrence of occurrences) {
+                        results.push({
+                            detectorId: this.id,
+                            severity: 'error',
+                            category: this.category,
+                            messageKey: 'hallucinated-import.package-not-found',
+                            message: `Import "${packageName}" does not exist in the ${this.getRegistryName(language)} registry. This may be a hallucinated package name.`,
+                            file: occurrence.file,
+                            line: occurrence.line + 1, // Convert 0-based to 1-based
+                            confidence: 0.9,
+                            metadata: {
+                                packageName,
+                                language,
+                                registry: this.getRegistryName(language),
+                                raw: occurrence.raw,
+                            },
+                        });
+                    }
+                }
+            }
+        }
+        return results;
+    }
+    /**
+     * Group imports from all CodeUnits by language and package name.
+     * Returns Map<language, Map<packageName, occurrences[]>>.
+     */
+    groupImportsByLanguage(units) {
+        const result = new Map();
+        for (const unit of units) {
+            // Only process file-level units (imports are at file level)
+            if (unit.kind !== 'file')
+                continue;
+            for (const imp of unit.imports) {
+                // Skip relative imports
+                if (imp.isRelative)
+                    continue;
+                const packageName = this.extractPackageName(imp.module, unit.language);
+                if (!result.has(unit.language)) {
+                    result.set(unit.language, new Map());
+                }
+                const langMap = result.get(unit.language);
+                if (!langMap.has(packageName)) {
+                    langMap.set(packageName, []);
+                }
+                langMap.get(packageName).push({
+                    file: unit.file,
+                    line: imp.line,
+                    raw: imp.raw,
+                });
+            }
+        }
+        return result;
+    }
+    /**
+     * Extract the top-level package name from an import path.
+     * - npm: "lodash/fp" → "lodash", "@scope/name/sub" → "@scope/name"
+     * - python: "flask.blueprints" → "flask"
+     * - java: "com.google.gson.Gson" → "com.google.gson"
+     * - go: "github.com/gin-gonic/gin/binding" → "github.com/gin-gonic/gin"
+     */
+    extractPackageName(module, language) {
+        switch (language) {
+            case 'typescript':
+            case 'javascript': {
+                // Scoped packages: @scope/name
+                if (module.startsWith('@')) {
+                    const parts = module.split('/');
+                    return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : module;
+                }
+                // Regular packages: name/subpath → name
+                return module.split('/')[0];
+            }
+            case 'python': {
+                // Python: package.submodule → package
+                return module.split('.')[0];
+            }
+            case 'java':
+            case 'kotlin': {
+                // Java/Kotlin: use the full module path as-is for registry lookup
+                // The registry adapter handles groupId:artifactId mapping
+                return module;
+            }
+            case 'go': {
+                // Go: github.com/user/repo/subpkg → github.com/user/repo
+                const parts = module.split('/');
+                if (parts.length >= 3 && module.includes('.')) {
+                    // Looks like a URL-based import: take first 3 segments
+                    return parts.slice(0, 3).join('/');
+                }
+                // Standard library or short path
+                return parts[0];
+            }
+            default:
+                return module;
+        }
+    }
+    /**
+     * Check if an import is a language built-in module.
+     */
+    isBuiltin(packageName, language, builtins) {
+        // Direct match
+        if (builtins.has(packageName))
+            return true;
+        // For Java/Kotlin, check prefix match (e.g., "java.util.List" matches "java.util")
+        if (language === 'java' || language === 'kotlin') {
+            for (const builtin of builtins) {
+                if (packageName.startsWith(builtin + '.') || packageName === builtin) {
+                    return true;
+                }
+            }
+        }
+        // For Go, check prefix match (e.g., "net/http" matches "net")
+        if (language === 'go') {
+            const topLevel = packageName.split('/')[0];
+            if (builtins.has(topLevel))
+                return true;
+        }
+        return false;
+    }
+    /**
+     * Get a human-readable registry name for a language.
+     */
+    getRegistryName(language) {
+        switch (language) {
+            case 'typescript':
+            case 'javascript':
+                return 'npm';
+            case 'python':
+                return 'PyPI';
+            case 'java':
+            case 'kotlin':
+                return 'Maven Central';
+            case 'go':
+                return 'Go module proxy';
+            default:
+                return 'package';
+        }
+    }
+}
+//# sourceMappingURL=hallucinated-import.js.map
+;// CONCATENATED MODULE: ../core/dist/detectors/v4/stale-api.js
+/**
+ * StaleAPIDetector — V4 detector for deprecated APIs and packages.
+ *
+ * AI models are trained on historical data and frequently generate code using
+ * APIs that have since been deprecated. This detector catches them through:
+ * 1. Dynamic registry deprecation checks (npm deprecated field, etc.)
+ * 2. Well-known per-language deprecated API patterns
+ *
+ * V4 improvements over V3:
+ * - Registry-based deprecation checks instead of hardcoded data
+ * - Operates on CodeUnit IR (calls + imports)
+ * - Per-language deprecation pattern database
+ * - Confidence scoring based on deprecation source
+ *
+ * @since 0.4.0
+ */
+// ─── Well-known deprecation patterns per language ──────────────────
+const TYPESCRIPT_DEPRECATIONS = [
+    {
+        pattern: /\bnew\s+Buffer\b/,
+        replacement: 'Buffer.from() / Buffer.alloc()',
+        since: 'Node.js 6',
+        confidence: 0.95,
+        description: 'Buffer constructor is deprecated due to security and usability issues',
+    },
+    {
+        pattern: /\burl\.parse\b/,
+        replacement: 'new URL()',
+        since: 'Node.js 11',
+        confidence: 0.85,
+        description: 'url.parse() is deprecated in favor of the WHATWG URL API',
+    },
+    {
+        pattern: /\bfs\.exists\b/,
+        replacement: 'fs.existsSync() or fs.access()',
+        since: 'Node.js 1.0',
+        confidence: 0.9,
+        description: 'fs.exists() is deprecated; use fs.existsSync() or fs.access()',
+    },
+    {
+        pattern: /\brequire\s*\(\s*['"]querystring['"]\s*\)/,
+        replacement: 'URLSearchParams',
+        since: 'Node.js 12',
+        confidence: 0.8,
+        description: 'querystring module is deprecated in favor of URLSearchParams',
+    },
+    {
+        pattern: /\brequire\s*\(\s*['"]domain['"]\s*\)/,
+        replacement: 'async_hooks or structured error handling',
+        since: 'Node.js 4',
+        confidence: 0.9,
+        description: 'domain module is deprecated and pending removal',
+    },
+    {
+        pattern: /\brequire\s*\(\s*['"]punycode['"]\s*\)/,
+        replacement: 'Use a userland alternative or URL API',
+        since: 'Node.js 7',
+        confidence: 0.8,
+        description: 'punycode module is deprecated',
+    },
+    {
+        pattern: /\bSlowBuffer\b/,
+        replacement: 'Buffer.allocUnsafeSlow()',
+        since: 'Node.js 6',
+        confidence: 0.9,
+        description: 'SlowBuffer is deprecated in favor of Buffer.allocUnsafeSlow()',
+    },
+];
+const PYTHON_DEPRECATIONS = [
+    {
+        pattern: /\bimport\s+optparse\b/,
+        replacement: 'argparse',
+        since: 'Python 3.2',
+        confidence: 0.95,
+        description: 'optparse is deprecated in favor of argparse',
+    },
+    {
+        pattern: /\bimport\s+imp\b/,
+        replacement: 'importlib',
+        since: 'Python 3.4',
+        confidence: 0.95,
+        description: 'imp module is deprecated in favor of importlib',
+    },
+    {
+        pattern: /\bcollections\.MutableMapping\b/,
+        replacement: 'collections.abc.MutableMapping',
+        since: 'Python 3.3',
+        confidence: 0.9,
+        description: 'Direct access to abstract base classes from collections is deprecated',
+    },
+    {
+        pattern: /\bcollections\.MutableSequence\b/,
+        replacement: 'collections.abc.MutableSequence',
+        since: 'Python 3.3',
+        confidence: 0.9,
+        description: 'Direct access to abstract base classes from collections is deprecated',
+    },
+    {
+        pattern: /\bcollections\.MutableSet\b/,
+        replacement: 'collections.abc.MutableSet',
+        since: 'Python 3.3',
+        confidence: 0.9,
+        description: 'Direct access to abstract base classes from collections is deprecated',
+    },
+    {
+        pattern: /\basyncio\.coroutine\b/,
+        replacement: 'async def',
+        since: 'Python 3.8',
+        confidence: 0.95,
+        description: '@asyncio.coroutine decorator is deprecated in favor of async def',
+    },
+    {
+        pattern: /\bimport\s+distutils\b/,
+        replacement: 'setuptools',
+        since: 'Python 3.10',
+        confidence: 0.9,
+        description: 'distutils is deprecated and removed in Python 3.12',
+    },
+    {
+        pattern: /\bimport\s+cgi\b/,
+        replacement: 'urllib.parse or email.message',
+        since: 'Python 3.11',
+        confidence: 0.85,
+        description: 'cgi module is deprecated',
+    },
+];
+const JAVA_DEPRECATIONS = [
+    {
+        pattern: /\bnew\s+Date\(\)/,
+        replacement: 'LocalDateTime.now() / Instant.now()',
+        since: 'Java 8',
+        confidence: 0.7,
+        description: 'java.util.Date is largely deprecated in favor of java.time API',
+    },
+    {
+        pattern: /\bVector\b/,
+        replacement: 'ArrayList (or Collections.synchronizedList)',
+        since: 'Java 1.2',
+        confidence: 0.85,
+        description: 'Vector is legacy; use ArrayList or CopyOnWriteArrayList',
+    },
+    {
+        pattern: /\bStringBuffer\b/,
+        replacement: 'StringBuilder',
+        since: 'Java 1.5',
+        confidence: 0.8,
+        description: 'StringBuffer is slower than StringBuilder; use StringBuilder unless thread-safety needed',
+    },
+    {
+        pattern: /\bThread\.stop\b/,
+        replacement: 'Thread interruption pattern',
+        since: 'Java 1.2',
+        confidence: 0.95,
+        description: 'Thread.stop() is deprecated because it is inherently unsafe',
+    },
+    {
+        pattern: /\bThread\.suspend\b/,
+        replacement: 'Use wait/notify or LockSupport',
+        since: 'Java 1.2',
+        confidence: 0.95,
+        description: 'Thread.suspend() is deprecated due to deadlock risks',
+    },
+    {
+        pattern: /\bThread\.resume\b/,
+        replacement: 'Use wait/notify or LockSupport',
+        since: 'Java 1.2',
+        confidence: 0.95,
+        description: 'Thread.resume() is deprecated due to deadlock risks',
+    },
+    {
+        pattern: /\bHashtable\b/,
+        replacement: 'HashMap or ConcurrentHashMap',
+        since: 'Java 1.2',
+        confidence: 0.8,
+        description: 'Hashtable is legacy; use HashMap or ConcurrentHashMap',
+    },
+    {
+        pattern: /\bRuntime\.getRuntime\(\)\.exec\b/,
+        replacement: 'ProcessBuilder',
+        since: 'Java 9',
+        confidence: 0.7,
+        description: 'Runtime.exec() has known issues; prefer ProcessBuilder',
+    },
+];
+const GO_DEPRECATIONS = [
+    {
+        pattern: /\bioutil\.ReadFile\b/,
+        replacement: 'os.ReadFile',
+        since: 'Go 1.16',
+        confidence: 0.95,
+        description: 'io/ioutil is deprecated; use os.ReadFile',
+    },
+    {
+        pattern: /\bioutil\.WriteFile\b/,
+        replacement: 'os.WriteFile',
+        since: 'Go 1.16',
+        confidence: 0.95,
+        description: 'io/ioutil is deprecated; use os.WriteFile',
+    },
+    {
+        pattern: /\bioutil\.ReadAll\b/,
+        replacement: 'io.ReadAll',
+        since: 'Go 1.16',
+        confidence: 0.95,
+        description: 'io/ioutil is deprecated; use io.ReadAll',
+    },
+    {
+        pattern: /\bioutil\.TempDir\b/,
+        replacement: 'os.MkdirTemp',
+        since: 'Go 1.16',
+        confidence: 0.95,
+        description: 'io/ioutil is deprecated; use os.MkdirTemp',
+    },
+    {
+        pattern: /\bioutil\.TempFile\b/,
+        replacement: 'os.CreateTemp',
+        since: 'Go 1.16',
+        confidence: 0.95,
+        description: 'io/ioutil is deprecated; use os.CreateTemp',
+    },
+    {
+        pattern: /\bioutil\.ReadDir\b/,
+        replacement: 'os.ReadDir',
+        since: 'Go 1.16',
+        confidence: 0.95,
+        description: 'io/ioutil is deprecated; use os.ReadDir',
+    },
+    {
+        pattern: /\bioutil\.NopCloser\b/,
+        replacement: 'io.NopCloser',
+        since: 'Go 1.16',
+        confidence: 0.95,
+        description: 'io/ioutil is deprecated; use io.NopCloser',
+    },
+    {
+        pattern: /\bimport\s+["']io\/ioutil["']/,
+        replacement: 'io and os packages',
+        since: 'Go 1.16',
+        confidence: 0.95,
+        description: 'The entire io/ioutil package is deprecated since Go 1.16',
+    },
+];
+const KOTLIN_DEPRECATIONS = [
+    {
+        pattern: /\bkotlin\.coroutines\.experimental\b/,
+        replacement: 'kotlin.coroutines',
+        since: 'Kotlin 1.3',
+        confidence: 0.95,
+        description: 'Experimental coroutines API is deprecated; use stable kotlin.coroutines',
+    },
+    // Kotlin inherits Java deprecations
+    ...JAVA_DEPRECATIONS,
+];
+// ─── Deprecation patterns map ──────────────────────────────────────
+const DEPRECATION_PATTERNS = new Map([
+    ['typescript', TYPESCRIPT_DEPRECATIONS],
+    ['javascript', TYPESCRIPT_DEPRECATIONS],
+    ['python', PYTHON_DEPRECATIONS],
+    ['java', JAVA_DEPRECATIONS],
+    ['go', GO_DEPRECATIONS],
+    ['kotlin', KOTLIN_DEPRECATIONS],
+]);
+// ─── Deprecated import modules (package-level deprecation) ─────────
+const DEPRECATED_IMPORT_MODULES = new Map([
+    ['python', new Map([
+            ['optparse', { replacement: 'argparse', since: 'Python 3.2' }],
+            ['imp', { replacement: 'importlib', since: 'Python 3.4' }],
+            ['distutils', { replacement: 'setuptools', since: 'Python 3.10' }],
+            ['cgi', { replacement: 'urllib.parse or email.message', since: 'Python 3.11' }],
+        ])],
+    ['go', new Map([
+            ['io/ioutil', { replacement: 'io and os packages', since: 'Go 1.16' }],
+        ])],
+]);
+// ─── Detector ──────────────────────────────────────────────────────
+class stale_api_StaleAPIDetector {
+    id = 'stale-api';
+    name = 'Stale API Detector';
+    category = 'code-freshness';
+    supportedLanguages = [];
+    async detect(units, context) {
+        const results = [];
+        // Phase 1: Check package-level deprecation via registry
+        await this.checkRegistryDeprecations(units, context, results);
+        // Phase 2: Check well-known deprecated API patterns in source code
+        this.checkPatternDeprecations(units, results);
+        // Phase 3: Check deprecated import modules
+        this.checkDeprecatedImports(units, results);
+        return results;
+    }
+    /**
+     * Check package deprecation status via the registry manager.
+     */
+    async checkRegistryDeprecations(units, context, results) {
+        if (!context.registryManager)
+            return;
+        // Collect unique import packages by language
+        const importsByLanguage = new Map();
+        for (const unit of units) {
+            if (unit.kind !== 'file')
+                continue;
+            for (const imp of unit.imports) {
+                if (imp.isRelative)
+                    continue;
+                const packageName = this.extractPackageName(imp.module, unit.language);
+                if (!importsByLanguage.has(unit.language)) {
+                    importsByLanguage.set(unit.language, new Map());
+                }
+                const langMap = importsByLanguage.get(unit.language);
+                if (!langMap.has(packageName)) {
+                    langMap.set(packageName, []);
+                }
+                langMap.get(packageName).push({ file: unit.file, line: imp.line });
+            }
+        }
+        // Check each package for deprecation
+        for (const [language, packageMap] of importsByLanguage.entries()) {
+            const registry = context.registryManager.getRegistry(language);
+            if (!registry)
+                continue;
+            for (const [packageName, occurrences] of packageMap.entries()) {
+                try {
+                    const deprecation = await registry.checkDeprecated(packageName);
+                    if (deprecation?.deprecated) {
+                        for (const occurrence of occurrences) {
+                            results.push({
+                                detectorId: this.id,
+                                severity: 'warning',
+                                category: this.category,
+                                messageKey: 'stale-api.registry-deprecated',
+                                message: `Package "${packageName}" is deprecated${deprecation.message ? ': ' + deprecation.message : ''}${deprecation.replacement ? '. Use ' + deprecation.replacement + ' instead' : ''}.`,
+                                file: occurrence.file,
+                                line: occurrence.line + 1, // 0-based to 1-based
+                                confidence: 0.95,
+                                metadata: {
+                                    packageName,
+                                    language,
+                                    source: 'registry',
+                                    deprecationMessage: deprecation.message,
+                                    replacement: deprecation.replacement,
+                                    since: deprecation.since,
+                                },
+                            });
+                        }
+                    }
+                }
+                catch {
+                    // Registry check failed; skip silently (conservative)
+                }
+            }
+        }
+    }
+    /**
+     * Check well-known deprecated API patterns in source code.
+     */
+    checkPatternDeprecations(units, results) {
+        for (const unit of units) {
+            const patterns = DEPRECATION_PATTERNS.get(unit.language);
+            if (!patterns)
+                continue;
+            // Check source text against known deprecated patterns
+            const lines = unit.source.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                for (const pattern of patterns) {
+                    const regex = pattern.pattern instanceof RegExp
+                        ? pattern.pattern
+                        : new RegExp(this.escapeRegex(pattern.pattern), 'g');
+                    if (regex.test(line)) {
+                        const absoluteLine = unit.location.startLine + i;
+                        results.push({
+                            detectorId: this.id,
+                            severity: 'warning',
+                            category: this.category,
+                            messageKey: 'stale-api.deprecated-pattern',
+                            message: pattern.description || `Deprecated API usage detected. Use ${pattern.replacement} instead${pattern.since ? ' (deprecated since ' + pattern.since + ')' : ''}.`,
+                            file: unit.file,
+                            line: absoluteLine + 1, // 0-based to 1-based
+                            confidence: pattern.confidence,
+                            metadata: {
+                                language: unit.language,
+                                source: 'pattern',
+                                replacement: pattern.replacement,
+                                since: pattern.since,
+                                matchedPattern: pattern.pattern instanceof RegExp
+                                    ? pattern.pattern.source
+                                    : pattern.pattern,
+                            },
+                        });
+                    }
+                    // Reset regex lastIndex for global patterns
+                    if (pattern.pattern instanceof RegExp) {
+                        pattern.pattern.lastIndex = 0;
+                    }
+                }
+            }
+        }
+    }
+    /**
+     * Check deprecated import modules (entire modules that are deprecated).
+     */
+    checkDeprecatedImports(units, results) {
+        for (const unit of units) {
+            if (unit.kind !== 'file')
+                continue;
+            const deprecatedModules = DEPRECATED_IMPORT_MODULES.get(unit.language);
+            if (!deprecatedModules)
+                continue;
+            for (const imp of unit.imports) {
+                const topModule = imp.module.split(/[./]/)[0];
+                const deprecation = deprecatedModules.get(imp.module) || deprecatedModules.get(topModule);
+                if (deprecation) {
+                    results.push({
+                        detectorId: this.id,
+                        severity: 'warning',
+                        category: this.category,
+                        messageKey: 'stale-api.deprecated-module',
+                        message: `Module "${imp.module}" is deprecated${deprecation.since ? ' since ' + deprecation.since : ''}. Use ${deprecation.replacement} instead.`,
+                        file: unit.file,
+                        line: imp.line + 1, // 0-based to 1-based
+                        confidence: 0.9,
+                        metadata: {
+                            module: imp.module,
+                            language: unit.language,
+                            source: 'known-deprecation',
+                            replacement: deprecation.replacement,
+                            since: deprecation.since,
+                        },
+                    });
+                }
+            }
+        }
+    }
+    /**
+     * Extract top-level package name from a module path.
+     */
+    extractPackageName(module, language) {
+        switch (language) {
+            case 'typescript':
+            case 'javascript': {
+                if (module.startsWith('@')) {
+                    const parts = module.split('/');
+                    return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : module;
+                }
+                return module.split('/')[0];
+            }
+            case 'python':
+                return module.split('.')[0];
+            case 'java':
+            case 'kotlin':
+                return module;
+            case 'go': {
+                const parts = module.split('/');
+                if (parts.length >= 3 && module.includes('.')) {
+                    return parts.slice(0, 3).join('/');
+                }
+                return module;
+            }
+            default:
+                return module;
+        }
+    }
+    /**
+     * Escape a string for use in a regular expression.
+     */
+    escapeRegex(str) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+}
+//# sourceMappingURL=stale-api.js.map
+;// CONCATENATED MODULE: ../core/dist/detectors/v4/over-engineering.js
+/**
+ * OverEngineeringDetector — V4 detector for over-engineered AI-generated code.
+ *
+ * AI models love generating unnecessarily complex code: excessive abstraction,
+ * design pattern abuse, deep nesting, and bloated function signatures.
+ * This detector catches these patterns using CodeUnit complexity metrics.
+ *
+ * V4 improvements over V3:
+ * - Uses pre-computed ComplexityMetrics from CodeUnit IR
+ * - Configurable thresholds via DetectorContext
+ * - Structural analysis using definitions instead of regex
+ *
+ * @since 0.4.0
+ */
+const DEFAULT_THRESHOLDS = {
+    maxParams: 5,
+    maxNesting: 4,
+    maxFunctionLOC: 100,
+    maxCyclomaticComplexity: 15,
+};
+// ─── Detector ──────────────────────────────────────────────────────
+class over_engineering_OverEngineeringDetector {
+    id = 'over-engineering';
+    name = 'Over-engineering Detector';
+    category = 'implementation';
+    supportedLanguages = [];
+    thresholds;
+    constructor(thresholds) {
+        this.thresholds = { ...DEFAULT_THRESHOLDS, ...thresholds };
+    }
+    async detect(units, context) {
+        const results = [];
+        // Apply config overrides if present
+        const thresholds = this.getEffectiveThresholds(context);
+        // Analysis 1: Excessive function parameters
+        this.detectExcessiveParams(units, thresholds, results);
+        // Analysis 2: Deep nesting
+        this.detectDeepNesting(units, thresholds, results);
+        // Analysis 3: Long functions
+        this.detectLongFunctions(units, thresholds, results);
+        // Analysis 4: High cyclomatic complexity
+        this.detectHighComplexity(units, thresholds, results);
+        // Analysis 5: Excessive abstraction (many single-method interfaces/classes)
+        this.detectExcessiveAbstraction(units, results);
+        return results;
+    }
+    /**
+     * Detect functions with too many parameters.
+     * AI models often generate functions with excessive parameters
+     * instead of using option objects or builders.
+     */
+    detectExcessiveParams(units, thresholds, results) {
+        for (const unit of units) {
+            if (unit.kind !== 'function' && unit.kind !== 'method')
+                continue;
+            const paramCount = unit.complexity.parameterCount;
+            if (paramCount !== undefined && paramCount > thresholds.maxParams) {
+                results.push({
+                    detectorId: this.id,
+                    severity: 'warning',
+                    category: this.category,
+                    messageKey: 'over-engineering.excessive-params',
+                    message: `Function has ${paramCount} parameters (max: ${thresholds.maxParams}). Consider using an options object or builder pattern.`,
+                    file: unit.file,
+                    line: unit.location.startLine + 1,
+                    endLine: unit.location.endLine + 1,
+                    confidence: 0.8,
+                    metadata: {
+                        paramCount,
+                        threshold: thresholds.maxParams,
+                        functionId: unit.id,
+                        analysisType: 'excessive-params',
+                    },
+                });
+            }
+        }
+    }
+    /**
+     * Detect deeply nested code structures.
+     * AI-generated code often has excessive nesting from
+     * nested conditionals and callbacks.
+     */
+    detectDeepNesting(units, thresholds, results) {
+        for (const unit of units) {
+            if (unit.kind !== 'function' && unit.kind !== 'method')
+                continue;
+            if (unit.complexity.maxNestingDepth > thresholds.maxNesting) {
+                results.push({
+                    detectorId: this.id,
+                    severity: 'warning',
+                    category: this.category,
+                    messageKey: 'over-engineering.deep-nesting',
+                    message: `Function has nesting depth of ${unit.complexity.maxNestingDepth} (max: ${thresholds.maxNesting}). Consider early returns or extracting helper functions.`,
+                    file: unit.file,
+                    line: unit.location.startLine + 1,
+                    endLine: unit.location.endLine + 1,
+                    confidence: 0.75,
+                    metadata: {
+                        nestingDepth: unit.complexity.maxNestingDepth,
+                        threshold: thresholds.maxNesting,
+                        functionId: unit.id,
+                        analysisType: 'deep-nesting',
+                    },
+                });
+            }
+        }
+    }
+    /**
+     * Detect functions that are excessively long.
+     * AI models often generate monolithic functions instead of
+     * properly decomposed code.
+     */
+    detectLongFunctions(units, thresholds, results) {
+        for (const unit of units) {
+            if (unit.kind !== 'function' && unit.kind !== 'method')
+                continue;
+            if (unit.complexity.linesOfCode > thresholds.maxFunctionLOC) {
+                results.push({
+                    detectorId: this.id,
+                    severity: 'warning',
+                    category: this.category,
+                    messageKey: 'over-engineering.long-function',
+                    message: `Function has ${unit.complexity.linesOfCode} lines of code (max: ${thresholds.maxFunctionLOC}). Consider breaking it into smaller functions.`,
+                    file: unit.file,
+                    line: unit.location.startLine + 1,
+                    endLine: unit.location.endLine + 1,
+                    confidence: 0.7,
+                    metadata: {
+                        linesOfCode: unit.complexity.linesOfCode,
+                        threshold: thresholds.maxFunctionLOC,
+                        functionId: unit.id,
+                        analysisType: 'long-function',
+                    },
+                });
+            }
+        }
+    }
+    /**
+     * Detect high cyclomatic complexity.
+     * AI models produce code with many branching paths that
+     * is difficult to understand and test.
+     */
+    detectHighComplexity(units, thresholds, results) {
+        for (const unit of units) {
+            if (unit.kind !== 'function' && unit.kind !== 'method')
+                continue;
+            if (unit.complexity.cyclomaticComplexity > thresholds.maxCyclomaticComplexity) {
+                results.push({
+                    detectorId: this.id,
+                    severity: 'warning',
+                    category: this.category,
+                    messageKey: 'over-engineering.high-complexity',
+                    message: `Function has cyclomatic complexity of ${unit.complexity.cyclomaticComplexity} (max: ${thresholds.maxCyclomaticComplexity}). Consider simplifying the logic.`,
+                    file: unit.file,
+                    line: unit.location.startLine + 1,
+                    endLine: unit.location.endLine + 1,
+                    confidence: 0.85,
+                    metadata: {
+                        cyclomaticComplexity: unit.complexity.cyclomaticComplexity,
+                        threshold: thresholds.maxCyclomaticComplexity,
+                        functionId: unit.id,
+                        analysisType: 'high-complexity',
+                    },
+                });
+            }
+        }
+    }
+    /**
+     * Detect excessive abstraction patterns.
+     *
+     * AI models tend to over-architect solutions by creating:
+     * - Multiple single-method interfaces (unnecessary abstraction)
+     * - Abstract classes with single concrete implementations
+     */
+    detectExcessiveAbstraction(units, results) {
+        // Group by file to detect per-file patterns
+        const fileUnits = new Map();
+        for (const unit of units) {
+            if (!fileUnits.has(unit.file)) {
+                fileUnits.set(unit.file, []);
+            }
+            fileUnits.get(unit.file).push(unit);
+        }
+        for (const [file, fileUnitList] of fileUnits) {
+            // Count interfaces with single method definitions
+            let singleMethodInterfaces = 0;
+            const interfaceUnits = [];
+            for (const unit of fileUnitList) {
+                if (unit.kind !== 'class')
+                    continue;
+                // Detect interfaces/types with only a single method
+                const methodDefs = unit.definitions.filter(d => d.kind === 'method');
+                const interfaceDefs = unit.definitions.filter(d => d.kind === 'interface');
+                // If this is an interface-like unit (has interface definitions) with very few methods
+                if (interfaceDefs.length > 0 && methodDefs.length === 1) {
+                    singleMethodInterfaces++;
+                    interfaceUnits.push(unit);
+                }
+            }
+            // Flag if there are many single-method interfaces in one file
+            if (singleMethodInterfaces >= 3) {
+                results.push({
+                    detectorId: this.id,
+                    severity: 'info',
+                    category: this.category,
+                    messageKey: 'over-engineering.excessive-abstraction',
+                    message: `File contains ${singleMethodInterfaces} single-method interfaces. This may be over-engineered — consider consolidating or using function types.`,
+                    file,
+                    line: interfaceUnits[0]?.location.startLine + 1 || 1,
+                    confidence: 0.6,
+                    metadata: {
+                        singleMethodInterfaces,
+                        analysisType: 'excessive-abstraction',
+                    },
+                });
+            }
+        }
+    }
+    /**
+     * Get effective thresholds, considering config overrides.
+     */
+    getEffectiveThresholds(context) {
+        const config = context.config?.['over-engineering'];
+        if (!config)
+            return this.thresholds;
+        return {
+            maxParams: config.maxParams ?? this.thresholds.maxParams,
+            maxNesting: config.maxNesting ?? this.thresholds.maxNesting,
+            maxFunctionLOC: config.maxFunctionLOC ?? this.thresholds.maxFunctionLOC,
+            maxCyclomaticComplexity: config.maxCyclomaticComplexity ?? this.thresholds.maxCyclomaticComplexity,
+        };
+    }
+}
+//# sourceMappingURL=over-engineering.js.map
+;// CONCATENATED MODULE: ../core/dist/detectors/v4/security-pattern.js
+/**
+ * SecurityPatternDetector — V4 detector for security anti-patterns in AI-generated code.
+ *
+ * NOT a replacement for dedicated security scanners (Snyk, Semgrep).
+ * Focuses specifically on patterns AI commonly produces from training data:
+ * - Hardcoded secrets/tokens (example values from docs left in code)
+ * - Insecure defaults (HTTP instead of HTTPS, no TLS verification)
+ * - SQL injection from string concatenation
+ * - eval()/exec() usage
+ * - Weak cryptography (MD5, SHA1 for security purposes)
+ * - Hardcoded credentials
+ *
+ * V4 improvements over V3:
+ * - Operates on CodeUnit IR with language-aware patterns
+ * - Better context analysis (knows which calls are security-relevant)
+ * - Reduced false positives through source context analysis
+ *
+ * @since 0.4.0
+ */
+// ─── Security Patterns ─────────────────────────────────────────────
+const SECURITY_PATTERNS = [
+    // ── Hardcoded Secrets ──────────────────────────────────────────
+    {
+        id: 'hardcoded-api-key',
+        pattern: /(?:api[_-]?key|apikey|api[_-]?secret|api[_-]?token)\s*[:=]\s*['"][A-Za-z0-9_\-]{16,}['"]/i,
+        severity: 'error',
+        confidence: 0.85,
+        message: 'Possible hardcoded API key detected. Use environment variables or a secrets manager instead.',
+        languages: [],
+    },
+    {
+        id: 'hardcoded-password',
+        pattern: /(?:password|passwd|pwd|secret)\s*[:=]\s*['"][^'"]{4,}['"]/i,
+        severity: 'error',
+        confidence: 0.8,
+        message: 'Possible hardcoded password detected. Use environment variables or a secrets manager instead.',
+        languages: [],
+        excludeContextPatterns: [
+            /(?:example|sample|test|mock|dummy|placeholder|todo|fixme|xxx)/i,
+        ],
+    },
+    {
+        id: 'hardcoded-token',
+        pattern: /(?:auth[_-]?token|access[_-]?token|bearer[_-]?token|jwt[_-]?secret)\s*[:=]\s*['"][A-Za-z0-9_.\-]{16,}['"]/i,
+        severity: 'error',
+        confidence: 0.85,
+        message: 'Possible hardcoded authentication token detected. Use environment variables instead.',
+        languages: [],
+    },
+    {
+        id: 'aws-access-key',
+        pattern: /(?:AKIA|ABIA|ACCA|ASIA)[A-Z0-9]{16}/,
+        severity: 'error',
+        confidence: 0.95,
+        message: 'Possible AWS access key ID detected. Rotate immediately and use IAM roles or environment variables.',
+        languages: [],
+    },
+    {
+        id: 'private-key',
+        pattern: /-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----/,
+        severity: 'error',
+        confidence: 0.95,
+        message: 'Private key embedded in source code. Store in a secure vault or secrets manager.',
+        languages: [],
+    },
+    // ── Dangerous Functions ────────────────────────────────────────
+    {
+        id: 'eval-usage-js',
+        pattern: /\beval\s*\(/,
+        severity: 'error',
+        confidence: 0.9,
+        message: 'eval() usage detected. This enables code injection attacks. Use safer alternatives like JSON.parse() or a sandboxed evaluator.',
+        languages: ['typescript', 'javascript'],
+    },
+    {
+        id: 'eval-usage-python',
+        pattern: /\beval\s*\(/,
+        severity: 'error',
+        confidence: 0.9,
+        message: 'eval() usage detected. This enables code injection attacks. Use ast.literal_eval() or safer alternatives.',
+        languages: ['python'],
+    },
+    {
+        id: 'exec-usage-python',
+        pattern: /\bexec\s*\(/,
+        severity: 'error',
+        confidence: 0.85,
+        message: 'exec() usage detected. This enables arbitrary code execution. Consider safer alternatives.',
+        languages: ['python'],
+    },
+    {
+        id: 'new-function-js',
+        pattern: /\bnew\s+Function\s*\(/,
+        severity: 'warning',
+        confidence: 0.85,
+        message: 'new Function() is similar to eval() and can enable code injection. Use safer alternatives.',
+        languages: ['typescript', 'javascript'],
+    },
+    // ── SQL Injection ──────────────────────────────────────────────
+    {
+        id: 'sql-string-concat',
+        pattern: /(?:SELECT|INSERT|UPDATE|DELETE|DROP)\s+.*?\+\s*(?:req\.|request\.|params\.|query\.|body\.|input|user)/i,
+        severity: 'error',
+        confidence: 0.8,
+        message: 'SQL query with string concatenation from user input detected. Use parameterized queries to prevent SQL injection.',
+        languages: ['typescript', 'javascript', 'java', 'kotlin', 'python'],
+    },
+    {
+        id: 'sql-template-literal',
+        pattern: /(?:SELECT|INSERT|UPDATE|DELETE|DROP)\s+.*?\$\{.*?(?:req|request|params|query|body|input|user)/i,
+        severity: 'error',
+        confidence: 0.85,
+        message: 'SQL query using template literals with user input detected. Use parameterized queries to prevent SQL injection.',
+        languages: ['typescript', 'javascript'],
+    },
+    {
+        id: 'sql-f-string-python',
+        pattern: /f['"](?:SELECT|INSERT|UPDATE|DELETE|DROP)\s+.*?\{.*?(?:request|params|query|body|input|user)/i,
+        severity: 'error',
+        confidence: 0.85,
+        message: 'SQL query using f-string with user input detected. Use parameterized queries to prevent SQL injection.',
+        languages: ['python'],
+    },
+    // ── Weak Cryptography ──────────────────────────────────────────
+    {
+        id: 'weak-hash-md5',
+        pattern: /\b(?:md5|MD5|createHash\s*\(\s*['"]md5['"]|hashlib\.md5|MessageDigest\.getInstance\s*\(\s*['"]MD5['"])\b/,
+        severity: 'warning',
+        confidence: 0.75,
+        message: 'MD5 is cryptographically broken. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)',
+        languages: [],
+    },
+    {
+        id: 'weak-hash-sha1',
+        pattern: /\b(?:sha1|SHA1|createHash\s*\(\s*['"]sha1['"]|hashlib\.sha1|MessageDigest\.getInstance\s*\(\s*['"]SHA-?1['"])\b/,
+        severity: 'warning',
+        confidence: 0.7,
+        message: 'SHA-1 is cryptographically weak. Use SHA-256 or better for security purposes. (OK for checksums/non-security uses.)',
+        languages: [],
+    },
+    {
+        id: 'weak-random',
+        pattern: /\bMath\.random\s*\(\)/,
+        severity: 'warning',
+        confidence: 0.7,
+        message: 'Math.random() is not cryptographically secure. Use crypto.randomUUID() or crypto.getRandomValues() for security-sensitive operations.',
+        languages: ['typescript', 'javascript'],
+    },
+    // ── Insecure Defaults ──────────────────────────────────────────
+    {
+        id: 'tls-verify-disabled',
+        pattern: /(?:rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*['"]?0|verify\s*=\s*False|InsecureSkipVerify\s*:\s*true)/i,
+        severity: 'error',
+        confidence: 0.9,
+        message: 'TLS certificate verification is disabled. This enables man-in-the-middle attacks.',
+        languages: [],
+    },
+    {
+        id: 'cors-wildcard',
+        pattern: /(?:Access-Control-Allow-Origin['"]\s*[:=]\s*['"]\*|cors\(\s*\)|allowedOrigins\s*\(\s*['"]\*['"])/i,
+        severity: 'warning',
+        confidence: 0.7,
+        message: 'CORS is configured with wildcard origin. Restrict to specific trusted domains.',
+        languages: [],
+    },
+    {
+        id: 'http-no-tls',
+        pattern: /['"]http:\/\/(?!localhost|127\.0\.0\.1|0\.0\.0\.0)/,
+        severity: 'info',
+        confidence: 0.5,
+        message: 'HTTP URL detected (not HTTPS). Consider using HTTPS for production endpoints.',
+        languages: [],
+    },
+];
+// ─── Detector ──────────────────────────────────────────────────────
+class security_pattern_SecurityPatternDetector {
+    id = 'security-pattern';
+    name = 'Security Pattern Detector';
+    category = 'implementation';
+    supportedLanguages = [];
+    async detect(units, context) {
+        const results = [];
+        for (const unit of units) {
+            // Skip non-source units (module-level containers without source)
+            if (!unit.source || unit.source.trim().length === 0)
+                continue;
+            // Get applicable patterns for this language
+            const applicablePatterns = SECURITY_PATTERNS.filter(p => p.languages.length === 0 || p.languages.includes(unit.language));
+            const lines = unit.source.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                // Skip comments (simple heuristic)
+                const trimmed = line.trim();
+                if (trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith('*')) {
+                    continue;
+                }
+                for (const pattern of applicablePatterns) {
+                    // Reset regex lastIndex (patterns might be reused)
+                    pattern.pattern.lastIndex = 0;
+                    if (pattern.pattern.test(line)) {
+                        // Check exclude context patterns
+                        if (pattern.excludeContextPatterns) {
+                            const excluded = pattern.excludeContextPatterns.some(ep => {
+                                ep.lastIndex = 0;
+                                return ep.test(line);
+                            });
+                            if (excluded)
+                                continue;
+                        }
+                        const absoluteLine = unit.location.startLine + i;
+                        results.push({
+                            detectorId: this.id,
+                            severity: pattern.severity,
+                            category: this.category,
+                            messageKey: `security-pattern.${pattern.id}`,
+                            message: pattern.message,
+                            file: unit.file,
+                            line: absoluteLine + 1, // 0-based to 1-based
+                            confidence: pattern.confidence,
+                            metadata: {
+                                patternId: pattern.id,
+                                language: unit.language,
+                                matchedLine: line.trim().substring(0, 100), // Truncate for safety
+                            },
+                        });
+                    }
+                }
+            }
+        }
+        return results;
+    }
+}
+//# sourceMappingURL=security-pattern.js.map
+;// CONCATENATED MODULE: ../core/dist/detectors/v4/index.js
+/**
+ * V4 Detector Module — AI-unique detectors operating on CodeUnit IR.
+ *
+ * V4 keeps only detectors that target AI-specific code quality issues:
+ * - HallucinatedImportDetector: Detects imports of non-existent packages
+ * - StaleAPIDetector: Detects deprecated/outdated API usage
+ * - ContextCoherenceDetector: Detects AI context window inconsistencies
+ * - OverEngineeringDetector: Detects over-engineered code patterns
+ * - SecurityPatternDetector: Detects security anti-patterns common in AI code
+ *
+ * Traditional lint concerns (duplication, type safety) are excluded.
+ *
+ * @since 0.4.0
  */
 // Detectors
 
 
 
 
-// Scorer
 
-// Report
 
-// AI Healer
+
+
+
+
+/**
+ * Create all V4 detectors with default configuration.
+ *
+ * @returns Array of all V4 detector instances
+ */
+function v4_createV4Detectors() {
+    return [
+        new HallucinatedImportDetector(),
+        new StaleAPIDetector(),
+        new ContextCoherenceDetector(),
+        new OverEngineeringDetector(),
+        new SecurityPatternDetector(),
+    ];
+}
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ../core/dist/i18n/en.js
+/**
+ * English Message Catalog
+ *
+ * All user-visible strings in English.
+ *
+ * @since 0.4.0
+ */
+const en_EN_MESSAGES = {
+    // ─── Scan Messages ────────────────────────────────────────────
+    'scan.start': 'Scanning {count} files...',
+    'scan.complete': 'Scan complete in {duration}ms',
+    'scan.noFiles': 'No files to scan',
+    // ─── Detector Messages ────────────────────────────────────────
+    'detector.hallucinated-import': 'Hallucinated import: package "{package}" does not exist in {registry}',
+    'detector.hallucinated-import.offline': 'Cannot verify import "{package}" (offline mode)',
+    'detector.hallucinated-import.phantom-function': 'Function "{name}" is called but not declared or imported in this file',
+    'detector.stale-api': 'Deprecated API: "{api}" — use "{replacement}" instead',
+    'detector.stale-api.since': 'Deprecated since {since}: "{api}" — use "{replacement}" instead',
+    'detector.context-coherence.unused': 'Unused non-exported {kind} "{name}" (possible AI context loss)',
+    'detector.context-coherence.duplicate': 'Duplicate {kind} name "{name}" in same scope',
+    'detector.context-coherence.inconsistent-import': 'Inconsistent imports: "{module1}" and "{module2}" serve similar purpose',
+    'detector.context-coherence.undefined-ref': 'Reference to undefined symbol "{name}"',
+    'detector.over-engineering.params': 'Function "{name}" has {count} parameters (max recommended: {max})',
+    'detector.over-engineering.nesting': 'Nesting depth {depth} exceeds maximum {max}',
+    'detector.over-engineering.loc': 'Function "{name}" has {lines} lines (max recommended: {max})',
+    'detector.over-engineering.complexity': 'Cyclomatic complexity {value} exceeds maximum {max}',
+    'detector.security.hardcoded-secret': 'Possible hardcoded secret: {pattern}',
+    'detector.security.eval': 'Dangerous eval/exec usage',
+    'detector.security.weak-crypto': 'Weak cryptographic algorithm: {algo}',
+    'detector.security.sql-injection': 'Possible SQL injection via string concatenation',
+    'detector.incomplete.empty-catch': 'Empty catch block — potential error swallowing',
+    'detector.incomplete.stub': 'Stub implementation found: {indicator}',
+    // ─── Scoring ──────────────────────────────────────────────────
+    'score.grade.excellent': 'Excellent',
+    'score.grade.good': 'Good',
+    'score.grade.fair': 'Fair',
+    'score.grade.poor': 'Poor',
+    'score.grade.fail': 'Fail',
+    'score.dimension.faithfulness': 'AI Faithfulness',
+    'score.dimension.freshness': 'Code Freshness',
+    'score.dimension.coherence': 'Context Coherence',
+    'score.dimension.quality': 'Implementation Quality',
+    // ─── SLA ──────────────────────────────────────────────────────
+    'sla.L1': 'L1 Fast — Structural analysis only',
+    'sla.L2': 'L2 Standard — Structural + Embedding + Local AI',
+    'sla.L3': 'L3 Deep — Structural + Embedding + Remote AI',
+    // ─── Report ───────────────────────────────────────────────────
+    'report.title': 'Open Code Review Report',
+    'report.summary': '{total} issues found in {files} files',
+    'report.noIssues': 'No issues found',
+    'report.generated': 'Generated by Open Code Review v{version}',
+    'report.project': 'Project: {name}',
+    'report.date': 'Date: {date}',
+    'report.score': 'Overall Score: {score}/100',
+    'report.grade': 'Grade: {grade}',
+    'report.filesScanned': 'Files Scanned: {count}',
+    'report.passed': 'Passed: {count}',
+    'report.failed': 'Failed: {count}',
+    'report.threshold': 'Threshold: {threshold}',
+    'report.status.passed': 'PASSED',
+    'report.status.failed': 'FAILED',
+    'report.duration': 'Duration: {duration}',
+    'report.languages': 'Languages: {languages}',
+    'report.dimensions': 'Scoring Dimensions',
+    'report.issues': 'Issues',
+    'report.issues.found': '{count} issues found',
+    'report.more': '... and {count} more',
+    // ─── CLI ──────────────────────────────────────────────────────
+    'cli.scanning': 'Scanning...',
+    'cli.done': 'Done!',
+    'cli.error': 'Error: {message}',
+    'cli.noFiles': 'No files matched the scan patterns',
+    'cli.offline': 'Registry verification unavailable (offline). Package existence checks skipped.',
+    // ─── Errors ───────────────────────────────────────────────────
+    'error.parser.init': 'Failed to initialize parser: {message}',
+    'error.registry.verify': 'Failed to verify package "{package}": {message}',
+    'error.config.load': 'Failed to load configuration: {message}',
+};
+/**
+ * Get the locale identifier for English.
+ */
+const EN_LOCALE = 'en';
+//# sourceMappingURL=en.js.map
+;// CONCATENATED MODULE: ../core/dist/i18n/zh.js
+/**
+ * Chinese Message Catalog
+ *
+ * All user-visible strings in Simplified Chinese (简体中文).
+ *
+ * @since 0.4.0
+ */
+const zh_ZH_MESSAGES = {
+    // ─── Scan Messages ────────────────────────────────────────────
+    'scan.start': '正在扫描 {count} 个文件...',
+    'scan.complete': '扫描完成，耗时 {duration}ms',
+    'scan.noFiles': '没有要扫描的文件',
+    // ─── Detector Messages ────────────────────────────────────────
+    'detector.hallucinated-import': 'AI 幻觉导入：包 "{package}" 在 {registry} 中不存在',
+    'detector.hallucinated-import.offline': '无法验证导入 "{package}"（离线模式）',
+    'detector.hallucinated-import.phantom-function': '函数 "{name}" 被调用但未在此文件中声明或导入',
+    'detector.stale-api': '已废弃 API："{api}" — 请使用 "{replacement}"',
+    'detector.stale-api.since': '自 {since} 起已废弃："{api}" — 请使用 "{replacement}"',
+    'detector.context-coherence.unused': '未使用且未导出的{kind} "{name}"（可能是 AI 上下文丢失）',
+    'detector.context-coherence.duplicate': '同一作用域中重复的{kind}名称 "{name}"',
+    'detector.context-coherence.inconsistent-import': '不一致的导入："{module1}" 和 "{module2}" 用途相似',
+    'detector.context-coherence.undefined-ref': '引用未定义的符号 "{name}"',
+    'detector.over-engineering.params': '函数 "{name}" 有 {count} 个参数（建议最多 {max} 个）',
+    'detector.over-engineering.nesting': '嵌套深度 {depth} 超过最大值 {max}',
+    'detector.over-engineering.loc': '函数 "{name}" 有 {lines} 行（建议最多 {max} 行）',
+    'detector.over-engineering.complexity': '圈复杂度 {value} 超过最大值 {max}',
+    'detector.security.hardcoded-secret': '可能的硬编码密钥：{pattern}',
+    'detector.security.eval': '危险的 eval/exec 使用',
+    'detector.security.weak-crypto': '弱加密算法：{algo}',
+    'detector.security.sql-injection': '可能的 SQL 注入（字符串拼接）',
+    'detector.incomplete.empty-catch': '空 catch 块 — 可能吞掉错误',
+    'detector.incomplete.stub': '发现存根实现：{indicator}',
+    // ─── Scoring ──────────────────────────────────────────────────
+    'score.grade.excellent': '优秀',
+    'score.grade.good': '良好',
+    'score.grade.fair': '一般',
+    'score.grade.poor': '较差',
+    'score.grade.fail': '不合格',
+    'score.dimension.faithfulness': 'AI 忠实度',
+    'score.dimension.freshness': '代码新鲜度',
+    'score.dimension.coherence': '上下文一致性',
+    'score.dimension.quality': '实现质量',
+    // ─── SLA ──────────────────────────────────────────────────────
+    'sla.L1': 'L1 快速 — 仅结构分析',
+    'sla.L2': 'L2 标准 — 结构 + 嵌入 + 本地 AI',
+    'sla.L3': 'L3 深度 — 结构 + 嵌入 + 远端 AI',
+    // ─── Report ───────────────────────────────────────────────────
+    'report.title': 'Open Code Review 报告',
+    'report.summary': '在 {files} 个文件中发现 {total} 个问题',
+    'report.noIssues': '未发现问题',
+    'report.generated': '由 Open Code Review v{version} 生成',
+    'report.project': '项目：{name}',
+    'report.date': '日期：{date}',
+    'report.score': '总分：{score}/100',
+    'report.grade': '评级：{grade}',
+    'report.filesScanned': '已扫描文件：{count}',
+    'report.passed': '通过：{count}',
+    'report.failed': '失败：{count}',
+    'report.threshold': '阈值：{threshold}',
+    'report.status.passed': '通过',
+    'report.status.failed': '未通过',
+    'report.duration': '耗时：{duration}',
+    'report.languages': '语言：{languages}',
+    'report.dimensions': '评分维度',
+    'report.issues': '问题',
+    'report.issues.found': '发现 {count} 个问题',
+    'report.more': '... 还有 {count} 个',
+    // ─── CLI ──────────────────────────────────────────────────────
+    'cli.scanning': '扫描中...',
+    'cli.done': '完成！',
+    'cli.error': '错误：{message}',
+    'cli.noFiles': '没有文件匹配扫描模式',
+    'cli.offline': '注册表验证不可用（离线模式）。包存在性检查已跳过。',
+    // ─── Errors ───────────────────────────────────────────────────
+    'error.parser.init': '解析器初始化失败：{message}',
+    'error.registry.verify': '验证包 "{package}" 失败：{message}',
+    'error.config.load': '加载配置失败：{message}',
+};
+/**
+ * Get the locale identifier for Chinese.
+ */
+const ZH_LOCALE = 'zh';
+//# sourceMappingURL=zh.js.map
+;// CONCATENATED MODULE: ../core/dist/i18n/provider.js
+/**
+ * Default i18n Provider Implementation
+ *
+ * Provides translation services with parameter interpolation.
+ * Supports English (en) and Chinese (zh) locales.
+ *
+ * @since 0.4.0
+ */
+
+
+/**
+ * Default I18n Provider
+ *
+ * Provides translation with the following features:
+ * - English and Chinese locales
+ * - Parameter interpolation with {param} syntax
+ * - Fallback to key if translation not found
+ * - Locale switching at runtime
+ *
+ * @example
+ * ```ts
+ * const i18n = new DefaultI18nProvider('en');
+ * console.log(i18n.t('scan.start', { count: 5 }));
+ * // Output: "Scanning 5 files..."
+ *
+ * i18n.setLocale('zh');
+ * console.log(i18n.t('scan.start', { count: 5 }));
+ * // Output: "正在扫描 5 个文件..."
+ * ```
+ */
+class provider_DefaultI18nProvider {
+    _locale;
+    catalogs;
+    constructor(locale) {
+        this._locale = locale ?? 'en';
+        this.catalogs = new Map();
+        this.catalogs.set('en', EN_MESSAGES);
+        this.catalogs.set('zh', ZH_MESSAGES);
+        // Bind t() so it can be destructured: const { t } = i18n;
+        this.t = this.t.bind(this);
+    }
+    get locale() {
+        return this._locale;
+    }
+    setLocale(locale) {
+        this._locale = locale;
+    }
+    t(key, params) {
+        const catalog = this.catalogs.get(this._locale) ?? this.catalogs.get('en');
+        // Get message from catalog, fallback to key if not found
+        let message = catalog[key] ?? key;
+        // Interpolate parameters if provided
+        if (params) {
+            for (const [k, v] of Object.entries(params)) {
+                message = message.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+            }
+        }
+        return message;
+    }
+    /**
+     * Check if a key exists in the current locale's catalog.
+     */
+    has(key) {
+        const catalog = this.catalogs.get(this._locale);
+        return catalog ? key in catalog : false;
+    }
+    /**
+     * Get all keys available in the current locale.
+     */
+    keys() {
+        const catalog = this.catalogs.get(this._locale);
+        return catalog ? Object.keys(catalog) : [];
+    }
+    /**
+     * Get a raw message without interpolation.
+     */
+    raw(key) {
+        const catalog = this.catalogs.get(this._locale);
+        return catalog?.[key];
+    }
+}
+/**
+ * Create a new I18n provider with the specified locale.
+ */
+function createI18n(locale) {
+    return new provider_DefaultI18nProvider(locale);
+}
+//# sourceMappingURL=provider.js.map
+;// CONCATENATED MODULE: ../core/dist/i18n/index.js
+/**
+ * i18n Module — Internationalization Framework
+ *
+ * Provides translation services for all user-visible strings.
+ * Supports English (en) and Chinese (zh) locales.
+ *
+ * @since 0.4.0
+ */
+// Provider
+
+// Message catalogs (for testing or direct access)
+
+
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ../core/dist/scanner/v4-scanner.js
+/**
+ * V4 Scan Orchestrator
+ *
+ * The top-level orchestrator that ties together parsing, detection, and scoring.
+ * Supports multiple SLA levels (L1/L2/L3) and internationalization.
+ *
+ * @since 0.4.0
+ */
+
+
+
+
+
+
+
+
+
+
+
+// ─── V4 Scanner ────────────────────────────────────────────────────
+/**
+ * V4 Scanner — orchestrates the full scan pipeline.
+ *
+ * Pipeline stages:
+ * 1. File discovery — walk project root, respect include/exclude patterns
+ * 2. Parsing — tree-sitter parse, extract CodeUnit IR
+ * 3. Detection — run all structural detectors
+ * 4. AI analysis (L2/L3 only) — embedding recall + LLM deep scan
+ * 5. Scoring — compute quality score
+ *
+ * @example
+ * ```ts
+ * const scanner = new V4Scanner({
+ *   projectRoot: '/path/to/project',
+ *   sla: 'L1',
+ *   locale: 'en',
+ * });
+ *
+ * const result = await scanner.scan();
+ * console.log(`Found ${result.issues.length} issues`);
+ * ```
+ */
+class V4Scanner {
+    config;
+    parserManager;
+    registryManager;
+    detectors;
+    i18n;
+    extractors;
+    constructor(config) {
+        this.config = config;
+        this.parserManager = new ParserManager();
+        this.i18n = new DefaultI18nProvider(config.locale);
+        this.detectors = config.detectors ?? createV4Detectors();
+        // Initialize registry manager if config provided
+        if (config.registry) {
+            this.registryManager = new RegistryManager(config.registry);
+        }
+        // Initialize extractors for all supported languages
+        this.extractors = new Map([
+            ['typescript', new TypeScriptExtractor()],
+            ['javascript', new TypeScriptExtractor()], // JS uses TS extractor
+            ['python', new PythonExtractor()],
+            ['java', new JavaExtractor()],
+            ['go', new GoExtractor()],
+            ['kotlin', new KotlinExtractor()],
+        ]);
+    }
+    /**
+     * Run the full scan pipeline.
+     */
+    async scan() {
+        const startTime = Date.now();
+        // 1. Initialize parser
+        const initStart = Date.now();
+        await this.parserManager.init();
+        // Init time not tracked separately, included in parsing
+        // 2. Discover files
+        const discoveryStart = Date.now();
+        const files = await this.discoverFiles();
+        const discoveryDuration = Date.now() - discoveryStart;
+        // 3. Parse all files → CodeUnits
+        const parseStart = Date.now();
+        const allUnits = [];
+        for (const file of files) {
+            const language = this.detectLanguage(file);
+            if (!language)
+                continue;
+            try {
+                const absolutePath = join(this.config.projectRoot, file);
+                const source = await readFile(absolutePath, 'utf-8');
+                const tree = this.parserManager.parse(source, language);
+                const extractor = this.extractors.get(language);
+                if (extractor) {
+                    const units = extractor.extract(tree, file, source);
+                    allUnits.push(...units);
+                }
+            }
+            catch {
+                // Skip files that can't be parsed
+                continue;
+            }
+        }
+        const parseDuration = Date.now() - parseStart;
+        // 4. Run structural detectors
+        const detectStart = Date.now();
+        const context = {
+            projectRoot: this.config.projectRoot,
+            allFiles: files,
+            registryManager: this.registryManager,
+        };
+        const allIssues = [];
+        for (const detector of this.detectors) {
+            try {
+                const issues = await detector.detect(allUnits, context);
+                allIssues.push(...issues);
+            }
+            catch {
+                // Skip detectors that fail
+                continue;
+            }
+        }
+        const detectDuration = Date.now() - detectStart;
+        // 5. AI pipeline (L2/L3 only) — not implemented in this phase
+        // Worker A handles this
+        // 6. Build result
+        const result = {
+            issues: allIssues,
+            codeUnits: allUnits,
+            files,
+            languages: [...new Set(allUnits.map(u => u.language))],
+            durationMs: Date.now() - startTime,
+            stages: {
+                discovery: discoveryDuration,
+                parsing: parseDuration,
+                detection: detectDuration,
+            },
+            projectRoot: this.config.projectRoot,
+            sla: this.config.sla ?? 'L1',
+        };
+        return result;
+    }
+    /**
+     * Discover files to scan based on include/exclude patterns.
+     */
+    async discoverFiles() {
+        const projectRoot = this.config.projectRoot;
+        const include = this.config.include ?? DEFAULT_INCLUDE_PATTERNS;
+        const exclude = this.config.exclude ?? DEFAULT_EXCLUDE_PATTERNS;
+        const files = await this.walkDirectory(projectRoot, include, exclude);
+        return files.map(f => relative(projectRoot, f));
+    }
+    /**
+     * Walk directory recursively, filtering by include/exclude patterns.
+     */
+    async walkDirectory(dir, include, exclude) {
+        const files = [];
+        const entries = await readdir(dir, { withFileTypes: true });
+        for (const entry of entries) {
+            const fullPath = join(dir, entry.name);
+            if (entry.isDirectory()) {
+                // Check if directory should be excluded
+                if (this.shouldExcludeDir(entry.name, exclude)) {
+                    continue;
+                }
+                // Recurse into subdirectory
+                const subFiles = await this.walkDirectory(fullPath, include, exclude);
+                files.push(...subFiles);
+            }
+            else if (entry.isFile()) {
+                // Check if file should be included
+                if (this.shouldIncludeFile(entry.name, include, exclude)) {
+                    files.push(fullPath);
+                }
+            }
+        }
+        return files;
+    }
+    /**
+     * Check if a directory should be excluded.
+     */
+    shouldExcludeDir(name, exclude) {
+        const excludeDirs = exclude
+            .filter(p => p.includes('/**/') || p.endsWith('/**'))
+            .map(p => p.replace('/**', '').replace('**/', '').replace('**', ''));
+        return excludeDirs.includes(name) ||
+            name === 'node_modules' ||
+            name === 'dist' ||
+            name === 'build' ||
+            name === '.git' ||
+            name === 'vendor' ||
+            name === '__pycache__' ||
+            name === 'target';
+    }
+    /**
+     * Check if a file should be included based on patterns.
+     */
+    shouldIncludeFile(name, include, exclude) {
+        // Check extension against include patterns
+        const ext = extname(name).toLowerCase();
+        const includedExtensions = include
+            .filter(p => p.startsWith('**/*.'))
+            .map(p => p.replace('**/*', ''));
+        const hasMatchingInclude = includedExtensions.length === 0 || includedExtensions.includes(ext);
+        // Check exclusion patterns
+        const isExcluded = exclude.some(pattern => {
+            if (pattern.includes(name))
+                return true;
+            if (pattern.startsWith('**/*') && pattern.endsWith(ext))
+                return true;
+            return false;
+        });
+        return hasMatchingInclude && !isExcluded;
+    }
+    /**
+     * Detect language from file extension.
+     */
+    detectLanguage(filePath) {
+        const ext = extname(filePath).toLowerCase();
+        const mapping = {
+            '.ts': 'typescript',
+            '.tsx': 'typescript',
+            '.js': 'javascript',
+            '.jsx': 'javascript',
+            '.mjs': 'javascript',
+            '.cjs': 'javascript',
+            '.py': 'python',
+            '.java': 'java',
+            '.go': 'go',
+            '.kt': 'kotlin',
+            '.kts': 'kotlin',
+        };
+        return mapping[ext] ?? null;
+    }
+    /**
+     * Get the extractor for a language.
+     */
+    getExtractor(language) {
+        return this.extractors.get(language);
+    }
+}
+// ─── Default Patterns ───────────────────────────────────────────────
+const DEFAULT_INCLUDE_PATTERNS = (/* unused pure expression or super */ null && ([
+    '**/*.ts',
+    '**/*.tsx',
+    '**/*.js',
+    '**/*.jsx',
+    '**/*.mjs',
+    '**/*.cjs',
+    '**/*.py',
+    '**/*.java',
+    '**/*.go',
+    '**/*.kt',
+    '**/*.kts',
+]));
+const DEFAULT_EXCLUDE_PATTERNS = (/* unused pure expression or super */ null && ([
+    '**/node_modules/**',
+    '**/dist/**',
+    '**/build/**',
+    '**/.git/**',
+    '**/vendor/**',
+    '**/__pycache__/**',
+    '**/target/**',
+    '**/*.test.*',
+    '**/*.spec.*',
+    '**/__tests__/**',
+]));
+// ─── Factory ────────────────────────────────────────────────────────
+/**
+ * Create a V4 scanner with the given configuration.
+ */
+function createV4Scanner(config) {
+    return new V4Scanner(config);
+}
+//# sourceMappingURL=v4-scanner.js.map
+;// CONCATENATED MODULE: ../core/dist/scanner/index.js
+/**
+ * Scanner Module — V4 Scan Orchestrator
+ *
+ * Provides the V4Scanner which orchestrates parsing, detection, and scoring.
+ *
+ * @since 0.4.0
+ */
+
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ../core/dist/scorer/v4-adapter.js
+/**
+ * V4 Score Adapter
+ *
+ * Bridges V4 DetectorResults to V3 scoring engine.
+ * Reuses V3 scoring logic (4 dimensions, 5 grades).
+ *
+ * @since 0.4.0
+ */
+
+
+// ─── Category Mapping ───────────────────────────────────────────────
+/**
+ * Maps V4 DetectorCategory to V3 AIDefectCategory.
+ */
+const CATEGORY_MAP = {
+    'ai-faithfulness': types_AIDefectCategory.HALLUCINATION,
+    'code-freshness': types_AIDefectCategory.STALE_KNOWLEDGE,
+    'context-coherence': types_AIDefectCategory.CONTEXT_LOSS,
+    'implementation': types_AIDefectCategory.OVER_ENGINEERING,
+};
+/**
+ * Maps V4 detector severity to V3 Severity.
+ */
+const SEVERITY_MAP = {
+    'error': 'critical',
+    'warning': 'medium',
+    'info': 'info',
+};
+// ─── Adapter Functions ──────────────────────────────────────────────
+/**
+ * Convert a V4 DetectorResult to V3 UnifiedIssue format.
+ */
+function v4ResultToV3Issue(result) {
+    return {
+        id: `${result.detectorId}:${result.file}:${result.line}`,
+        detector: result.detectorId,
+        category: CATEGORY_MAP[result.category] ?? AIDefectCategory.OVER_ENGINEERING,
+        severity: SEVERITY_MAP[result.severity] ?? 'medium',
+        message: result.message,
+        file: result.file,
+        line: result.line,
+        endLine: result.endLine,
+        confidence: result.confidence,
+        autoFixable: false,
+        detectionSource: 'static',
+    };
+}
+/**
+ * Convert an array of V4 DetectorResults to V3 UnifiedIssues.
+ */
+function v4ResultsToV3Issues(results) {
+    return results.map(v4ResultToV3Issue);
+}
+// ─── V4 Score Adapter ────────────────────────────────────────────────
+/**
+ * Score V4 results using the V3 scoring engine.
+ *
+ * @param results - V4 DetectorResults
+ * @param fileCount - Number of files scanned
+ * @param threshold - Passing threshold (default: 70)
+ * @returns V4ScoreResult
+ */
+function scoreV4Results(results, fileCount, threshold = 70) {
+    // Convert V4 results to V3 issues
+    const issues = v4ResultsToV3Issues(results);
+    // Use V3 scoring engine
+    const engine = new ScoringEngine(threshold);
+    const scoreResult = engine.score(issues);
+    // Map V3 dimension scores to V4 format
+    const dimensions = {
+        faithfulness: mapDimension(scoreResult.dimensions.aiFaithfulness, 'AI Faithfulness'),
+        freshness: mapDimension(scoreResult.dimensions.codeFreshness, 'Code Freshness'),
+        coherence: mapDimension(scoreResult.dimensions.contextCoherence, 'Context Coherence'),
+        quality: mapDimension(scoreResult.dimensions.implementationQuality, 'Implementation Quality'),
+    };
+    return {
+        totalScore: scoreResult.totalScore,
+        grade: scoreResult.grade,
+        dimensions,
+        issueCount: scoreResult.issueCount,
+        passed: scoreResult.passed,
+        threshold,
+    };
+}
+/**
+ * Map a V3 DimensionScoreV3 to V4 DimensionInfo.
+ */
+function mapDimension(dim, name) {
+    return {
+        name,
+        maxScore: dim.maxScore,
+        score: dim.score,
+        issueCount: dim.issueCount,
+        percentage: Math.round((dim.score / dim.maxScore) * 100),
+    };
+}
+/**
+ * Compute grade from score.
+ */
+
+// ─── Issue Counting Helpers ──────────────────────────────────────────
+/**
+ * Count issues by category.
+ */
+function countByCategory(results) {
+    const counts = {
+        'ai-faithfulness': 0,
+        'code-freshness': 0,
+        'context-coherence': 0,
+        'implementation': 0,
+    };
+    for (const result of results) {
+        counts[result.category]++;
+    }
+    return counts;
+}
+/**
+ * Count issues by severity.
+ */
+function countBySeverity(results) {
+    const counts = {
+        error: 0,
+        warning: 0,
+        info: 0,
+    };
+    for (const result of results) {
+        counts[result.severity]++;
+    }
+    return counts;
+}
+/**
+ * Get summary statistics for V4 results.
+ */
+function getV4ResultStats(results) {
+    const byCategory = countByCategory(results);
+    const bySeverity = countBySeverity(results);
+    const filesWithIssues = new Set(results.map(r => r.file)).size;
+    return {
+        total: results.length,
+        byCategory,
+        bySeverity,
+        filesWithIssues,
+    };
+}
+//# sourceMappingURL=v4-adapter.js.map
+// EXTERNAL MODULE: ../../node_modules/.pnpm/yaml@2.8.2/node_modules/yaml/dist/index.js
+var dist = __nccwpck_require__(9611);
+;// CONCATENATED MODULE: ../core/dist/config/v4-config.js
+/**
+ * V4 Configuration Parser
+ *
+ * Parses .ocrrc.yml configuration file.
+ * Falls back to .aicv.yml for backward compatibility.
+ *
+ * @since 0.4.0
+ */
+
+
+
+
+// ─── Default V4 Config ───────────────────────────────────────────────
+const DEFAULT_V4_CONFIG = {
+    scan: {
+        include: [
+            '**/*.ts',
+            '**/*.tsx',
+            '**/*.js',
+            '**/*.jsx',
+            '**/*.mjs',
+            '**/*.cjs',
+            '**/*.py',
+            '**/*.java',
+            '**/*.go',
+            '**/*.kt',
+            '**/*.kts',
+        ],
+        exclude: [
+            '**/node_modules/**',
+            '**/dist/**',
+            '**/build/**',
+            '**/.git/**',
+            '**/vendor/**',
+            '**/__pycache__/**',
+            '**/target/**',
+            '**/*.test.*',
+            '**/*.spec.*',
+        ],
+    },
+    sla: 'L1',
+    locale: 'en',
+    scoring: {
+        threshold: 70,
+        failOn: 'critical',
+    },
+};
+// ─── Config File Discovery ───────────────────────────────────────────
+const V4_CONFIG_FILENAMES = (/* unused pure expression or super */ null && (['.ocrrc.yml', '.ocrrc.yaml']));
+const V3_CONFIG_FILENAMES = (/* unused pure expression or super */ null && (['.aicv.yml', '.aicv.yaml', 'aicv.yml', 'aicv.yaml']));
+/**
+ * Search for a V4 config file (.ocrrc.yml) starting from `startDir`.
+ * Falls back to V3 config file (.aicv.yml) if V4 not found.
+ */
+function findConfigFile(startDir) {
+    let dir = resolve(startDir);
+    const root = resolve('/');
+    while (true) {
+        // Try V4 config first
+        for (const name of V4_CONFIG_FILENAMES) {
+            const candidate = join(dir, name);
+            if (existsSync(candidate)) {
+                return { path: candidate, isV4: true };
+            }
+        }
+        // Fall back to V3 config
+        for (const name of V3_CONFIG_FILENAMES) {
+            const candidate = join(dir, name);
+            if (existsSync(candidate)) {
+                return { path: candidate, isV4: false };
+            }
+        }
+        const parent = resolve(dir, '..');
+        if (parent === dir || dir === root)
+            break;
+        dir = parent;
+    }
+    return null;
+}
+/**
+ * Read and parse a YAML config file.
+ */
+function readYamlConfig(filePath) {
+    try {
+        const raw = readFileSync(filePath, 'utf-8');
+        const parsed = parseYaml(raw);
+        if (parsed && typeof parsed === 'object') {
+            return parsed;
+        }
+        return null;
+    }
+    catch {
+        return null;
+    }
+}
+// ─── Config Parsing ──────────────────────────────────────────────────
+/**
+ * Parse raw YAML into V4Config.
+ */
+function parseConfig(raw) {
+    const config = {};
+    // Scan section
+    if (raw.scan && typeof raw.scan === 'object') {
+        const s = raw.scan;
+        config.scan = {
+            include: toStringArray(s.include ?? s.paths),
+            exclude: toStringArray(s.exclude),
+            languages: toStringArray(s.languages),
+        };
+    }
+    // SLA level (supports both .ocrrc.yml 'sla' and .aicv.yml 'slaLevel'/'sla_level')
+    const slaRaw = raw.sla ?? raw.slaLevel ?? raw.sla_level;
+    if (slaRaw && typeof slaRaw === 'string') {
+        const sla = slaRaw.toUpperCase();
+        if (sla === 'L1' || sla === 'L2' || sla === 'L3') {
+            config.sla = sla;
+        }
+    }
+    // Locale
+    if (raw.locale && typeof raw.locale === 'string') {
+        const locale = raw.locale.toLowerCase();
+        if (locale === 'en' || locale === 'zh') {
+            config.locale = locale;
+        }
+    }
+    // Registry
+    if (raw.registry && typeof raw.registry === 'object') {
+        config.registry = raw.registry;
+    }
+    // Scoring
+    if (raw.scoring && typeof raw.scoring === 'object') {
+        const sc = raw.scoring;
+        config.scoring = {
+            threshold: typeof sc.threshold === 'number' ? sc.threshold : undefined,
+            failOn: typeof sc.failOn === 'string' ? sc.failOn : undefined,
+        };
+    }
+    // AI
+    if (raw.ai && typeof raw.ai === 'object') {
+        config.ai = raw.ai;
+    }
+    return config;
+}
+/**
+ * Merge two configs (b overrides a).
+ */
+function mergeConfigs(a, b) {
+    return {
+        scan: {
+            include: b.scan?.include ?? a.scan?.include,
+            exclude: b.scan?.exclude ?? a.scan?.exclude,
+            languages: b.scan?.languages ?? a.scan?.languages,
+        },
+        sla: b.sla ?? a.sla,
+        locale: b.locale ?? a.locale,
+        registry: b.registry ?? a.registry,
+        scoring: {
+            threshold: b.scoring?.threshold ?? a.scoring?.threshold,
+            failOn: b.scoring?.failOn ?? a.scoring?.failOn,
+        },
+        ai: b.ai ?? a.ai,
+    };
+}
+/**
+ * Load V4 configuration with the following priority:
+ *   1. CLI overrides
+ *   2. Environment variables
+ *   3. Project .ocrrc.yml (or .aicv.yml fallback)
+ *   4. User global ~/.ocr/config.yml
+ *   5. Built-in defaults
+ */
+function loadV4Config(options = {}) {
+    const projectRoot = resolve(options.projectRoot ?? process.cwd());
+    // Layer 5: defaults
+    let config = DEFAULT_V4_CONFIG;
+    // Layer 4: user global config
+    const globalConfigPath = join(homedir(), '.ocr', 'config.yml');
+    if (existsSync(globalConfigPath)) {
+        const globalRaw = readYamlConfig(globalConfigPath);
+        if (globalRaw) {
+            config = mergeConfigs(config, parseConfig(globalRaw));
+        }
+    }
+    // Layer 3: project config
+    const found = findConfigFile(projectRoot);
+    if (found) {
+        const projectRaw = readYamlConfig(found.path);
+        if (projectRaw) {
+            config = mergeConfigs(config, parseConfig(projectRaw));
+        }
+    }
+    // Layer 2: environment variables
+    const envConfig = configFromEnv();
+    if (envConfig) {
+        config = mergeConfigs(config, envConfig);
+    }
+    // Layer 1: CLI overrides
+    if (options.overrides) {
+        const overrideConfig = {
+            sla: options.overrides.sla,
+            locale: options.overrides.locale,
+            registry: options.overrides.registry,
+            scan: options.overrides.include || options.overrides.exclude ? {
+                include: options.overrides.include,
+                exclude: options.overrides.exclude,
+            } : undefined,
+            scoring: options.overrides.threshold ? {
+                threshold: options.overrides.threshold,
+            } : undefined,
+        };
+        config = mergeConfigs(config, overrideConfig);
+    }
+    // Convert to V4ScanConfig
+    return {
+        projectRoot,
+        sla: config.sla ?? 'L1',
+        locale: config.locale ?? 'en',
+        registry: config.registry,
+        include: config.scan?.include,
+        exclude: config.scan?.exclude,
+        languages: config.scan?.languages,
+        threshold: config.scoring?.threshold ?? 70,
+    };
+}
+// ─── Environment Variables ──────────────────────────────────────────
+function configFromEnv() {
+    const env = process.env;
+    const config = {};
+    let hasEnv = false;
+    // OCR_SLA or AICV_SLA_LEVEL
+    const slaLevel = env.OCR_SLA ?? env.AICV_SLA_LEVEL;
+    if (slaLevel) {
+        const sla = slaLevel.toUpperCase();
+        if (sla === 'L1' || sla === 'L2' || sla === 'L3') {
+            config.sla = sla;
+            hasEnv = true;
+        }
+    }
+    // OCR_LOCALE
+    if (env.OCR_LOCALE) {
+        const locale = env.OCR_LOCALE.toLowerCase();
+        if (locale === 'en' || locale === 'zh') {
+            config.locale = locale;
+            hasEnv = true;
+        }
+    }
+    // OCR_THRESHOLD or AICV_THRESHOLD
+    const thresholdStr = env.OCR_THRESHOLD ?? env.AICV_THRESHOLD;
+    if (thresholdStr) {
+        const num = parseInt(thresholdStr, 10);
+        if (!isNaN(num)) {
+            config.scoring = { threshold: num };
+            hasEnv = true;
+        }
+    }
+    // OCR_OFFLINE
+    if (env.OCR_OFFLINE === 'true' || env.OCR_OFFLINE === '1') {
+        // Offline mode affects registry behavior, not config structure
+        // This is handled at runtime
+        hasEnv = true;
+    }
+    return hasEnv ? config : null;
+}
+function toStringArray(val) {
+    if (val === undefined || val === null)
+        return undefined;
+    if (Array.isArray(val))
+        return val.filter((v) => typeof v === 'string');
+    if (typeof val === 'string')
+        return [val];
+    return undefined;
+}
+// ─── Write Default Config ────────────────────────────────────────────
+/**
+ * Generate a default .ocrrc.yml content string.
+ */
+function generateDefaultConfigYaml() {
+    return `# Open Code Review V4 Configuration
+# https://github.com/raye-deng/open-code-review
+
+# Scan settings
+scan:
+  include:
+    - "**/*.ts"
+    - "**/*.tsx"
+    - "**/*.js"
+    - "**/*.jsx"
+    - "**/*.py"
+    - "**/*.java"
+    - "**/*.go"
+    - "**/*.kt"
+  exclude:
+    - "**/node_modules/**"
+    - "**/dist/**"
+    - "**/build/**"
+    - "**/.git/**"
+    - "**/vendor/**"
+    - "**/*.test.*"
+    - "**/*.spec.*"
+
+# SLA level: L1 (fast) | L2 (standard) | L3 (deep)
+sla: L1
+
+# Locale: en | zh
+locale: en
+
+# Scoring settings
+scoring:
+  threshold: 70
+  failOn: critical
+
+# Registry configuration (optional — defaults to public registries)
+# registry:
+#   npm:
+#     url: https://registry.npmjs.org
+#   pypi:
+#     url: https://pypi.org
+#   maven:
+#     url: https://search.maven.org
+#   go:
+#     proxy: https://proxy.golang.org
+
+# AI pipeline settings (for L2/L3)
+# ai:
+#   embedding:
+#     model: all-MiniLM-L6-v2
+#   llm:
+#     provider: ollama
+#     model: deepseek-coder-v2:16b
+#     endpoint: http://localhost:11434
+`;
+}
+//# sourceMappingURL=v4-config.js.map
+;// CONCATENATED MODULE: ../core/dist/ai/v4/patterns/defect-patterns.js
+/**
+ * Defect Pattern Database
+ *
+ * Curated set of AI-generated code defect patterns.
+ * These are used as embedding comparison targets in Stage 1 (Embedding Recall).
+ *
+ * Each pattern includes:
+ * - Unique ID for tracking
+ * - Category aligned with V4 scoring dimensions
+ * - Description used for embedding generation
+ * - Example code snippets matching the pattern
+ * - Severity and applicable languages
+ *
+ * @since 0.4.0
+ */
+// ─── Defect Pattern Database ───────────────────────────────────────
+/**
+ * Curated defect patterns that AI commonly generates.
+ * These are used as embedding comparison targets in Stage 1.
+ *
+ * Organized by category:
+ * - ai-faithfulness: Hallucinated imports, phantom APIs, fabricated types
+ * - code-freshness: Deprecated APIs, outdated patterns, stale knowledge
+ * - context-coherence: Inconsistencies, contradictions, style shifts
+ * - implementation: Over-engineering, security, incomplete implementations
+ */
+const defect_patterns_DEFECT_PATTERNS = [
+    // ─── AI Faithfulness (Hallucinations) ──────────────────────────
+    {
+        id: 'hallucinated-import',
+        category: 'ai-faithfulness',
+        description: 'Import of a non-existent package or module that AI fabricated',
+        examples: [
+            'import { createAIValidator } from "ai-validator-pro"',
+            'from advanced_ml_toolkit import HyperOptimizer',
+            'import "github.com/ai-tools/nonexistent-package"',
+            'import ai.magic.transformer.AutoModel',
+        ],
+        severity: 'error',
+        languages: [],
+    },
+    {
+        id: 'phantom-api',
+        category: 'ai-faithfulness',
+        description: 'Usage of an API method that does not exist on the object or library',
+        examples: [
+            'array.filterMap(x => x > 0)',
+            'string.toCapitalCase()',
+            'response.getJSON()',
+            'promise.flatMap(result => result)',
+            'map.getOrDefault(key, fallback)',
+        ],
+        severity: 'error',
+        languages: [],
+    },
+    {
+        id: 'fabricated-type',
+        category: 'ai-faithfulness',
+        description: 'Reference to a type or interface that does not exist in the imported library',
+        examples: [
+            'const config: NextConfig<AppProps> = {}',
+            'type Handler = express.TypedHandler<Req, Res>',
+            'implements SpringSecurityFilter',
+            'class MyService extends AbstractServiceBase',
+        ],
+        severity: 'error',
+        languages: [],
+    },
+    {
+        id: 'wrong-api-signature',
+        category: 'ai-faithfulness',
+        description: 'Calling a real API with incorrect parameter types or wrong number of arguments',
+        examples: [
+            'fs.readFile(path, "utf8", callback, options)',
+            'json.loads(data, encoding="utf-8")',
+            'Arrays.sort(list, comparator, reverse)',
+            'http.Get(url, headers)',
+        ],
+        severity: 'error',
+        languages: [],
+    },
+    {
+        id: 'imaginary-config-option',
+        category: 'ai-faithfulness',
+        description: 'Using configuration options that do not exist for a library or framework',
+        examples: [
+            'new Webpack({ optimizeChunks: true, autoTree: true })',
+            'app.use(cors({ allowAllHeaders: true }))',
+            'logging.config({ autoRotate: true, maxSize: "10mb" })',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+    // ─── Code Freshness (Stale/Deprecated) ─────────────────────────
+    {
+        id: 'deprecated-node-api',
+        category: 'code-freshness',
+        description: 'Usage of deprecated Node.js API that should be replaced with modern alternative',
+        examples: [
+            'new Buffer("data")',
+            'require("url").parse(urlString)',
+            'fs.exists(path, callback)',
+            'new require("domain").Domain()',
+        ],
+        severity: 'warning',
+        languages: ['typescript', 'javascript'],
+    },
+    {
+        id: 'deprecated-python-api',
+        category: 'code-freshness',
+        description: 'Usage of deprecated Python API or pattern from older Python versions',
+        examples: [
+            'import imp',
+            'from collections import MutableMapping',
+            'asyncio.get_event_loop()',
+            'from distutils.core import setup',
+            'os.popen("command")',
+        ],
+        severity: 'warning',
+        languages: ['python'],
+    },
+    {
+        id: 'deprecated-java-api',
+        category: 'code-freshness',
+        description: 'Usage of deprecated Java API that has modern replacements',
+        examples: [
+            'new Date(year, month, day)',
+            'Thread.stop()',
+            'Runtime.getRuntime().exec("command")',
+            'new StringBuffer()',
+        ],
+        severity: 'warning',
+        languages: ['java', 'kotlin'],
+    },
+    {
+        id: 'outdated-framework-pattern',
+        category: 'code-freshness',
+        description: 'Using outdated framework patterns that have been superseded',
+        examples: [
+            'componentWillMount() { }',
+            'class MyComponent extends React.Component { render() { } }',
+            'app.use(bodyParser.json())',
+            '@RunWith(SpringJUnit4ClassRunner.class)',
+        ],
+        severity: 'info',
+        languages: [],
+    },
+    {
+        id: 'legacy-syntax-pattern',
+        category: 'code-freshness',
+        description: 'Using legacy language syntax when modern alternatives exist',
+        examples: [
+            'var self = this;',
+            'function.apply(null, arguments)',
+            '.then(function(result) { return result; })',
+            'for (var i = 0; i < arr.length; i++)',
+        ],
+        severity: 'info',
+        languages: ['typescript', 'javascript'],
+    },
+    // ─── Context Coherence (Inconsistency) ─────────────────────────
+    {
+        id: 'naming-inconsistency',
+        category: 'context-coherence',
+        description: 'Inconsistent naming conventions within the same file or function',
+        examples: [
+            'const user_name = ""; const userName = ""; const UserName = "";',
+            'function getData() {} function process_result() {} function HandleError() {}',
+            'let maxRetries = 3; let min_timeout = 100;',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+    {
+        id: 'contradictory-comment',
+        category: 'context-coherence',
+        description: 'Comment that contradicts the actual code behavior',
+        examples: [
+            '// Returns true if valid\nfunction validate(x) { return false; }',
+            '// Sort in ascending order\narray.sort((a, b) => b - a)',
+            '// This function never throws\nasync function fetch() { throw new Error(); }',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+    {
+        id: 'unused-variable-from-context-loss',
+        category: 'context-coherence',
+        description: 'Variable declared and assigned but never used in the rest of the function',
+        examples: [
+            'const result = await fetchData();\n// result never referenced again\nreturn defaultValue;',
+            'const config = loadConfig();\nsetupApp(hardcodedConfig);',
+            'err := doSomething()\n_ = err\n// error silently ignored',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+    {
+        id: 'abrupt-style-shift',
+        category: 'context-coherence',
+        description: 'Sudden change in code style mid-function suggesting context window boundary',
+        examples: [
+            '// First half uses async/await, second half uses .then() callbacks',
+            '// First half uses const, second half uses var',
+            '// Error handling changes from try/catch to .catch() mid-function',
+        ],
+        severity: 'info',
+        languages: [],
+    },
+    {
+        id: 'duplicate-logic-different-style',
+        category: 'context-coherence',
+        description: 'Same logic implemented twice in different styles within a file',
+        examples: [
+            'function formatDate(d) { return d.toISOString(); }\nfunction dateToString(d) { return `${d.getFullYear()}-${d.getMonth()}`; }',
+            'const isValid = (x) => x > 0;\nfunction checkValid(value) { if (value > 0) return true; return false; }',
+        ],
+        severity: 'info',
+        languages: [],
+    },
+    // ─── Implementation (Over-engineering, Security, Incomplete) ───
+    {
+        id: 'unnecessary-abstraction',
+        category: 'implementation',
+        description: 'Over-engineered abstraction layers that add complexity without value',
+        examples: [
+            'class AbstractFactoryProvider<T> { abstract createFactory(): Factory<T>; }',
+            'interface IServiceLocatorStrategy<TService, TLocator>',
+            'class ConfigurationManagerBuilderFactory',
+            'export abstract class BaseAbstractHandler implements IHandler',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+    {
+        id: 'hardcoded-secret',
+        category: 'implementation',
+        description: 'Hardcoded API keys, passwords, or tokens in source code',
+        examples: [
+            'const API_KEY = "sk-proj-abc123def456"',
+            'password = "admin123"',
+            'private static final String SECRET = "my-secret-key"',
+            'token := "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"',
+        ],
+        severity: 'error',
+        languages: [],
+    },
+    {
+        id: 'empty-catch-block',
+        category: 'implementation',
+        description: 'Empty catch block that silently swallows errors',
+        examples: [
+            'try { riskyOperation(); } catch (e) { }',
+            'try { riskyOperation(); } catch (e) { /* TODO */ }',
+            'except Exception:\n    pass',
+            'catch (Exception e) { // ignore }',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+    {
+        id: 'todo-stub-placeholder',
+        category: 'implementation',
+        description: 'Placeholder or stub implementation that should be completed',
+        examples: [
+            'function processData() { /* TODO: implement */ return null; }',
+            'def calculate(): raise NotImplementedError()',
+            'public void handle() { throw new UnsupportedOperationException("Not implemented"); }',
+            'func (s *Service) Process() error { return nil // TODO }',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+    {
+        id: 'sql-injection-risk',
+        category: 'implementation',
+        description: 'SQL query built with string concatenation instead of parameterized queries',
+        examples: [
+            'const query = "SELECT * FROM users WHERE id = " + userId',
+            'cursor.execute(f"SELECT * FROM users WHERE name = \'{name}\'")',
+            'String sql = "DELETE FROM orders WHERE id=" + orderId;',
+        ],
+        severity: 'error',
+        languages: [],
+    },
+    {
+        id: 'insecure-random',
+        category: 'implementation',
+        description: 'Using non-cryptographic random for security-sensitive operations',
+        examples: [
+            'const token = Math.random().toString(36)',
+            'import random; secret = random.randint(0, 999999)',
+            'Random random = new Random(); int otp = random.nextInt(999999);',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+    {
+        id: 'excessive-function-complexity',
+        category: 'implementation',
+        description: 'Function with very high cyclomatic complexity suggesting AI generated a monolith',
+        examples: [
+            '// 200-line function with 15+ if/else branches',
+            '// deeply nested switch inside for inside if inside try',
+            '// function handling 10 different concerns in one method',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+];
+/**
+ * Get all defect patterns for a specific category.
+ */
+function getPatternsByCategory(category) {
+    return defect_patterns_DEFECT_PATTERNS.filter(p => p.category === category);
+}
+/**
+ * Get all defect patterns applicable to a specific language.
+ * Patterns with empty languages array apply to all languages.
+ */
+function defect_patterns_getPatternsForLanguage(language) {
+    return defect_patterns_DEFECT_PATTERNS.filter(p => p.languages.length === 0 || p.languages.includes(language));
+}
+/**
+ * Get the combined text representation of a pattern for embedding.
+ * Concatenates description and examples for richer embedding.
+ */
+function defect_patterns_getPatternText(pattern) {
+    return `${pattern.description}\n${pattern.examples.join('\n')}`;
+}
+//# sourceMappingURL=defect-patterns.js.map
+;// CONCATENATED MODULE: ../core/dist/ai/v4/patterns/index.js
+/**
+ * Defect Pattern Database Module
+ *
+ * @since 0.4.0
+ */
+
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ../core/dist/ai/v4/pipeline.js
+/**
+ * AI Scan Pipeline Orchestrator
+ *
+ * Coordinates the two-stage AI scan pipeline:
+ * - Stage 0: Structural detectors (always runs, passed in)
+ * - Stage 1: Embedding recall (L2+)
+ * - Stage 2: LLM deep scan (L3)
+ *
+ * @since 0.4.0
+ */
+
+
+
+
+
+
+/**
+ * Parse LLM JSON response into structured issues.
+ * Handles markdown code fences and malformed JSON gracefully.
+ */
+function parseLLMResponse(content) {
+    try {
+        // Strip markdown code fences if present
+        let jsonText = content.trim();
+        if (jsonText.startsWith('```')) {
+            const lines = jsonText.split('\n');
+            // Remove first and last line if they're code fence markers
+            if (lines[0].startsWith('```'))
+                lines.shift();
+            if (lines[lines.length - 1].trim() === '```')
+                lines.pop();
+            jsonText = lines.join('\n');
+        }
+        const parsed = JSON.parse(jsonText);
+        // Handle { issues: [...] } wrapper
+        const issues = Array.isArray(parsed.issues)
+            ? parsed.issues
+            : Array.isArray(parsed)
+                ? parsed
+                : [];
+        return issues
+            .filter((issue) => typeof issue === 'object' &&
+            issue !== null &&
+            'line' in issue &&
+            'message' in issue)
+            .map((issue) => ({
+            line: Math.max(1, Math.floor(Number(issue.line)) || 1),
+            severity: normalizeSeverity(issue.severity),
+            message: String(issue.message),
+            category: issue.category ?? 'implementation',
+        }));
+    }
+    catch {
+        return [];
+    }
+}
+function normalizeSeverity(severity) {
+    const s = (severity ?? 'info').toLowerCase();
+    if (s === 'error' || s === 'critical')
+        return 'error';
+    if (s === 'warning' || s === 'warn')
+        return 'warning';
+    return 'info';
+}
+function normalizeCategory(category) {
+    const c = category.toLowerCase();
+    if (c.includes('faithful') || c.includes('hallucin'))
+        return 'ai-faithfulness';
+    if (c.includes('fresh') || c.includes('stale') || c.includes('deprecat'))
+        return 'code-freshness';
+    if (c.includes('coher') || c.includes('context'))
+        return 'context-coherence';
+    return 'implementation';
+}
+// ─── AI Scan Pipeline ──────────────────────────────────────────────
+/**
+ * AI Scan Pipeline orchestrator.
+ *
+ * Runs the two-stage AI analysis based on SLA level configuration.
+ */
+class pipeline_AIScanPipeline {
+    config;
+    maxLLMBlocks;
+    similarityThreshold;
+    constructor(config) {
+        this.config = config;
+        this.maxLLMBlocks = config.maxLLMBlocks ?? 20;
+        this.similarityThreshold = config.similarityThreshold ?? 0.7;
+    }
+    /**
+     * Run the full scan pipeline.
+     *
+     * @param units CodeUnits from parsing
+     * @param structuralResults Results from structural detectors (V4 detectors)
+     * @returns Combined results from all stages
+     */
+    async scan(units, structuralResults) {
+        const stages = [];
+        const totalStartTime = Date.now();
+        // Stage 0: Structural (already done, just include)
+        stages.push({
+            stage: 'structural',
+            issues: structuralResults,
+            durationMs: 0,
+        });
+        // L1 stops here
+        if (this.config.sla === 'L1') {
+            return this.buildResult(stages, totalStartTime);
+        }
+        // Stage 1: Embedding recall (L2 and L3)
+        const embeddingResults = await this.runEmbeddingStage(units);
+        stages.push(embeddingResults);
+        // Stage 2: LLM deep scan (L3 only)
+        if (this.config.sla === 'L3') {
+            const suspiciousBlocks = this.getSuspiciousBlocks(units, embeddingResults);
+            const llmResults = await this.runLLMStage(suspiciousBlocks);
+            stages.push(llmResults);
+        }
+        return this.buildResult(stages, totalStartTime);
+    }
+    /**
+     * Build the final result object.
+     */
+    buildResult(stages, startTime) {
+        const totalIssues = stages.reduce((sum, s) => sum + s.issues.length, 0);
+        const totalDurationMs = Date.now() - startTime;
+        return {
+            stages,
+            totalIssues,
+            totalDurationMs,
+            slaLevel: this.config.sla,
+        };
+    }
+    /**
+     * Stage 1: Run embedding-based recall to find suspicious code blocks.
+     */
+    async runEmbeddingStage(units) {
+        const startTime = Date.now();
+        if (units.length === 0) {
+            return { stage: 'embedding', issues: [], durationMs: 0 };
+        }
+        // Create embedding provider
+        const embeddingProvider = this.createEmbeddingProvider();
+        // Build corpus: pattern descriptions + code unit sources
+        const patternTexts = DEFECT_PATTERNS.map(getPatternText);
+        const codeTexts = units.map(u => this.buildCodeText(u));
+        const allTexts = [...patternTexts, ...codeTexts];
+        // Build vocabulary and generate embeddings
+        if (embeddingProvider instanceof LocalEmbeddingProvider) {
+            embeddingProvider.buildVocabulary(allTexts);
+        }
+        const embeddings = await embeddingProvider.embed(allTexts);
+        // Split embeddings back into patterns and code
+        const patternEmbeddings = embeddings.slice(0, patternTexts.length);
+        const codeEmbeddings = embeddings.slice(patternTexts.length);
+        // Find suspicious blocks by comparing code embeddings to pattern embeddings
+        const issues = [];
+        for (let i = 0; i < units.length; i++) {
+            const unit = units[i];
+            const codeEmb = codeEmbeddings[i];
+            if (!codeEmb)
+                continue;
+            // Get patterns applicable to this language
+            const applicablePatterns = getPatternsForLanguage(unit.language);
+            // Find matching patterns
+            const matches = [];
+            for (const pattern of applicablePatterns) {
+                const patternIdx = DEFECT_PATTERNS.indexOf(pattern);
+                if (patternIdx === -1)
+                    continue;
+                const patternEmb = patternEmbeddings[patternIdx];
+                if (!patternEmb)
+                    continue;
+                const similarity = cosineSimilarity(codeEmb, patternEmb);
+                if (similarity >= this.similarityThreshold) {
+                    matches.push({ patternIdx, similarity });
+                }
+            }
+            // Create issues for top matches
+            for (const match of matches.slice(0, 3)) {
+                const pattern = DEFECT_PATTERNS[match.patternIdx];
+                if (!pattern)
+                    continue;
+                issues.push({
+                    detectorId: 'embedding-recall',
+                    severity: pattern.severity,
+                    category: pattern.category,
+                    messageKey: `ai.embedding.${pattern.id}`,
+                    message: pattern.description,
+                    file: unit.file,
+                    line: unit.location.startLine + 1, // Convert to 1-based
+                    confidence: match.similarity,
+                    metadata: {
+                        patternId: pattern.id,
+                        similarity: match.similarity,
+                    },
+                });
+            }
+        }
+        return {
+            stage: 'embedding',
+            issues,
+            durationMs: Date.now() - startTime,
+        };
+    }
+    /**
+     * Stage 2: Run LLM deep scan on suspicious blocks.
+     */
+    async runLLMStage(suspiciousUnits) {
+        const startTime = Date.now();
+        let totalTokens = 0;
+        if (suspiciousUnits.length === 0) {
+            return { stage: 'llm', issues: [], durationMs: 0, tokensUsed: 0 };
+        }
+        // Create LLM provider (local first, fallback to remote)
+        const llmProvider = await this.createLLMProvider();
+        if (!llmProvider) {
+            return { stage: 'llm', issues: [], durationMs: Date.now() - startTime, tokensUsed: 0 };
+        }
+        const issues = [];
+        // Process suspicious blocks (limited by maxLLMBlocks)
+        const blocksToAnalyze = suspiciousUnits.slice(0, this.maxLLMBlocks);
+        for (const unit of blocksToAnalyze) {
+            try {
+                const prompt = this.buildPrompt(unit);
+                const response = await llmProvider.complete(prompt, {
+                    maxTokens: 2000,
+                    temperature: 0.1,
+                    system: LLM_SYSTEM_PROMPT,
+                });
+                if (response.usage) {
+                    totalTokens += response.usage.total;
+                }
+                // Parse LLM response
+                const llmIssues = parseLLMResponse(response.content);
+                // Convert to DetectorResults
+                for (const issue of llmIssues) {
+                    issues.push({
+                        detectorId: 'llm-deep-scan',
+                        severity: issue.severity,
+                        category: normalizeCategory(issue.category),
+                        messageKey: 'ai.llm.detected',
+                        message: issue.message,
+                        file: unit.file,
+                        line: issue.line,
+                        confidence: 0.8, // LLM issues have high confidence
+                        metadata: {
+                            source: 'llm',
+                        },
+                    });
+                }
+            }
+            catch {
+                // Graceful degradation: skip this block on error
+                continue;
+            }
+        }
+        return {
+            stage: 'llm',
+            issues,
+            durationMs: Date.now() - startTime,
+            tokensUsed: totalTokens,
+        };
+    }
+    /**
+     * Get suspicious blocks from embedding results.
+     * Returns units that have embedding matches above threshold.
+     */
+    getSuspiciousBlocks(units, embeddingResults) {
+        // Get unique file paths with embedding issues
+        const suspiciousFiles = new Set(embeddingResults.issues
+            .filter(i => i.confidence >= this.similarityThreshold)
+            .map(i => i.file));
+        // Return units from suspicious files
+        return units.filter(u => suspiciousFiles.has(u.file));
+    }
+    /**
+     * Create embedding provider based on configuration.
+     */
+    createEmbeddingProvider() {
+        const embeddingConfig = this.config.embedding;
+        if (embeddingConfig?.provider === 'openai' && this.config.remote?.apiKey) {
+            return new OpenAIEmbeddingProvider(this.config.remote.apiKey, embeddingConfig.model ?? 'text-embedding-3-small');
+        }
+        // Default to local TF-IDF
+        return new LocalEmbeddingProvider(512);
+    }
+    /**
+     * Create LLM provider based on configuration.
+     * Prefers local (Ollama), falls back to remote.
+     */
+    async createLLMProvider() {
+        // Try local first (L2 and L3)
+        if (this.config.local) {
+            const ollama = new OllamaLLMProvider(this.config.local.model, this.config.local.baseUrl ?? 'http://localhost:11434');
+            if (await ollama.isAvailable()) {
+                return ollama;
+            }
+        }
+        // Fallback to remote (L3 only)
+        if (this.config.remote) {
+            if (this.config.remote.provider === 'anthropic') {
+                return new AnthropicLLMProvider(this.config.remote.apiKey, this.config.remote.model);
+            }
+            if (this.config.remote.provider === 'openai') {
+                return new OpenAILLMProvider(this.config.remote.apiKey, this.config.remote.model, this.config.remote.baseUrl);
+            }
+        }
+        return null;
+    }
+    /**
+     * Build text representation of a CodeUnit for embedding.
+     */
+    buildCodeText(unit) {
+        const parts = [];
+        // Add imports for context
+        for (const imp of unit.imports) {
+            parts.push(`import ${imp.module}`);
+        }
+        // Add function/method definitions
+        for (const def of unit.definitions) {
+            parts.push(`${def.kind} ${def.name}`);
+        }
+        // Add call sites
+        for (const call of unit.calls) {
+            parts.push(call.callee);
+        }
+        // Add source snippet (truncated)
+        const sourceSnippet = unit.source.slice(0, 2000);
+        parts.push(sourceSnippet);
+        return parts.join('\n');
+    }
+    /**
+     * Build a focused prompt for the LLM to analyze a code block.
+     */
+    buildPrompt(unit) {
+        return `Analyze this code for AI-generated defects.
+
+File: ${unit.file}
+Language: ${unit.language}
+
+Code:
+\`\`\`
+${unit.source.slice(0, 4000)}
+\`\`\`
+
+Check for:
+- Hallucinated imports (packages that don't exist)
+- Phantom APIs (methods/functions that don't exist on objects)
+- Deprecated API usage
+- Logic inconsistencies
+- Security anti-patterns
+- Incomplete implementations (TODOs, stubs)
+
+Respond in JSON format:
+{
+  "issues": [
+    { "line": <line_number>, "severity": "error|warning|info", "message": "<description>", "category": "<category>" }
+  ]
+}
+
+If no issues found, respond with: { "issues": [] }`;
+    }
+}
+// ─── Constants ─────────────────────────────────────────────────────
+const LLM_SYSTEM_PROMPT = (/* unused pure expression or super */ null && (`You are a code quality analyzer specialized in detecting AI-generated code defects.
+You analyze code and identify issues that are common in AI-generated code:
+- Hallucinated packages and APIs
+- Outdated/deprecated patterns
+- Logic inconsistencies from context window boundaries
+- Security vulnerabilities common in AI output
+- Over-engineering and unnecessary complexity
+
+Always respond with valid JSON matching the requested format.
+Be precise about line numbers.
+Only report issues you are confident about.`));
+//# sourceMappingURL=pipeline.js.map
+;// CONCATENATED MODULE: ../core/dist/ai/v4/sla.js
+/**
+ * SLA Router — Maps SLA levels to pipeline configuration.
+ *
+ * SLA (Service Level Agreement) levels control the depth and cost
+ * of the AI scan pipeline:
+ *
+ * - L1 Fast: Structural detectors only (no AI) — ~10s/100 files
+ * - L2 Standard: + Embedding recall + Local LLM — ~30s/100 files
+ * - L3 Deep: + Remote LLM — ~120s/100 files
+ *
+ * @since 0.4.0
+ */
+
+// ─── SLA Descriptions ──────────────────────────────────────────────
+/**
+ * Human-readable descriptions for each SLA level.
+ */
+const SLA_DESCRIPTIONS = {
+    L1: {
+        name: 'Fast',
+        maxTime: '10s/100 files',
+        ai: 'None (structural only)',
+    },
+    L2: {
+        name: 'Standard',
+        maxTime: '30s/100 files',
+        ai: 'Embedding + Local LLM',
+    },
+    L3: {
+        name: 'Deep',
+        maxTime: '120s/100 files',
+        ai: 'Embedding + Remote LLM',
+    },
+};
+// ─── Default Configs by SLA ────────────────────────────────────────
+/**
+ * Default configurations for each SLA level.
+ * These can be overridden by user configuration.
+ */
+const DEFAULT_SLA_CONFIGS = {
+    L1: {
+        sla: 'L1',
+        maxLLMBlocks: 0,
+        similarityThreshold: 0,
+    },
+    L2: {
+        sla: 'L2',
+        embedding: { provider: 'local' },
+        local: { provider: 'ollama', model: 'codellama:13b' },
+        maxLLMBlocks: 20,
+        similarityThreshold: 0.7,
+    },
+    L3: {
+        sla: 'L3',
+        embedding: { provider: 'openai' },
+        remote: {
+            provider: 'openai',
+            model: 'gpt-4o-mini',
+            apiKey: '',
+        },
+        maxLLMBlocks: 30,
+        similarityThreshold: 0.65, // Lower threshold for L3 since LLM will verify
+    },
+};
+// ─── Factory Functions ─────────────────────────────────────────────
+/**
+ * Create an AI scan pipeline for the specified SLA level.
+ *
+ * @param sla SLA level (L1, L2, or L3)
+ * @param configOverride Override configuration (merged with defaults)
+ * @returns Configured AIScanPipeline instance
+ *
+ * @example
+ * ```ts
+ * const pipeline = createPipelineForSLA('L2', {
+ *   local: { provider: 'ollama', model: 'deepseek-coder:6.7b' }
+ * });
+ * const result = await pipeline.scan(units, structuralResults);
+ * ```
+ */
+function createPipelineForSLA(sla, configOverride) {
+    const defaultConfig = DEFAULT_SLA_CONFIGS[sla];
+    // Merge defaults with overrides
+    const config = {
+        ...defaultConfig,
+        ...configOverride,
+        sla, // Always use the specified SLA level
+    };
+    return new AIScanPipeline(config);
+}
+/**
+ * Get recommended SLA level based on available resources.
+ *
+ * Returns:
+ * - L3 if remote API key is configured
+ * - L2 if Ollama is available
+ * - L1 otherwise
+ */
+function getRecommendedSLA(config) {
+    // If remote API is configured, prefer L3
+    if (config?.remote?.apiKey) {
+        return 'L3';
+    }
+    // If local LLM is configured, use L2
+    if (config?.local) {
+        return 'L2';
+    }
+    // Default to L1 (fast, no AI required)
+    return 'L1';
+}
+/**
+ * Validate that a configuration is valid for the specified SLA level.
+ *
+ * @returns Object with valid flag and any error messages
+ */
+function validateSLAConfig(sla, config) {
+    const errors = [];
+    if (sla === 'L2') {
+        if (!config?.local?.model) {
+            errors.push('L2 requires local.model to be specified');
+        }
+    }
+    if (sla === 'L3') {
+        if (!config?.remote?.apiKey) {
+            errors.push('L3 requires remote.apiKey to be specified');
+        }
+        if (!config?.remote?.model) {
+            errors.push('L3 requires remote.model to be specified');
+        }
+    }
+    return {
+        valid: errors.length === 0,
+        errors,
+    };
+}
+//# sourceMappingURL=sla.js.map
+;// CONCATENATED MODULE: ../core/dist/ai/v4/index.js
+/**
+ * Open Code Review V4 — AI Pipeline Module
+ *
+ * Two-stage AI scan pipeline for detecting AI-generated code defects:
+ * - Stage 1 (Embedding): Fast similarity-based defect detection
+ * - Stage 2 (LLM): Deep analysis of suspicious code blocks
+ *
+ * SLA levels control which stages run:
+ * - L1 Fast: Structural detectors only (no AI)
+ * - L2 Standard: + Embedding recall + Local LLM (Ollama)
+ * - L3 Deep: + Remote LLM (OpenAI/Claude)
+ *
+ * @since 0.4.0
+ *
+ * @example
+ * ```ts
+ * import {
+ *   AIScanPipeline,
+ *   createPipelineForSLA,
+ *   LocalEmbeddingProvider,
+ *   OllamaLLMProvider,
+ *   DEFECT_PATTERNS,
+ * } from '@open-code-review/core';
+ *
+ * // Create pipeline for L2 (standard) with local LLM
+ * const pipeline = createPipelineForSLA('L2', {
+ *   local: { provider: 'ollama', model: 'codellama:13b' },
+ * });
+ *
+ * // Run the scan
+ * const result = await pipeline.scan(codeUnits, structuralResults);
+ *
+ * console.log(`Found ${result.totalIssues} issues in ${result.totalDurationMs}ms`);
+ * console.log(`SLA level: ${result.slaLevel}`);
+ *
+ * for (const stage of result.stages) {
+ *   console.log(`Stage ${stage.stage}: ${stage.issues.length} issues`);
+ * }
+ * ```
+ */
+// ─── Embedding Providers ───
+
+// ─── LLM Providers ───
+
+// Backward compatibility aliases
+
+
+
+
+// ─── Pipeline ───
+
+// ─── SLA Router ───
+
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ../core/dist/index.js
+/**
+ * @open-code-review/core
+ *
+ * Core detection engine for AI-generated code quality validation.
+ *
+ * V3: Unified type system, multi-language support, all detectors implement
+ * the Detector interface with standardized UnifiedIssue output.
+ *
+ * @example
+ * ```ts
+ * import {
+ *   HallucinationDetector,
+ *   LogicGapDetector,
+ *   DuplicationDetector,
+ *   ContextBreakDetector,
+ *   ScoringEngine,
+ *   LanguageRegistry,
+ *   TypeScriptAdapter,
+ *   type UnifiedIssue,
+ *   type Detector,
+ *   type FileAnalysis,
+ *   AIDefectCategory,
+ * } from '@open-code-review/core';
+ *
+ * // Register language adapter
+ * const registry = LanguageRegistry.getInstance();
+ * registry.register(new TypeScriptAdapter());
+ *
+ * // Create detectors (all implement Detector interface)
+ * const detectors: Detector[] = [
+ *   new HallucinationDetector({ projectRoot: '.' }),
+ *   new LogicGapDetector(),
+ *   new DuplicationDetector(),
+ *   new ContextBreakDetector(),
+ * ];
+ *
+ * // Prepare files
+ * const files: FileAnalysis[] = [{
+ *   path: './src/app.ts',
+ *   content: source,
+ *   language: 'typescript',
+ * }];
+ *
+ * // Run all detectors
+ * const allIssues: UnifiedIssue[] = [];
+ * for (const detector of detectors) {
+ *   allIssues.push(...await detector.detect(files));
+ * }
+ *
+ * // Score
+ * const engine = new ScoringEngine(70);
+ * const score = engine.scoreFile('./src/app.ts', null, null, null, null);
+ * ```
+ */
+// ─── V3 Unified Types ───
+
+// ─── Multi-Language Support ───
+
+
+
+// ─── Detectors ───
+
+
+
+
+// ─── Scorer ───
+
+// ─── Report (legacy) ───
+
+// ─── Reporter (V3) ───
+
+// ─── AI Analysis (Tier 3) ───
+
+
+// ─── AI Healer ───
+
+// ─── Registry (V4) ───
+
+// ─── License ───
+
+
+// ─── V4: Parser ───
+
+
+
+
+
+
+// ─── V4: Detectors ───
+
+// ─── V4: i18n Framework ───
+
+// ─── V4: Scanner ───
+
+// ─── V4: Score Adapter ───
+
+// ─── V4: Terminal Reporter ───
+
+// ─── V4: Configuration ───
+
+// ─── V4: AI Pipeline ───
 
 //# sourceMappingURL=index.js.map
 ;// CONCATENATED MODULE: ./src/index.ts
 /**
- * AI Code Validator — GitHub Action
+ * Open Code Review — GitHub Action
  *
  * Runs AI code validation as part of GitHub Actions CI/CD.
  * Posts results as PR comments and sets quality gate status.
@@ -41087,7 +61394,7 @@ async function run() {
         const logicDetector = new LogicGapDetector();
         const dupDetector = new DuplicationDetector();
         const ctxDetector = new ContextBreakDetector();
-        const engine = new ScoringEngine(threshold);
+        const engine = new scoring_engine_ScoringEngine(threshold);
         // Analyze
         const fileScores = [];
         for (const file of uniqueFiles) {
@@ -41125,7 +61432,7 @@ async function run() {
         core.info(`Status: ${aggregate.passed ? 'PASSED' : 'FAILED'}`);
         // Fail if below threshold
         if (!aggregate.passed && failOnLow) {
-            core.setFailed(`AI Code Validator: Score ${aggregate.overallScore}/100 is below threshold ${threshold}`);
+            core.setFailed(`Open Code Review: Score ${aggregate.overallScore}/100 is below threshold ${threshold}`);
         }
     }
     catch (error) {

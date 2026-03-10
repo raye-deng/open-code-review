@@ -1,6 +1,6 @@
 {
   "name": "@open-code-review/core",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "description": "Core detection engine for AI-generated code validation",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -9,6 +9,54 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./scanner": {
+      "import": "./dist/scanner/index.js",
+      "types": "./dist/scanner/index.d.ts"
+    },
+    "./detectors/v4": {
+      "import": "./dist/detectors/v4/index.js",
+      "types": "./dist/detectors/v4/index.d.ts"
+    },
+    "./i18n": {
+      "import": "./dist/i18n/index.js",
+      "types": "./dist/i18n/index.d.ts"
+    },
+    "./config": {
+      "import": "./dist/config/v4-config.js",
+      "types": "./dist/config/v4-config.d.ts"
+    },
+    "./reporter": {
+      "import": "./dist/reporter/index.js",
+      "types": "./dist/reporter/index.d.ts"
+    },
+    "./reporter/v4-terminal": {
+      "import": "./dist/reporter/v4-terminal.js",
+      "types": "./dist/reporter/v4-terminal.d.ts"
+    },
+    "./scorer": {
+      "import": "./dist/scorer/scoring-engine.js",
+      "types": "./dist/scorer/scoring-engine.d.ts"
+    },
+    "./scorer/v4-adapter": {
+      "import": "./dist/scorer/v4-adapter.js",
+      "types": "./dist/scorer/v4-adapter.d.ts"
+    },
+    "./ai/v4": {
+      "import": "./dist/ai/v4/index.js",
+      "types": "./dist/ai/v4/index.d.ts"
+    },
+    "./ir": {
+      "import": "./dist/ir/index.js",
+      "types": "./dist/ir/index.d.ts"
+    },
+    "./parser": {
+      "import": "./dist/parser/index.js",
+      "types": "./dist/parser/index.d.ts"
+    },
+    "./registry": {
+      "import": "./dist/registry/index.js",
+      "types": "./dist/registry/index.d.ts"
     }
   },
   "files": [

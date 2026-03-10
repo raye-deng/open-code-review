@@ -1,17 +1,23 @@
 #!/usr/bin/env node
 
 /**
- * Open Code Review CLI — V3
+ * Open Code Review CLI — V4 + V3 Legacy
  *
- * Usage:
- *   npx open-code-review scan ./src
- *   npx open-code-review scan ./src --threshold 80 --format json
- *   npx open-code-review scan ./src --license AICV-XXXX-XXXX-XXXX-XXXX
+ * V4 Commands (default):
+ *   npx open-code-review scan .
+ *   npx open-code-review scan ./src --sla L2
+ *   npx open-code-review scan . --format json --locale zh
+ *
+ * V3 Legacy:
+ *   npx open-code-review scan-v3 ./src --threshold 80 --format json
+ *
+ * Other:
  *   npx open-code-review login
  *   npx open-code-review config show
  *   npx open-code-review config set license AICV-XXXX
+ *   npx open-code-review init
  *
- * @since 0.3.0
+ * @since 0.4.0
  */
 
 import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
@@ -20,6 +26,7 @@ import { homedir } from 'node:os';
 import { createInterface } from 'node:readline';
 import { glob } from 'glob';
 import {
+  // V3 detectors (legacy)
   HallucinationDetector,
   LogicGapDetector,
   DuplicationDetector,
@@ -29,8 +36,42 @@ import {
   PromptBuilder,
   LicenseValidator,
   isValidLicenseFormat,
+  // V4 modules
+  V4Scanner,
+  loadV4Config,
+  scoreV4Results,
+  createI18n,
+  V4TerminalReporter,
+  generateDefaultConfigYaml,
 } from '@open-code-review/core';
-import type { ReportFormat, FileScore } from '@open-code-review/core';
+import type {
+  ReportFormat,
+  FileScore,
+  V4ScanResult,
+  V4ScoreResult,
+  SLALevel,
+  Locale,
+} from '@open-code-review/core';
+
+// ─── Constants ─────────────────────────────────────────────────────
+
+const VERSION = '0.4.0';
+
+// ─── Environment Variable Helpers ──────────────────────────────────
+
+function envString(key: string): string | undefined {
+  return process.env[key] || undefined;
+}
+
+function resolveEnvDefaults() {
+  return {
+    apiKey: envString('OCR_API_KEY'),
+    sla: envString('OCR_SLA') as SLALevel | undefined,
+    locale: envString('OCR_LOCALE') as Locale | undefined,
+    ollamaUrl: envString('OCR_OLLAMA_URL'),
+    ollamaModel: envString('OCR_OLLAMA_MODEL'),
+  };
+}
 
 // ─── CLI Argument Parsing ──────────────────────────────────────────
 
@@ -38,8 +79,23 @@ interface ParsedArgs {
   command: string;
   subcommand?: string;
   paths: string[];
+  // V4 options
+  sla?: string;
+  locale?: string;
+  format?: string;
+  configPath?: string;
+  offline?: boolean;
+  include?: string;
+  exclude?: string;
+  aiLocalModel?: string;
+  aiLocalUrl?: string;
+  aiRemoteProvider?: string;
+  aiRemoteModel?: string;
+  aiRemoteKey?: string;
+  noScore?: boolean;
+  json?: boolean;
+  // V3 options
   threshold: number;
-  format: ReportFormat;
   output?: string;
   healPrompt: boolean;
   license?: string;
@@ -52,31 +108,88 @@ function parseArgs(argv: string[]): ParsedArgs {
   const command = args[0] || 'help';
   const paths: string[] = [];
   let threshold = 70;
-  let format: ReportFormat = 'terminal';
+  let format: string | undefined;
   let output: string | undefined;
   let healPrompt = false;
   let license: string | undefined;
   let subcommand: string | undefined;
   let configKey: string | undefined;
   let configValue: string | undefined;
+  let sla: string | undefined;
+  let locale: string | undefined;
+  let configPath: string | undefined;
+  let offline = false;
+  let include: string | undefined;
+  let exclude: string | undefined;
+  let aiLocalModel: string | undefined;
+  let aiLocalUrl: string | undefined;
+  let aiRemoteProvider: string | undefined;
+  let aiRemoteModel: string | undefined;
+  let aiRemoteKey: string | undefined;
+  let noScore = false;
+  let json = false;
 
   // Handle config subcommand
   if (command === 'config') {
-    subcommand = args[1]; // 'show' or 'set'
+    subcommand = args[1];
     if (subcommand === 'set') {
       configKey = args[2];
       configValue = args[3];
     }
-    return { command, subcommand, paths, threshold, format, output, healPrompt, license, configKey, configValue };
+    return {
+      command, subcommand, paths, threshold, output, healPrompt, license,
+      configKey, configValue, sla, locale, format, configPath, offline,
+      include, exclude, aiLocalModel, aiLocalUrl, aiRemoteProvider,
+      aiRemoteModel, aiRemoteKey, noScore, json,
+    };
   }
 
   for (let i = 1; i < args.length; i++) {
     switch (args[i]) {
+      case '--sla':
+        sla = args[++i];
+        break;
+      case '--locale':
+        locale = args[++i];
+        break;
+      case '--config':
+        configPath = args[++i];
+        break;
+      case '--offline':
+        offline = true;
+        break;
+      case '--include':
+        include = args[++i];
+        break;
+      case '--exclude':
+        exclude = args[++i];
+        break;
+      case '--ai-local-model':
+        aiLocalModel = args[++i];
+        break;
+      case '--ai-local-url':
+        aiLocalUrl = args[++i];
+        break;
+      case '--ai-remote-provider':
+        aiRemoteProvider = args[++i];
+        break;
+      case '--ai-remote-model':
+        aiRemoteModel = args[++i];
+        break;
+      case '--ai-remote-key':
+        aiRemoteKey = args[++i];
+        break;
+      case '--no-score':
+        noScore = true;
+        break;
+      case '--json':
+        json = true;
+        break;
       case '--threshold':
         threshold = parseInt(args[++i], 10);
         break;
       case '--format':
-        format = args[++i] as ReportFormat;
+        format = args[++i];
         break;
       case '--output':
         output = args[++i];
@@ -94,44 +207,15 @@ function parseArgs(argv: string[]): ParsedArgs {
     }
   }
 
-  if (command === 'scan' && paths.length === 0) {
-    paths.push('src/**/*.ts', 'src/**/*.js', 'src/**/*.tsx', 'src/**/*.jsx');
-  }
-
-  // Convert directory paths to glob patterns
-  const expandedPaths: string[] = [];
-  for (const p of paths) {
-    try {
-      if (existsSync(p) && statSync(p).isDirectory()) {
-        expandedPaths.push(
-          `${p}/**/*.ts`,
-          `${p}/**/*.js`,
-          `${p}/**/*.tsx`,
-          `${p}/**/*.jsx`,
-        );
-      } else {
-        expandedPaths.push(p);
-      }
-    } catch {
-      expandedPaths.push(p);
-    }
-  }
-
   return {
-    command,
-    subcommand,
-    paths: expandedPaths,
-    threshold,
-    format,
-    output,
-    healPrompt,
-    license,
-    configKey,
-    configValue,
+    command, subcommand, paths, threshold, format, output, healPrompt,
+    license, configKey, configValue, sla, locale, configPath, offline,
+    include, exclude, aiLocalModel, aiLocalUrl, aiRemoteProvider,
+    aiRemoteModel, aiRemoteKey, noScore, json,
   };
 }
 
-// ─── File Discovery ────────────────────────────────────────────────
+// ─── File Discovery (V3) ──────────────────────────────────────────
 
 async function resolveFiles(patterns: string[]): Promise<string[]> {
   const files: string[] = [];
@@ -147,10 +231,7 @@ async function resolveFiles(patterns: string[]): Promise<string[]> {
 // ─── License Validation ────────────────────────────────────────────
 
 async function validateLicense(cliLicense?: string): Promise<{ key: string | null; status: string }> {
-  // Resolve license key from all sources
-  const licenseKey = LicenseValidator.resolveLicenseKey({
-    cli: cliLicense,
-  });
+  const licenseKey = LicenseValidator.resolveLicenseKey({ cli: cliLicense });
 
   if (!licenseKey) {
     return {
@@ -159,7 +240,6 @@ async function validateLicense(cliLicense?: string): Promise<{ key: string | nul
     };
   }
 
-  // Validate the license
   const validator = new LicenseValidator();
   const result = await validator.validate(licenseKey);
 
@@ -180,10 +260,288 @@ async function validateLicense(cliLicense?: string): Promise<{ key: string | nul
   };
 }
 
-// ─── Commands ──────────────────────────────────────────────────────
+// ─── V4 Scan Command ──────────────────────────────────────────────
 
-/** Main scan command */
-async function commandScan(
+async function commandV4Scan(parsed: ParsedArgs): Promise<boolean> {
+  const envDefaults = resolveEnvDefaults();
+
+  // Determine scan path
+  const scanPath = parsed.paths[0] ?? '.';
+  const projectRoot = resolve(scanPath);
+
+  // Resolve SLA: CLI > env > config default
+  const sla = (parsed.sla?.toUpperCase() ?? envDefaults.sla?.toUpperCase() ?? 'L1') as SLALevel;
+
+  // Resolve locale: CLI > env > config default
+  const locale = (parsed.locale ?? envDefaults.locale ?? 'en') as Locale;
+
+  // Resolve output format
+  const format = parsed.json ? 'json' : (parsed.format ?? 'terminal');
+
+  // Load config (includes env vars and config file)
+  const v4Config = loadV4Config({
+    projectRoot,
+    overrides: {
+      projectRoot,
+      sla,
+      locale,
+      include: parsed.include ? parsed.include.split(',').map(s => s.trim()) : undefined,
+      exclude: parsed.exclude ? parsed.exclude.split(',').map(s => s.trim()) : undefined,
+      threshold: parsed.threshold,
+    },
+  });
+
+  // Apply offline mode
+  if (parsed.offline) {
+    v4Config.registry = undefined;
+  }
+
+  // Create i18n provider
+  const i18n = createI18n(locale);
+
+  // Print header
+  if (format === 'terminal') {
+    console.error('');
+    console.error('  Open Code Review V4');
+    console.error(`  SLA: ${sla} | Locale: ${locale}`);
+    console.error('');
+  }
+
+  // Validate license (non-blocking)
+  const { status: licenseStatus } = await validateLicense(parsed.license);
+  if (format === 'terminal') {
+    console.error(`  ${licenseStatus}`);
+    console.error('');
+  }
+
+  // Create and run V4 scanner
+  const scanner = new V4Scanner(v4Config);
+
+  if (format === 'terminal') {
+    console.error('  Scanning...');
+  }
+
+  const result = await scanner.scan();
+
+  if (format === 'terminal') {
+    console.error(`  Found ${result.issues.length} issue(s) in ${result.files.length} file(s)`);
+    console.error('');
+  }
+
+  // Score results (unless --no-score)
+  let scoreResult: V4ScoreResult | undefined;
+  if (!parsed.noScore) {
+    scoreResult = scoreV4Results(result.issues, result.files.length, v4Config.threshold ?? 70);
+  }
+
+  // Output in requested format
+  const outputStr = renderV4Output(format, result, scoreResult, i18n);
+
+  if (parsed.output) {
+    writeFileSync(parsed.output, outputStr, 'utf-8');
+    console.error(`Report written to: ${parsed.output}`);
+  } else {
+    console.log(outputStr);
+  }
+
+  // Return pass/fail
+  if (scoreResult) {
+    return scoreResult.passed;
+  }
+
+  // Without scoring, fail if there are errors
+  const hasErrors = result.issues.some(i => i.severity === 'error');
+  return !hasErrors;
+}
+
+// ─── V4 Output Renderers ──────────────────────────────────────────
+
+function renderV4Output(
+  format: string,
+  result: V4ScanResult,
+  score: V4ScoreResult | undefined,
+  i18n: ReturnType<typeof createI18n>,
+): string {
+  switch (format) {
+    case 'json':
+      return renderV4Json(result, score);
+    case 'sarif':
+      return renderV4Sarif(result);
+    case 'markdown':
+      return renderV4Markdown(result, score);
+    case 'html':
+      return renderV4Html(result, score);
+    case 'terminal':
+    default: {
+      const reporter = new V4TerminalReporter(i18n);
+      return reporter.render(result, score);
+    }
+  }
+}
+
+function renderV4Json(result: V4ScanResult, score?: V4ScoreResult): string {
+  const output = {
+    version: '4.0',
+    projectRoot: result.projectRoot,
+    sla: result.sla,
+    files: result.files,
+    languages: result.languages,
+    issues: result.issues,
+    score: score ? {
+      total: score.totalScore,
+      grade: score.grade,
+      passed: score.passed,
+      threshold: score.threshold,
+      dimensions: score.dimensions,
+    } : undefined,
+    duration: result.durationMs,
+    stages: result.stages,
+    timestamp: new Date().toISOString(),
+  };
+  return JSON.stringify(output, null, 2);
+}
+
+function renderV4Sarif(result: V4ScanResult): string {
+  const sarif = {
+    $schema: 'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json',
+    version: '2.1.0',
+    runs: [{
+      tool: {
+        driver: {
+          name: 'Open Code Review',
+          version: VERSION,
+          informationUri: 'https://github.com/raye-deng/open-code-review',
+          rules: [...new Set(result.issues.map(i => i.detectorId))].map(id => ({
+            id,
+            shortDescription: { text: id },
+          })),
+        },
+      },
+      results: result.issues.map(issue => ({
+        ruleId: issue.detectorId,
+        level: issue.severity === 'error' ? 'error' : issue.severity === 'warning' ? 'warning' : 'note',
+        message: { text: issue.message },
+        locations: [{
+          physicalLocation: {
+            artifactLocation: {
+              uri: issue.file,
+              uriBaseId: '%SRCROOT%',
+            },
+            region: {
+              startLine: issue.line,
+              endLine: issue.endLine ?? issue.line,
+            },
+          },
+        }],
+      })),
+    }],
+  };
+  return JSON.stringify(sarif, null, 2);
+}
+
+function renderV4Markdown(result: V4ScanResult, score?: V4ScoreResult): string {
+  const lines: string[] = [];
+  lines.push('# Open Code Review V4 — Report');
+  lines.push('');
+  lines.push(`**Date:** ${new Date().toISOString()}`);
+  lines.push(`**SLA:** ${result.sla}`);
+  lines.push(`**Files:** ${result.files.length}`);
+  lines.push(`**Languages:** ${result.languages.join(', ') || 'N/A'}`);
+  lines.push(`**Duration:** ${result.durationMs}ms`);
+  lines.push('');
+
+  if (score) {
+    lines.push('## Score');
+    lines.push('');
+    lines.push('| Metric | Value |');
+    lines.push('|--------|-------|');
+    lines.push(`| Score | ${score.totalScore}/100 |`);
+    lines.push(`| Grade | ${score.grade} |`);
+    lines.push(`| Status | ${score.passed ? '✅ Passed' : '❌ Failed'} |`);
+    lines.push(`| Threshold | ${score.threshold} |`);
+    lines.push('');
+  }
+
+  if (result.issues.length === 0) {
+    lines.push('## Issues');
+    lines.push('');
+    lines.push('✅ No issues found!');
+  } else {
+    lines.push(`## Issues (${result.issues.length})`);
+    lines.push('');
+    lines.push('| Severity | File | Line | Detector | Message |');
+    lines.push('|----------|------|------|----------|---------|');
+    for (const issue of result.issues) {
+      lines.push(`| ${issue.severity} | ${issue.file} | ${issue.line} | ${issue.detectorId} | ${issue.message} |`);
+    }
+  }
+
+  lines.push('');
+  return lines.join('\n');
+}
+
+function renderV4Html(result: V4ScanResult, score?: V4ScoreResult): string {
+  const issueRows = result.issues.map(i => `
+    <tr>
+      <td class="sev-${i.severity}">${i.severity}</td>
+      <td>${escapeHtml(i.file)}</td>
+      <td>${i.line}</td>
+      <td>${escapeHtml(i.detectorId)}</td>
+      <td>${escapeHtml(i.message)}</td>
+    </tr>`).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Open Code Review V4 Report</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 960px; margin: 40px auto; padding: 0 20px; color: #333; }
+    h1 { color: #1a1a2e; }
+    .summary { display: flex; gap: 20px; flex-wrap: wrap; margin: 20px 0; }
+    .card { background: #f8f9fa; border-radius: 8px; padding: 16px 24px; min-width: 120px; }
+    .card h3 { margin: 0; font-size: 14px; color: #666; }
+    .card p { margin: 4px 0 0; font-size: 24px; font-weight: bold; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th { background: #1a1a2e; color: white; padding: 10px; text-align: left; }
+    td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+    .sev-error { color: #d32f2f; font-weight: bold; }
+    .sev-warning { color: #f57c00; }
+    .sev-info { color: #1976d2; }
+    .passed { color: #2e7d32; }
+    .failed { color: #d32f2f; }
+  </style>
+</head>
+<body>
+  <h1>Open Code Review V4</h1>
+  <div class="summary">
+    <div class="card"><h3>Files</h3><p>${result.files.length}</p></div>
+    <div class="card"><h3>Issues</h3><p>${result.issues.length}</p></div>
+    <div class="card"><h3>SLA</h3><p>${result.sla}</p></div>
+    ${score ? `
+    <div class="card"><h3>Score</h3><p>${score.totalScore}</p></div>
+    <div class="card"><h3>Grade</h3><p>${score.grade}</p></div>
+    <div class="card"><h3>Status</h3><p class="${score.passed ? 'passed' : 'failed'}">${score.passed ? 'PASSED' : 'FAILED'}</p></div>
+    ` : ''}
+    <div class="card"><h3>Duration</h3><p>${result.durationMs}ms</p></div>
+  </div>
+  ${result.issues.length > 0 ? `
+  <h2>Issues</h2>
+  <table>
+    <thead><tr><th>Severity</th><th>File</th><th>Line</th><th>Detector</th><th>Message</th></tr></thead>
+    <tbody>${issueRows}</tbody>
+  </table>` : '<p>✅ No issues found!</p>'}
+</body>
+</html>`;
+}
+
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ─── V3 Legacy Scan Command ────────────────────────────────────────
+
+async function commandScanV3(
   paths: string[],
   threshold: number,
   format: ReportFormat,
@@ -193,29 +551,46 @@ async function commandScan(
 ): Promise<boolean> {
   const projectRoot = resolve('.');
 
-  // Step 1: Validate license
   const { status: licenseStatus } = await validateLicense(cliLicense);
   console.error(licenseStatus);
   console.error('');
 
-  // Step 2: Resolve files
-  const files = await resolveFiles(paths);
+  // Expand directory paths to globs
+  const expandedPaths: string[] = [];
+  if (paths.length === 0) {
+    expandedPaths.push('src/**/*.ts', 'src/**/*.js', 'src/**/*.tsx', 'src/**/*.jsx');
+  } else {
+    for (const p of paths) {
+      try {
+        if (existsSync(p) && statSync(p).isDirectory()) {
+          expandedPaths.push(
+            `${p}/**/*.ts`, `${p}/**/*.js`,
+            `${p}/**/*.tsx`, `${p}/**/*.jsx`,
+          );
+        } else {
+          expandedPaths.push(p);
+        }
+      } catch {
+        expandedPaths.push(p);
+      }
+    }
+  }
+
+  const files = await resolveFiles(expandedPaths);
 
   if (files.length === 0) {
     console.error('No files found matching the specified patterns.');
     process.exit(1);
   }
 
-  console.error(`Scanning ${files.length} file(s)...`);
+  console.error(`[V3] Scanning ${files.length} file(s)...`);
 
-  // Step 3: Initialize detectors
   const hallucinationDetector = new HallucinationDetector({ projectRoot });
   const logicGapDetector = new LogicGapDetector();
   const duplicationDetector = new DuplicationDetector();
   const contextBreakDetector = new ContextBreakDetector();
   const scoringEngine = new ScoringEngine(threshold);
 
-  // Step 4: Analyze each file
   const fileScores: FileScore[] = [];
 
   for (const file of files) {
@@ -231,12 +606,10 @@ async function commandScan(
     fileScores.push(score);
   }
 
-  // Step 5: Generate aggregate report
   const aggregate = scoringEngine.aggregate(fileScores);
   const reporter = new ReportGenerator();
   const report = reporter.generate(aggregate, format);
 
-  // Step 6: Output
   if (output) {
     writeFileSync(output, report, 'utf-8');
     console.error(`Report written to: ${output}`);
@@ -244,7 +617,6 @@ async function commandScan(
     console.log(report);
   }
 
-  // Step 7: AI heal prompt
   if (healPrompt) {
     const builder = new PromptBuilder();
     const prompt = builder.buildCombinedPrompt(aggregate);
@@ -256,7 +628,23 @@ async function commandScan(
   return aggregate.passed;
 }
 
-/** Login command — get a license key */
+// ─── Init Command ──────────────────────────────────────────────────
+
+async function commandInit(): Promise<void> {
+  const configPath = resolve('.ocrrc.yml');
+  if (existsSync(configPath)) {
+    console.log(`  Configuration file already exists: ${configPath}`);
+    console.log('  Delete it first if you want to regenerate.');
+    return;
+  }
+
+  writeFileSync(configPath, generateDefaultConfigYaml(), 'utf-8');
+  console.log(`  ✓ Created ${configPath}`);
+  console.log('  Edit the file to customize your scan settings.');
+}
+
+// ─── Login Command ─────────────────────────────────────────────────
+
 async function commandLogin(): Promise<void> {
   console.log('');
   console.log('  ┌──────────────────────────────────────────┐');
@@ -264,7 +652,6 @@ async function commandLogin(): Promise<void> {
   console.log('  └──────────────────────────────────────────┘');
   console.log('');
 
-  // Check if already logged in
   const existingKey = LicenseValidator.resolveLicenseKey();
   if (existingKey && isValidLicenseFormat(existingKey)) {
     const maskedKey = existingKey.replace(/^(AICV-.{4}).+(.{4})$/, '$1-****-****-$2');
@@ -284,7 +671,6 @@ async function commandLogin(): Promise<void> {
     console.log('');
   }
 
-  // Portal registration URL
   const portalUrl = 'https://codes.evallab.ai/register';
   console.log('  To get a license key:');
   console.log('');
@@ -293,7 +679,6 @@ async function commandLogin(): Promise<void> {
   console.log('  3. Copy your license key from the dashboard');
   console.log('');
 
-  // Try to open browser
   try {
     const { exec: execCb } = await import('node:child_process');
     const openCmd = process.platform === 'darwin' ? 'open' :
@@ -302,10 +687,9 @@ async function commandLogin(): Promise<void> {
     console.log('  (Opening browser...)');
     console.log('');
   } catch {
-    // Browser opening failed — that's fine
+    // Browser opening failed
   }
 
-  // Prompt for license key
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const licenseKey = await new Promise<string>((resolve) => {
     rl.question('  Paste your license key: ', resolve);
@@ -318,7 +702,6 @@ async function commandLogin(): Promise<void> {
     console.log('');
     console.log('  No key entered. You can set it later with:');
     console.log('    open-code-review config set license YOUR-KEY');
-    console.log('    # or set AICV_LICENSE environment variable');
     return;
   }
 
@@ -329,27 +712,26 @@ async function commandLogin(): Promise<void> {
     process.exit(1);
   }
 
-  // Validate the key
   console.log('');
   console.log('  Validating...');
   const validator = new LicenseValidator();
   const result = await validator.validate(trimmedKey);
 
   if (result.valid) {
-    // Save the key
     LicenseValidator.saveLicenseKey(trimmedKey);
-    console.log(`  ✓ License key saved to ~/.aicv/license`);
+    console.log('  ✓ License key saved to ~/.aicv/license');
     console.log('');
     console.log('  You\'re all set! Run `open-code-review scan .` to get started.');
   } else {
     console.error(`  ⚠ Validation warning: ${result.error ?? 'could not verify'}`);
-    console.log('  Saving anyway (free product — you can use the tool without verification).');
+    console.log('  Saving anyway (free product).');
     LicenseValidator.saveLicenseKey(trimmedKey);
-    console.log(`  ✓ License key saved to ~/.aicv/license`);
+    console.log('  ✓ License key saved to ~/.aicv/license');
   }
 }
 
-/** Config command */
+// ─── Config Command ────────────────────────────────────────────────
+
 async function commandConfig(subcommand?: string, key?: string, value?: string): Promise<void> {
   const aicvDir = join(homedir(), '.aicv');
 
@@ -359,7 +741,6 @@ async function commandConfig(subcommand?: string, key?: string, value?: string):
       console.log('  Open Code Review — Configuration');
       console.log('  ─────────────────────────────────');
 
-      // License
       const licenseKey = LicenseValidator.resolveLicenseKey();
       if (licenseKey) {
         const maskedKey = licenseKey.replace(/^(AICV-.{4}).+(.{4})$/, '$1-****-****-$2');
@@ -368,7 +749,6 @@ async function commandConfig(subcommand?: string, key?: string, value?: string):
         console.log('  License:     (not set)');
       }
 
-      // Config file
       const configFiles = ['.ocrrc.yml', '.ocrrc.yaml', '.aicv.yml', '.aicv.yaml'];
       let foundConfig = false;
       for (const cf of configFiles) {
@@ -382,15 +762,13 @@ async function commandConfig(subcommand?: string, key?: string, value?: string):
         console.log('  Config file: (none found in current directory)');
       }
 
-      // Global config
       const globalConfig = join(aicvDir, 'config.yml');
       if (existsSync(globalConfig)) {
         console.log(`  Global:      ${globalConfig}`);
       } else {
-        console.log(`  Global:      (not set)`);
+        console.log('  Global:      (not set)');
       }
 
-      // Cache
       const cachePath = join(aicvDir, 'license-cache.json');
       if (existsSync(cachePath)) {
         try {
@@ -412,9 +790,7 @@ async function commandConfig(subcommand?: string, key?: string, value?: string):
     case 'set': {
       if (!key) {
         console.error('Usage: open-code-review config set <key> <value>');
-        console.error('');
-        console.error('Available keys:');
-        console.error('  license   Set the license key');
+        console.error('Available keys: license');
         process.exit(1);
       }
 
@@ -431,7 +807,7 @@ async function commandConfig(subcommand?: string, key?: string, value?: string):
             process.exit(1);
           }
           LicenseValidator.saveLicenseKey(trimmed);
-          console.log(`✓ License key saved to ~/.aicv/license`);
+          console.log('✓ License key saved to ~/.aicv/license');
           break;
         }
         default:
@@ -443,7 +819,6 @@ async function commandConfig(subcommand?: string, key?: string, value?: string):
     }
 
     default: {
-      // Default to 'show' if no subcommand
       await commandConfig('show');
       break;
     }
@@ -460,30 +835,51 @@ USAGE:
   open-code-review <command> [options]
 
 COMMANDS:
-  scan [paths...]       Scan files for AI code quality issues
+  scan [path]           Scan a project for AI-generated code defects (V4, default)
+  scan-v3 [paths...]    Legacy V3 scan
+  init                  Create .ocrrc.yml configuration file
   login                 Set up license key (opens Portal)
   config [show|set]     View or update configuration
   help                  Show this help message
 
-SCAN OPTIONS:
-  --threshold <n>       Minimum score to pass (default: 70)
-  --format <fmt>        Output format: terminal, json, markdown, gitlab-report
+V4 SCAN OPTIONS:
+  --sla <level>         SLA level: L1 (fast), L2 (standard), L3 (deep) [default: L1]
+  --locale <locale>     Output language: en, zh [default: en]
+  --format <format>     Output format: terminal, json, sarif, markdown, html [default: terminal]
+  --config <path>       Config file path
+  --offline             Skip registry verification (offline mode)
+  --include <patterns>  File patterns to include (comma-separated)
+  --exclude <patterns>  File patterns to exclude (comma-separated)
+  --ai-local-model <m>  Ollama model name for L2 scans
+  --ai-local-url <url>  Ollama base URL [default: http://localhost:11434]
+  --ai-remote-provider  Remote AI provider: openai, anthropic
+  --ai-remote-model <m> Remote AI model name
+  --ai-remote-key <key> Remote AI API key (or env: OCR_API_KEY)
+  --no-score            Skip scoring
+  --json                Output as JSON (shorthand for --format json)
   --output <path>       Write report to file instead of stdout
   --license <key>       License key (AICV-XXXX-XXXX-XXXX-XXXX)
+
+V3 LEGACY OPTIONS:
+  --threshold <n>       Minimum score to pass (default: 70)
+  --format <fmt>        Output format: terminal, json, markdown
   --heal                Generate AI self-heal prompt file
 
-CONFIG COMMANDS:
-  config show           Show current configuration
-  config set license <key>  Set license key
+ENVIRONMENT VARIABLES:
+  OCR_API_KEY           Remote AI API key
+  OCR_SLA               Default SLA level
+  OCR_LOCALE            Default locale
+  OCR_OLLAMA_URL        Ollama base URL
+  OCR_OLLAMA_MODEL      Ollama model
 
 EXAMPLES:
-  open-code-review scan ./src
-  open-code-review scan "src/**/*.ts" --threshold 80
-  open-code-review scan ./src --license AICV-8F3A-K9D2-P7XN-Q4M6
-  open-code-review scan ./src --format json --output report.json
+  open-code-review scan .
+  open-code-review scan ./src --sla L2 --locale zh
+  open-code-review scan . --format json --output report.json
+  open-code-review scan . --offline --no-score
+  open-code-review scan-v3 ./src --threshold 80
+  open-code-review init
   open-code-review login
-  open-code-review config show
-  open-code-review config set license AICV-8F3A-K9D2-P7XN-Q4M6
 `);
 }
 
@@ -494,15 +890,27 @@ async function main(): Promise<void> {
 
   switch (parsed.command) {
     case 'scan': {
-      const passed = await commandScan(
+      const passed = await commandV4Scan(parsed);
+      process.exit(passed ? 0 : 1);
+      break;
+    }
+
+    case 'scan-v3': {
+      const passed = await commandScanV3(
         parsed.paths,
         parsed.threshold,
-        parsed.format,
+        (parsed.format ?? 'terminal') as ReportFormat,
         parsed.output,
         parsed.healPrompt,
         parsed.license,
       );
       process.exit(passed ? 0 : 1);
+      break;
+    }
+
+    case 'init': {
+      await commandInit();
+      process.exit(0);
       break;
     }
 
@@ -527,7 +935,7 @@ async function main(): Promise<void> {
 
     case '--version':
     case '-v': {
-      console.log('0.3.0');
+      console.log(VERSION);
       process.exit(0);
       break;
     }

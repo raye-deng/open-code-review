@@ -11,13 +11,14 @@ import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import type TreeSitterModule from 'web-tree-sitter';
 import type { SupportedLanguage } from '../ir/types.js';
 
 // We use createRequire to get the real Parser class because vitest's
 // ESM module proxy doesn't propagate static property changes after
 // Parser.init() modifies the class (e.g., Parser.Language).
 const _require = createRequire(import.meta.url);
-const Parser: typeof import('web-tree-sitter').default = _require('web-tree-sitter');
+const Parser: typeof TreeSitterModule = _require('web-tree-sitter');
 
 // ─── Grammar File Resolution ───────────────────────────────────────
 
@@ -87,7 +88,7 @@ function resolveGrammarPath(grammarFile: string): string {
  * ```
  */
 export class ParserManager {
-  private languages: Map<SupportedLanguage, Parser.Language> = new Map();
+  private languages: Map<SupportedLanguage, TreeSitterModule.Language> = new Map();
   private _initialized = false;
 
   /** Whether the parser has been initialized */
@@ -147,7 +148,7 @@ export class ParserManager {
    * @returns Parsed tree-sitter tree
    * @throws Error if not initialized or language not supported
    */
-  parse(source: string, language: SupportedLanguage): Parser.Tree {
+  parse(source: string, language: SupportedLanguage): TreeSitterModule.Tree {
     if (!this._initialized) {
       throw new Error('ParserManager not initialized. Call init() first.');
     }
