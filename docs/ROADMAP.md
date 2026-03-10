@@ -33,17 +33,17 @@
 
 | # | 任务 | 文件/模块 | 状态 |
 |---|------|----------|------|
-| 1.1 | 统一类型定义 | `packages/core/src/types.ts` | ⬜ |
-| 1.2 | LanguageAdapter 接口 + 语言注册表 | `packages/core/src/languages/` | ⬜ |
-| 1.3 | TS/JS 适配器 (oxc-parser) | `packages/core/src/languages/typescript/` | ⬜ |
-| 1.4 | 4 检测器 AST 重写 | `packages/core/src/detectors/` (v2) | ⬜ |
-| 1.5 | 评分引擎 V3 | `packages/core/src/scorer/scoring-engine.ts` (重写) | ⬜ |
-| 1.6 | SLA 计时框架 | `packages/core/src/sla/` | ⬜ |
-| 1.7 | .aicv.yml 配置解析器 | `packages/core/src/config/` | ⬜ |
-| 1.8 | 单元测试 | `packages/core/tests/` | ⬜ |
+| 1.1 | 统一类型定义 | `packages/core/src/types.ts` | ✅ |
+| 1.2 | LanguageAdapter 接口 + 语言注册表 | `packages/core/src/languages/` | ✅ |
+| 1.3 | TS/JS 适配器 (oxc-parser) | `packages/core/src/languages/typescript/` | ✅ |
+| 1.4 | 4 检测器 AST 重写 | `packages/core/src/detectors/` (v2) | ✅ |
+| 1.5 | 评分引擎 V3 | `packages/core/src/scorer/scoring-engine.ts` (重写) | ✅ |
+| 1.6 | SLA 计时框架 | `packages/core/src/sla/` | ✅ |
+| 1.7 | .aicv.yml 配置解析器 | `packages/core/src/config/` | ✅ |
+| 1.8 | 单元测试 | `packages/core/tests/` | ✅ |
 
 ### 验收标准
-- [ ] `npm test` 全通过（现有 + 新增）
+- [x] `npm test` 全通过（现有 + 新增）— 136 tests passing
 - [ ] `npx ai-code-validator scan .` 对 TS/JS 文件输出新格式评分
 - [ ] SLA 计时信息在报告中可见
 - [ ] git tag v0.3.0-alpha.1
