@@ -728,71 +728,219 @@ fi
 
 ---
 
-## 八、实施计划
+## 八、多语言支持（TOP 5 语言覆盖）
 
-### Phase 1（1 周）：Core 重构 + 评分重设计
+### 8.1 支持语言矩阵
+
+| 语言 | 分组 | AST 解析器 | 包管理器验证 | 废弃 API 数据库 | 优先级 |
+|------|------|-----------|------------|----------------|--------|
+| TypeScript / JavaScript | 合并为一个 | oxc-parser (Tier 1) + ts-morph (Tier 2) | npm registry | Node.js / DOM / npm 包 | P0 — Phase 1 |
+| Python | 独立 | tree-sitter-python 或 ast (native) | PyPI registry | Python stdlib + 主流包 | P0 — Phase 2 |
+| Java | 独立 | tree-sitter-java | Maven Central | JDK + Spring + 主流框架 | P1 — Phase 3 |
+| Go | 独立 | tree-sitter-go | pkg.go.dev | Go stdlib + 主流模块 | P1 — Phase 3 |
+| Kotlin | 独立 | tree-sitter-kotlin | Maven Central (共用 Java) | Kotlin stdlib + Android + Ktor | P2 — Phase 4 |
+
+### 8.2 多语言架构设计
+
+```
+packages/core/src/
+  ├── languages/
+  │   ├── types.ts              # 统一 LanguageAdapter 接口
+  │   ├── registry.ts           # 语言注册表（自动检测文件后缀）
+  │   ├── typescript/            # TS/JS 适配器
+  │   │   ├── parser.ts          # oxc-parser 封装
+  │   │   ├── package-verifier.ts # npm registry 验证
+  │   │   └── deprecated-apis.ts  # Node.js/npm 废弃 API
+  │   ├── python/                # Python 适配器
+  │   │   ├── parser.ts          # tree-sitter-python 封装
+  │   │   ├── package-verifier.ts # PyPI 验证
+  │   │   └── deprecated-apis.ts  # Python stdlib 废弃 API
+  │   ├── java/                  # Java 适配器
+  │   │   ├── parser.ts
+  │   │   ├── package-verifier.ts # Maven Central 验证
+  │   │   └── deprecated-apis.ts
+  │   ├── go/                    # Go 适配器
+  │   │   ├── parser.ts
+  │   │   ├── package-verifier.ts # pkg.go.dev 验证
+  │   │   └── deprecated-apis.ts
+  │   └── kotlin/                # Kotlin 适配器
+  │       ├── parser.ts
+  │       ├── package-verifier.ts # Maven Central 复用
+  │       └── deprecated-apis.ts
+  └── detectors/
+      ├── hallucination.ts       # 通过 LanguageAdapter 调用，语言无关
+      ├── stale-api.ts           # 通过 deprecated-apis 适配器查询
+      └── ...
+```
+
+### 8.3 统一 LanguageAdapter 接口
+
+```typescript
+interface LanguageAdapter {
+  /** 语言标识 */
+  readonly id: string;  // 'typescript' | 'python' | 'java' | 'go' | 'kotlin'
+  
+  /** 支持的文件后缀 */
+  readonly extensions: string[];  // ['.ts', '.tsx', '.js', '.jsx'] 等
+  
+  /** AST 解析 */
+  parse(source: string, filePath: string): Promise<ASTNode>;
+  
+  /** 提取 import/require 语句 */
+  extractImports(ast: ASTNode): ImportInfo[];
+  
+  /** 提取函数/方法调用 */
+  extractCalls(ast: ASTNode): CallInfo[];
+  
+  /** 验证包是否存在 */
+  verifyPackage(name: string): Promise<PackageVerifyResult>;
+  
+  /** 查询废弃 API */
+  checkDeprecated(api: string): DeprecatedInfo | null;
+  
+  /** 计算复杂度指标 */
+  computeComplexity(ast: ASTNode): ComplexityMetrics;
+}
+```
+
+### 8.4 各语言幻觉包验证
+
+| 语言 | Registry API | 验证方法 | 示例 |
+|------|-------------|---------|------|
+| TS/JS | `HEAD https://registry.npmjs.org/{pkg}` | 404 = 幻觉包 | `import { foo } from 'nonexistent-pkg'` |
+| Python | `HEAD https://pypi.org/pypi/{pkg}/json` | 404 = 幻觉包 | `import nonexistent_module` |
+| Java | `HEAD https://search.maven.org/solrsearch/select?q=g:{group}+a:{artifact}` | 0 results = 幻觉 | `import com.fake.FakeClass` |
+| Go | `HEAD https://proxy.golang.org/{module}/@latest` | 404/410 = 幻觉 | `import "github.com/fake/pkg"` |
+| Kotlin | 复用 Java Maven Central | 同 Java | `import com.fake.FakeClass` |
+
+---
+
+## 九、SLA 服务评定标准
+
+### 9.1 SLA 定义
+
+AI Code Validator 作为 CI/CD quality gate，向用户承诺以下服务指标：
+
+| SLA 指标 | 目标值 | 测量方式 | 降级方案 |
+|----------|--------|---------|---------|
+| **扫描响应时间** | ≤ 30s / 100 文件（静态分析）| CLI 端到端计时 | Tier 2 超时跳过，仅用 Tier 1 |
+| **AI 分析响应时间** | ≤ 120s / 100 文件（含 AI）| API 调用计时 | 本地 AI 超时 fallback 到纯静态 |
+| **检测准确率 (Precision)** | ≥ 85% | 人工标注验证集 | 持续更新检测规则 |
+| **检测召回率 (Recall)** | ≥ 70% | 人工标注验证集 | 新增检测器补充 |
+| **误报率 (False Positive)** | ≤ 15% | 用户反馈 + 验证集 | 置信度阈值调整 |
+| **License 验证可用性** | ≥ 99.5% | 运维监控 | 离线缓存兜底（7 天宽限） |
+| **CLI 启动时间** | ≤ 3s（不含扫描）| 冷启动计时 | 延迟加载非必要模块 |
+| **支持语言数** | ≥ 5（TS/JS, Python, Java, Go, Kotlin）| 功能测试 | 按 Phase 渐进交付 |
+
+### 9.2 SLA 分级
+
+| 等级 | 适用场景 | 扫描速度 | AI 深度 | 准确率承诺 |
+|------|---------|---------|---------|-----------|
+| **L1 — Fast Scan** | PR 预检、pre-commit | ≤ 10s / 100 files | 无 AI | ≥ 80% |
+| **L2 — Standard Scan** | CI/CD pipeline | ≤ 30s / 100 files | 本地 AI (可选) | ≥ 85% |
+| **L3 — Deep Scan** | Release gate、安全审计 | ≤ 120s / 100 files | 本地 + 远端 AI | ≥ 90% |
+
+### 9.3 SLA 报告输出
+
+每次扫描的报告将包含 SLA 指标摘要：
+
+```
+═══════════════════════════════════════════
+  AI Code Validator — SLA Metrics
+═══════════════════════════════════════════
+  Scan Level:      L2 (Standard)
+  Files Scanned:   47
+  Scan Duration:   8.3s (target: ≤30s ✅)
+  Detectors Used:  9/9
+  AI Analysis:     Local (Ollama codellama:13b)
+  Issues Found:    12 (3 critical, 4 high, 5 medium)
+  Precision Est.:  87% (target: ≥85% ✅)
+  License:         AICV-8F3A-**** (valid)
+═══════════════════════════════════════════
+```
+
+### 9.4 SLA 违反处理
+
+| 违反类型 | 处理方式 |
+|----------|---------|
+| 扫描超时 | 自动降级到 L1，输出部分结果 + 警告 |
+| AI 分析超时 | 跳过 AI Tier，仅输出静态分析结果 |
+| License 验证失败 | 使用离线缓存，缓存过期后提示重新验证 |
+| 准确率低于目标 | 用户可通过 `--report-fp` 反馈误报，持续优化 |
+
+---
+
+## 十、实施计划
+
+### Phase 1（Week 1）：Core 重构 + TS/JS 检测器 + 评分引擎
 
 | 任务 | 描述 | 优先级 |
 |------|------|--------|
-| 统一类型定义 | `types.ts` — UnifiedIssue, Detector, AIDefectCategory | P0 |
-| AST 基础设施 | 集成 oxc-parser，构建 walker/utils | P0 |
-| 4 个检测器 AST 升级 | Hallucination/LogicGap/Duplication/ContextBreak → v2 | P0 |
-| 评分引擎 V3 | 4 维度 + 新扣分规则 + A+~F 等级 | P0 |
+| 统一类型定义 | `types.ts` — UnifiedIssue, Detector, AIDefectCategory, LanguageAdapter | P0 |
+| 多语言架构 | `languages/` 目录 + LanguageAdapter 接口 + 语言注册表 | P0 |
+| TS/JS AST 基础设施 | 集成 oxc-parser (Tier 1) + ts-morph (Tier 2) | P0 |
+| 4 个检测器 AST 升级 | Hallucination/LogicGap/Duplication/ContextBreak → v2（TS/JS） | P0 |
+| 评分引擎 V3 | 4 维度 + 5 级严重度 + A+~F 等级 | P0 |
+| SLA 计时框架 | 扫描计时 + SLA 指标输出 + 超时降级 | P0 |
 | 配置系统 | .aicv.yml 解析器 + 优先级链 | P1 |
 
-**交付物**：`packages/core` 完成重构，所有现有测试通过，新评分体系就绪。
+**交付物**：TS/JS 完整可用，新评分体系 + SLA 框架就绪，`npm test` 全通过。
 
-### Phase 2（1 周）：新检测器实现
+### Phase 2（Week 2）：新检测器 + Python 支持
 
 | 任务 | 描述 | 优先级 |
 |------|------|--------|
-| StaleAPIDetector | 废弃 API 检测 + deprecated-apis.json 数据库 | P0 |
-| SecurityPatternDetector | 5 类安全反模式检测 | P0 |
+| StaleAPIDetector | 废弃 API 检测 + deprecated-apis.json（TS/JS + Python） | P0 |
+| SecurityPatternDetector | 5 类安全反模式（TS/JS + Python） | P0 |
 | OverEngineeringDetector | 圈复杂度 + 认知复杂度 + 函数长度 | P0 |
-| TypeSafetyDetector | ts-morph 集成 + any 检测 | P1 |
-| DeepHallucinationDetector | npm registry 验证 + 导出检查 | P1 |
+| DeepHallucinationDetector | npm + PyPI registry 验证 | P0 |
+| Python LanguageAdapter | tree-sitter-python + PyPI 验证 + Python 废弃 API | P0 |
+| TypeSafetyDetector | ts-morph 集成 + any 检测（TS 专属） | P1 |
 
-**交付物**：9 个检测器全部可用，Tier 1 + Tier 2 完整。
+**交付物**：9 个检测器 × 2 语言（TS/JS + Python），Tier 1 + Tier 2 完整。
 
-### Phase 3（1 周）：License + Portal
+### Phase 3（Week 3）：License + Portal + Java/Go 支持
 
 | 任务 | 描述 | 优先级 |
 |------|------|--------|
 | License 验证模块 | validator + cache + api-client | P0 |
 | CLI login 命令 | 浏览器 OAuth 流程 | P0 |
 | Portal 认证 | NextAuth.js (GitHub + Email) | P0 |
-| Dashboard 页面 | License 管理 + 使用统计 | P1 |
+| Dashboard 页面 | License 管理 + 使用统计 + SLA 面板 | P1 |
 | Directus 数据模型 | users + licenses + scan_records | P0 |
 | License API | verify / generate / regenerate | P0 |
+| Java LanguageAdapter | tree-sitter-java + Maven Central 验证 | P0 |
+| Go LanguageAdapter | tree-sitter-go + pkg.go.dev 验证 | P0 |
 
-**交付物**：用户可注册获取 License，CLI 可验证并运行。
+**交付物**：License 全流程可用，Portal 上线，Java/Go 扫描就绪。
 
-### Phase 4（1 周）：AI 集成 + 报告美化
+### Phase 4（Week 4）：AI 集成 + 报告美化 + Kotlin
 
 | 任务 | 描述 | 优先级 |
 |------|------|--------|
 | AI Provider 框架 | 抽象接口 + Ollama 实现 | P0 |
-| Prompt 模板 | 3 种专用 prompt | P0 |
+| Prompt 模板 | 3 种专用 prompt（多语言适配） | P0 |
 | Result Fusion | 去重 + 置信度合并 | P0 |
 | OpenAI/Anthropic 实现 | 远端 AI 集成 | P1 |
-| HTML 报告 | Lighthouse 风格 + SVG 图表 | P0 |
-| Terminal 报告升级 | 彩色 + 归因树 + OSC 8 链接 | P1 |
-| Markdown 报告升级 | 折叠详情 + emoji bar + 归因表 | P1 |
+| HTML 报告 | Lighthouse 风格 + SVG 图表 + SLA 指标 | P0 |
+| Terminal/Markdown 报告升级 | 彩色 + 归因树 + SLA 摘要 | P1 |
+| Kotlin LanguageAdapter | tree-sitter-kotlin + Maven Central 复用 | P1 |
 | Badge SVG | shields.io 风格 | P2 |
 
-**交付物**：完整的 V3 功能，本地/远端 AI 可用，多格式美化报告。
+**交付物**：完整 V3 — 5 语言 × 9 检测器 × AI 双通道 × SLA 报告。
 
-### Phase 5（持续）：运营 + 推广
+### Phase 5（Week 5+）：发布 + 运营 + 推广
 
 | 任务 | 描述 |
 |------|------|
+| npm 发包 v0.3.0 | 全语言支持 + License |
 | GitHub Action 发布 | Marketplace 上架 |
 | GitLab Component 发布 | components.gitlab.com |
-| 用户文档 | 安装/配置/CI 集成指南 |
+| 用户文档 | 安装/配置/CI 集成/SLA 说明 |
 | Portal 文档页 | MDX 渲染 /docs 路由 |
-| 社区推广 | HN/Reddit/GitHub 评论 + 博客 |
+| 社区推广 | Show HN v2 / Reddit / GitHub 评论 + 博客 |
 | 废弃 API 数据库自动更新 | 每周 GitHub Actions cron |
-| 报告上传 + 历史 | Dashboard 报告页功能 |
+| SLA Dashboard | 历史扫描 SLA 趋势图 |
 
 ---
 
