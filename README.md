@@ -1,74 +1,90 @@
-# Open Code Review
+# Open Code Review (OCR)
 
-> 🔍 Open-source, lightweight alternative to Claude Code Review — AI-generated code quality scanner
+> The first open-source CI/CD quality gate built specifically for AI-generated code.  
+> Free forever. Self-hostable. Not another linter.
 
 [![npm](https://img.shields.io/npm/v/open-code-review)](https://www.npmjs.com/package/open-code-review)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-## What is Open Code Review?
+## Why Open Code Review?
 
-Open Code Review (OCR) is a **free, open-source** tool that detects AI-specific code defects — the kind that ESLint, SonarQube, and traditional linters miss.
+AI coding assistants (Copilot, Cursor, Claude, ChatGPT) generate code with **unique defects** that traditional tools miss:
 
-While tools like Claude Code Review focus on general code quality, **OCR specializes in catching AI hallucinations, stale APIs, and context window artifacts** that AI coding assistants (Copilot, Cursor, Claude, ChatGPT) commonly introduce.
+- 🔴 **Hallucinated packages** — `import { x } from 'non-existent-pkg'`
+- 🟠 **Stale APIs from training data** — using deprecated APIs the model "remembers"
+- 🟡 **Context window artifacts** — logic contradictions when the model loses context
+- 🟡 **Over-engineered abstractions** — AI loves unnecessary design patterns
+- 🔵 **Security anti-patterns** — hardcoded example secrets left in production code
 
-### 🎯 What We Detect (That Others Don't)
+**ESLint, SonarQube, and CodeRabbit won't catch these.** They're designed for human-written code.
 
-| Category | Example | Severity |
-|----------|---------|----------|
-| 🔴 **AI Hallucination** | `import { magic } from 'non-existent-pkg'` | Critical |
-| 🟠 **Stale API** | `new Buffer()` instead of `Buffer.from()` | High |
-| 🟡 **Context Loss** | Variable redefined with conflicting types | Medium |
-| 🟡 **Over-Engineering** | Unnecessary abstraction layers | Medium |
-| 🔵 **Security Anti-pattern** | AI-generated hardcoded secrets | Critical |
-| ⚪ **Type Safety** | Excessive `any` types | Low |
+## How It Works
 
-### 💡 What We DON'T Flag
+Two-stage AI pipeline:
 
-Issues already covered by ESLint, Prettier, SonarQube, etc. are automatically downgraded to `info` (0 deduction). We focus on **AI-unique defects** only.
+```
+Stage 1: Embedding Recall (fast, cheap)
+  Code blocks → Embedding model → Risk scoring → Top-N suspicious blocks
+
+Stage 2: LLM Deep Scan (precise)
+  Suspicious blocks → LLM analysis → Confirmed issues + fix suggestions
+```
+
+## vs The Competition
+
+| | Claude Code Review | CodeRabbit | GitHub Copilot Review | **Open Code Review** |
+|---|---|---|---|---|
+| **Price** | $15-25/PR | $24/mo/seat | $10-39/mo | **Free** |
+| **Open Source** | ❌ | ❌ | ❌ | **✅ MIT** |
+| **Self-hosted** | ❌ | ❌ | ❌ | **✅** |
+| **AI Hallucination Detection** | ❌ | ❌ | ❌ | **✅** |
+| **Dynamic Registry Verification** | ❌ | ❌ | ❌ | **✅** |
+| **Local AI (Ollama)** | ❌ | ❌ | ❌ | **✅** |
+| **SARIF Output** | ❌ | ❌ | ❌ | **✅** |
+| **GitLab + GitHub + Any CI** | GitHub only | GitHub/GitLab | GitHub only | **✅ All** |
+| **Focus** | General review | General review | General review | **AI-code defects** |
+
+> We don't replace your code reviewer. We catch what it can't see.
 
 ## Quick Start
 
 ```bash
-# Scan current directory
 npx open-code-review scan .
 
-# With license (free, for usage tracking)
-npx open-code-review --license AICV-XXXX-XXXX-XXXX-XXXX scan .
-
-# Short alias
+# or with short alias
 npx ocr scan .
 ```
 
 ## Supported Languages
 
-| Language | Status | Adapter |
-|----------|--------|---------|
-| TypeScript/JavaScript | ✅ Full | oxc-parser |
-| Python | ✅ Full | Regex-based |
-| Java | ✅ Full | Regex-based |
-| Go | ✅ Full | Regex-based |
-| Kotlin | ✅ Full | Regex-based |
-
-## Scoring System
-
-4 dimensions × 5 severity levels:
-
-| Dimension | Weight | Focus |
-|-----------|--------|-------|
-| AI Faithfulness | 35% | Hallucination detection |
-| Code Freshness | 25% | Deprecated API usage |
-| Context Coherence | 20% | Cross-function consistency |
-| Implementation Quality | 20% | Completeness, error handling |
-
-Grades: **A+** (95-100) → **F** (0-59)
+| Language | Parser | Registry |
+|----------|--------|----------|
+| TypeScript / JavaScript | tree-sitter | npm registry |
+| Python | tree-sitter | PyPI |
+| Java | tree-sitter | Maven Central |
+| Go | tree-sitter | Go Proxy |
+| Kotlin | tree-sitter | Maven Central |
 
 ## SLA Service Levels
 
-| Level | Speed | AI | Precision |
-|-------|-------|----|-----------| 
-| L1 Fast | ≤10s/100 files | None | ≥80% |
-| L2 Standard | ≤30s/100 files | Local (Ollama) | ≥85% |
-| L3 Deep | ≤120s/100 files | Local + Remote | ≥90% |
+| Level | Speed | AI | Best For |
+|-------|-------|----|----------|
+| **L1 Fast** | ≤10s/100 files | Embedding only | PR checks, CI gates |
+| **L2 Standard** | ≤30s/100 files | + Local AI (Ollama) | Daily scans |
+| **L3 Deep** | ≤120s/100 files | + Remote AI (OpenAI/Claude) | Release audits |
+
+## Scoring
+
+4 dimensions focused on AI-specific quality:
+
+| Dimension | Weight | What It Measures |
+|-----------|--------|-----------------|
+| AI Faithfulness | 35% | Do imports/APIs actually exist? |
+| Code Freshness | 25% | Are APIs current, not deprecated? |
+| Context Coherence | 20% | Is logic consistent across the file? |
+| Implementation Quality | 20% | Complete? Error handling? Over-engineered? |
+
+Grades: **A+** (95-100) → **F** (0-59)
 
 ## CI Integration
 
@@ -85,46 +101,31 @@ include:
   - remote: 'https://codes.evallab.ai/ci/gitlab-component.yml'
 ```
 
-## vs Claude Code Review
+## Configuration
 
-| Feature | Claude Code Review | Open Code Review |
-|---------|-------------------|-----------------|
-| Price | Paid | **Free** |
-| Source | Closed | **Open Source** |
-| AI Hallucination Detection | ❌ | ✅ |
-| Stale API Detection | ❌ | ✅ |
-| Local AI (Ollama) | ❌ | ✅ |
-| Multi-language | Limited | 5 languages |
-| CI Integration | GitHub only | GitHub + GitLab + Any |
-| Self-hosted | ❌ | ✅ |
-
-## 📦 Packages
-
-| Package | Description |
-|---------|------------|
-| `@open-code-review/core` | Core detection engine |
-| `@open-code-review/cli` | CLI tool (`open-code-review` / `ocr`) |
-| `@open-code-review/github-action` | GitHub Actions integration |
-| GitLab Component | GitLab CI/CD Component |
-| `@open-code-review/web` | Marketing website |
-
-## 🏗️ Development
-
-```bash
-# Clone
-git clone https://github.com/raye-deng/open-code-review.git
-cd open-code-review
-
-# Install
-pnpm install
-
-# Build all
-pnpm build
-
-# Test
-pnpm test
+```yaml
+# .ocrrc.yml
+scan:
+  languages: [typescript, python, java, go, kotlin]
+  sla: L2
+registry:
+  npm: { url: 'https://registry.npmjs.org' }
+  pypi: { url: 'https://pypi.org' }
+  maven: { url: 'https://repo1.maven.org/maven2' }
+  # Enterprise? Point to your internal registry:
+  # npm: { url: 'https://nexus.internal.com/repository/npm/', token: '...' }
+ai:
+  local: { provider: ollama, model: codellama:13b }
+  remote: { provider: openai, model: gpt-4o-mini }
+  strategy: local-first
 ```
+
+## Philosophy
+
+- **Don't reinvent the wheel.** ESLint handles formatting. SonarQube handles complexity. We handle what AI breaks.
+- **Open by default.** MIT license, no vendor lock-in, runs on your hardware.
+- **AI understands AI.** We use embeddings + LLM to detect issues only AI would create.
 
 ## License
 
-MIT © [Raye Deng](https://github.com/raye-deng)
+MIT — use it however you want.

@@ -1,0 +1,15 @@
+{
+  "name": "ai-code-validator",
+  "version": "0.3.0",
+  "description": "⚠️ DEPRECATED: This package has been renamed to open-code-review. Please install open-code-review instead.",
+  "keywords": ["deprecated", "moved", "open-code-review"],
+  "main": "index.js",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/raye-deng/open-code-review.git"
+  },
+  "dependencies": {
+    "open-code-review": "*"
+  }
+}
