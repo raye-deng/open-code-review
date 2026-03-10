@@ -1,0 +1,274 @@
+[
+  {
+    "api": "new Buffer()",
+    "pattern": "new Buffer\\(",
+    "replacement": "Buffer.from() or Buffer.alloc()",
+    "deprecated_since": "Node.js 6.0",
+    "severity": "high",
+    "references": ["https://nodejs.org/api/buffer.html#buffer_new_buffer_size"]
+  },
+  {
+    "api": "Buffer()",
+    "pattern": "(?<!\\.\\w*)Buffer\\(",
+    "replacement": "Buffer.from() or Buffer.alloc()",
+    "deprecated_since": "Node.js 6.0",
+    "severity": "high",
+    "references": ["https://nodejs.org/api/buffer.html"]
+  },
+  {
+    "api": "fs.exists()",
+    "pattern": "fs\\.exists\\(",
+    "replacement": "fs.existsSync() or fs.access()",
+    "deprecated_since": "Node.js 1.0",
+    "severity": "high",
+    "references": ["https://nodejs.org/api/fs.html#fs_fs_exists_path_callback"]
+  },
+  {
+    "api": "crypto.createCipher()",
+    "pattern": "crypto\\.createCipher\\(",
+    "replacement": "crypto.createCipheriv()",
+    "deprecated_since": "Node.js 10.0",
+    "severity": "high",
+    "references": ["https://nodejs.org/api/crypto.html"]
+  },
+  {
+    "api": "crypto.createDecipher()",
+    "pattern": "crypto\\.createDecipher\\(",
+    "replacement": "crypto.createDecipheriv()",
+    "deprecated_since": "Node.js 10.0",
+    "severity": "high",
+    "references": ["https://nodejs.org/api/crypto.html"]
+  },
+  {
+    "api": "url.parse()",
+    "pattern": "url\\.parse\\(",
+    "replacement": "new URL()",
+    "deprecated_since": "Node.js 11.0",
+    "severity": "medium",
+    "references": ["https://nodejs.org/api/url.html#url_legacy_url_api"]
+  },
+  {
+    "api": "url.resolve()",
+    "pattern": "url\\.resolve\\(",
+    "replacement": "new URL(target, base)",
+    "deprecated_since": "Node.js 11.0",
+    "severity": "medium",
+    "references": ["https://nodejs.org/api/url.html"]
+  },
+  {
+    "api": "url.format()",
+    "pattern": "url\\.format\\(",
+    "replacement": "URL.toString() or url.format(URL)",
+    "deprecated_since": "Node.js 11.0",
+    "severity": "low",
+    "references": ["https://nodejs.org/api/url.html"]
+  },
+  {
+    "api": "domain module",
+    "pattern": "require\\(['\"]domain['\"]\\)",
+    "replacement": "async_hooks or structured error handling",
+    "deprecated_since": "Node.js 4.0",
+    "severity": "high",
+    "references": ["https://nodejs.org/api/domain.html"]
+  },
+  {
+    "api": "util.puts()",
+    "pattern": "util\\.puts\\(",
+    "replacement": "console.log()",
+    "deprecated_since": "Node.js 0.12",
+    "severity": "medium",
+    "references": ["https://nodejs.org/api/util.html"]
+  },
+  {
+    "api": "util.print()",
+    "pattern": "util\\.print\\(",
+    "replacement": "process.stdout.write()",
+    "deprecated_since": "Node.js 0.12",
+    "severity": "medium",
+    "references": ["https://nodejs.org/api/util.html"]
+  },
+  {
+    "api": "util.debug()",
+    "pattern": "util\\.debug\\(",
+    "replacement": "console.error()",
+    "deprecated_since": "Node.js 0.12",
+    "severity": "medium",
+    "references": ["https://nodejs.org/api/util.html"]
+  },
+  {
+    "api": "util.error()",
+    "pattern": "util\\.error\\(",
+    "replacement": "console.error()",
+    "deprecated_since": "Node.js 0.12",
+    "severity": "medium",
+    "references": ["https://nodejs.org/api/util.html"]
+  },
+  {
+    "api": "util.isArray()",
+    "pattern": "util\\.isArray\\(",
+    "replacement": "Array.isArray()",
+    "deprecated_since": "Node.js 4.0",
+    "severity": "medium",
+    "references": ["https://nodejs.org/api/util.html"]
+  },
+  {
+    "api": "util.isRegExp()",
+    "pattern": "util\\.isRegExp\\(",
+    "replacement": "value instanceof RegExp",
+    "deprecated_since": "Node.js 4.0",
+    "severity": "low",
+    "references": ["https://nodejs.org/api/util.html"]
+  },
+  {
+    "api": "util.isDate()",
+    "pattern": "util\\.isDate\\(",
+    "replacement": "value instanceof Date",
+    "deprecated_since": "Node.js 4.0",
+    "severity": "low",
+    "references": ["https://nodejs.org/api/util.html"]
+  },
+  {
+    "api": "util.pump()",
+    "pattern": "util\\.pump\\(",
+    "replacement": "stream.pipeline() or stream.pipe()",
+    "deprecated_since": "Node.js 0.10",
+    "severity": "medium",
+    "references": ["https://nodejs.org/api/util.html"]
+  },
+  {
+    "api": "querystring.parse()",
+    "pattern": "querystring\\.parse\\(",
+    "replacement": "new URLSearchParams()",
+    "deprecated_since": "Node.js 14.0",
+    "severity": "low",
+    "references": ["https://nodejs.org/api/querystring.html"]
+  },
+  {
+    "api": "querystring.stringify()",
+    "pattern": "querystring\\.stringify\\(",
+    "replacement": "new URLSearchParams().toString()",
+    "deprecated_since": "Node.js 14.0",
+    "severity": "low",
+    "references": ["https://nodejs.org/api/querystring.html"]
+  },
+  {
+    "api": "document.write()",
+    "pattern": "document\\.write\\(",
+    "replacement": "DOM manipulation methods (createElement, appendChild, innerHTML)",
+    "deprecated_since": "HTML5 spec (discouraged)",
+    "severity": "medium",
+    "references": ["https://developer.mozilla.org/en-US/docs/Web/API/Document/write"]
+  },
+  {
+    "api": "document.writeln()",
+    "pattern": "document\\.writeln\\(",
+    "replacement": "DOM manipulation methods",
+    "deprecated_since": "HTML5 spec (discouraged)",
+    "severity": "medium",
+    "references": ["https://developer.mozilla.org/en-US/docs/Web/API/Document/writeln"]
+  },
+  {
+    "api": "KeyboardEvent.keyCode",
+    "pattern": "\\.keyCode\\b",
+    "replacement": "KeyboardEvent.key or KeyboardEvent.code",
+    "deprecated_since": "DOM Level 3 Events",
+    "severity": "low",
+    "references": ["https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/keyCode"]
+  },
+  {
+    "api": "KeyboardEvent.which",
+    "pattern": "\\.which\\b",
+    "replacement": "KeyboardEvent.key or KeyboardEvent.code",
+    "deprecated_since": "DOM Level 3 Events",
+    "severity": "low",
+    "references": ["https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/which"]
+  },
+  {
+    "api": "React.createClass()",
+    "pattern": "React\\.createClass\\(",
+    "replacement": "class extends React.Component or function component",
+    "deprecated_since": "React 15.5",
+    "severity": "high",
+    "references": ["https://legacy.reactjs.org/docs/react-without-es6.html"]
+  },
+  {
+    "api": "React componentWillMount",
+    "pattern": "componentWillMount\\s*\\(",
+    "replacement": "componentDidMount or useEffect hook",
+    "deprecated_since": "React 16.3",
+    "severity": "medium",
+    "references": ["https://legacy.reactjs.org/docs/react-component.html"]
+  },
+  {
+    "api": "React componentWillReceiveProps",
+    "pattern": "componentWillReceiveProps\\s*\\(",
+    "replacement": "static getDerivedStateFromProps() or useEffect hook",
+    "deprecated_since": "React 16.3",
+    "severity": "medium",
+    "references": ["https://legacy.reactjs.org/docs/react-component.html"]
+  },
+  {
+    "api": "React componentWillUpdate",
+    "pattern": "componentWillUpdate\\s*\\(",
+    "replacement": "getSnapshotBeforeUpdate() or componentDidUpdate()",
+    "deprecated_since": "React 16.3",
+    "severity": "medium",
+    "references": ["https://legacy.reactjs.org/docs/react-component.html"]
+  },
+  {
+    "api": "ReactDOM.render()",
+    "pattern": "ReactDOM\\.render\\(",
+    "replacement": "ReactDOM.createRoot().render()",
+    "deprecated_since": "React 18",
+    "severity": "medium",
+    "references": ["https://react.dev/blog/2022/03/08/react-18-upgrade-guide"]
+  },
+  {
+    "api": "ReactDOM.hydrate()",
+    "pattern": "ReactDOM\\.hydrate\\(",
+    "replacement": "ReactDOM.hydrateRoot()",
+    "deprecated_since": "React 18",
+    "severity": "medium",
+    "references": ["https://react.dev/blog/2022/03/08/react-18-upgrade-guide"]
+  },
+  {
+    "api": "React.PropTypes",
+    "pattern": "React\\.PropTypes\\b",
+    "replacement": "import PropTypes from 'prop-types'",
+    "deprecated_since": "React 15.5",
+    "severity": "medium",
+    "references": ["https://legacy.reactjs.org/docs/typechecking-with-proptypes.html"]
+  },
+  {
+    "api": "new SlowBuffer()",
+    "pattern": "new SlowBuffer\\(",
+    "replacement": "Buffer.allocUnsafeSlow()",
+    "deprecated_since": "Node.js 6.0",
+    "severity": "high",
+    "references": ["https://nodejs.org/api/buffer.html"]
+  },
+  {
+    "api": "process.env.NODE_REPL_HISTORY_FILE",
+    "pattern": "NODE_REPL_HISTORY_FILE",
+    "replacement": "NODE_REPL_HISTORY",
+    "deprecated_since": "Node.js 4.0",
+    "severity": "low",
+    "references": ["https://nodejs.org/api/repl.html"]
+  },
+  {
+    "api": "os.tmpDir()",
+    "pattern": "os\\.tmpDir\\(",
+    "replacement": "os.tmpdir()",
+    "deprecated_since": "Node.js 7.0",
+    "severity": "low",
+    "references": ["https://nodejs.org/api/os.html"]
+  },
+  {
+    "api": "fs.lchmod()",
+    "pattern": "fs\\.lchmod\\(",
+    "replacement": "fs.chmod() (lchmod is deprecated)",
+    "deprecated_since": "Node.js 0.4",
+    "severity": "low",
+    "references": ["https://nodejs.org/api/fs.html"]
+  }
+]
