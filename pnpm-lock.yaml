@@ -24,7 +24,7 @@ importers:
   packages/cli:
     dependencies:
       '@open-code-review/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       glob:
         specifier: ^10.3.0

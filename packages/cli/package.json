@@ -24,7 +24,7 @@
   "author": "Raye Deng <fengsen.deng@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "@open-code-review/core": "^1.9.0",
+    "@open-code-review/core": "workspace:^",
     "glob": "^10.3.0"
   },
   "devDependencies": {
