@@ -7,3 +7,4 @@
 export { LocalEmbeddingProvider, tokenize, cosineSimilarity } from './local.js';
 export { findTopMatches } from './similarity.js';
 export { OpenAIEmbeddingProvider } from './openai.js';
+export { OllamaEmbeddingProvider } from './ollama.js';

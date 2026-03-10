@@ -41,7 +41,9 @@ export interface V4Config {
   /** AI configuration (for L2/L3) */
   ai?: {
     embedding?: {
+      provider?: 'local' | 'openai' | 'ollama';
       model?: string;
+      baseUrl?: string;
       thresholds?: Record<string, number>;
     };
     llm?: {
@@ -304,6 +306,7 @@ export function loadV4Config(options: LoadV4ConfigOptions = {}): V4ScanConfig {
     exclude: config.scan?.exclude,
     languages: config.scan?.languages as SupportedLanguage[] | undefined,
     threshold: config.scoring?.threshold ?? 70,
+    ai: config.ai,
   };
 }
 
@@ -418,7 +421,9 @@ scoring:
 # AI pipeline settings (for L2/L3)
 # ai:
 #   embedding:
-#     model: all-MiniLM-L6-v2
+#     provider: ollama         # local | openai | ollama
+#     model: nomic-embed-text  # Ollama embedding model
+#     baseUrl: http://localhost:11434
 #   llm:
 #     provider: ollama
 #     model: deepseek-coder-v2:16b

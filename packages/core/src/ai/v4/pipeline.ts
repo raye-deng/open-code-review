@@ -21,6 +21,7 @@ import type {
 } from './types.js';
 import { LocalEmbeddingProvider, cosineSimilarity } from './embedding/index.js';
 import { OpenAIEmbeddingProvider } from './embedding/index.js';
+import { OllamaEmbeddingProvider } from './embedding/index.js';
 import { OllamaLLMProvider } from './llm/index.js';
 import { OpenAILLMProvider } from './llm/index.js';
 import { AnthropicLLMProvider } from './llm/index.js';
@@ -355,6 +356,13 @@ export class AIScanPipeline {
    */
   private createEmbeddingProvider(): EmbeddingProvider {
     const embeddingConfig = this.config.embedding;
+
+    if (embeddingConfig?.provider === 'ollama') {
+      return new OllamaEmbeddingProvider(
+        embeddingConfig.model ?? 'nomic-embed-text',
+        embeddingConfig.baseUrl ?? this.config.local?.baseUrl ?? 'http://localhost:11434',
+      );
+    }
 
     if (embeddingConfig?.provider === 'openai' && this.config.remote?.apiKey) {
       return new OpenAIEmbeddingProvider(

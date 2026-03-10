@@ -59931,6 +59931,728 @@ function createI18n(locale) {
 
 
 //# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ../core/dist/ai/v4/patterns/defect-patterns.js
+/**
+ * Defect Pattern Database
+ *
+ * Curated set of AI-generated code defect patterns.
+ * These are used as embedding comparison targets in Stage 1 (Embedding Recall).
+ *
+ * Each pattern includes:
+ * - Unique ID for tracking
+ * - Category aligned with V4 scoring dimensions
+ * - Description used for embedding generation
+ * - Example code snippets matching the pattern
+ * - Severity and applicable languages
+ *
+ * @since 0.4.0
+ */
+// ─── Defect Pattern Database ───────────────────────────────────────
+/**
+ * Curated defect patterns that AI commonly generates.
+ * These are used as embedding comparison targets in Stage 1.
+ *
+ * Organized by category:
+ * - ai-faithfulness: Hallucinated imports, phantom APIs, fabricated types
+ * - code-freshness: Deprecated APIs, outdated patterns, stale knowledge
+ * - context-coherence: Inconsistencies, contradictions, style shifts
+ * - implementation: Over-engineering, security, incomplete implementations
+ */
+const defect_patterns_DEFECT_PATTERNS = [
+    // ─── AI Faithfulness (Hallucinations) ──────────────────────────
+    {
+        id: 'hallucinated-import',
+        category: 'ai-faithfulness',
+        description: 'Import of a non-existent package or module that AI fabricated',
+        examples: [
+            'import { createAIValidator } from "ai-validator-pro"',
+            'from advanced_ml_toolkit import HyperOptimizer',
+            'import "github.com/ai-tools/nonexistent-package"',
+            'import ai.magic.transformer.AutoModel',
+        ],
+        severity: 'error',
+        languages: [],
+    },
+    {
+        id: 'phantom-api',
+        category: 'ai-faithfulness',
+        description: 'Usage of an API method that does not exist on the object or library',
+        examples: [
+            'array.filterMap(x => x > 0)',
+            'string.toCapitalCase()',
+            'response.getJSON()',
+            'promise.flatMap(result => result)',
+            'map.getOrDefault(key, fallback)',
+        ],
+        severity: 'error',
+        languages: [],
+    },
+    {
+        id: 'fabricated-type',
+        category: 'ai-faithfulness',
+        description: 'Reference to a type or interface that does not exist in the imported library',
+        examples: [
+            'const config: NextConfig<AppProps> = {}',
+            'type Handler = express.TypedHandler<Req, Res>',
+            'implements SpringSecurityFilter',
+            'class MyService extends AbstractServiceBase',
+        ],
+        severity: 'error',
+        languages: [],
+    },
+    {
+        id: 'wrong-api-signature',
+        category: 'ai-faithfulness',
+        description: 'Calling a real API with incorrect parameter types or wrong number of arguments',
+        examples: [
+            'fs.readFile(path, "utf8", callback, options)',
+            'json.loads(data, encoding="utf-8")',
+            'Arrays.sort(list, comparator, reverse)',
+            'http.Get(url, headers)',
+        ],
+        severity: 'error',
+        languages: [],
+    },
+    {
+        id: 'imaginary-config-option',
+        category: 'ai-faithfulness',
+        description: 'Using configuration options that do not exist for a library or framework',
+        examples: [
+            'new Webpack({ optimizeChunks: true, autoTree: true })',
+            'app.use(cors({ allowAllHeaders: true }))',
+            'logging.config({ autoRotate: true, maxSize: "10mb" })',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+    // ─── Code Freshness (Stale/Deprecated) ─────────────────────────
+    {
+        id: 'deprecated-node-api',
+        category: 'code-freshness',
+        description: 'Usage of deprecated Node.js API that should be replaced with modern alternative',
+        examples: [
+            'new Buffer("data")',
+            'require("url").parse(urlString)',
+            'fs.exists(path, callback)',
+            'new require("domain").Domain()',
+        ],
+        severity: 'warning',
+        languages: ['typescript', 'javascript'],
+    },
+    {
+        id: 'deprecated-python-api',
+        category: 'code-freshness',
+        description: 'Usage of deprecated Python API or pattern from older Python versions',
+        examples: [
+            'import imp',
+            'from collections import MutableMapping',
+            'asyncio.get_event_loop()',
+            'from distutils.core import setup',
+            'os.popen("command")',
+        ],
+        severity: 'warning',
+        languages: ['python'],
+    },
+    {
+        id: 'deprecated-java-api',
+        category: 'code-freshness',
+        description: 'Usage of deprecated Java API that has modern replacements',
+        examples: [
+            'new Date(year, month, day)',
+            'Thread.stop()',
+            'Runtime.getRuntime().exec("command")',
+            'new StringBuffer()',
+        ],
+        severity: 'warning',
+        languages: ['java', 'kotlin'],
+    },
+    {
+        id: 'outdated-framework-pattern',
+        category: 'code-freshness',
+        description: 'Using outdated framework patterns that have been superseded',
+        examples: [
+            'componentWillMount() { }',
+            'class MyComponent extends React.Component { render() { } }',
+            'app.use(bodyParser.json())',
+            '@RunWith(SpringJUnit4ClassRunner.class)',
+        ],
+        severity: 'info',
+        languages: [],
+    },
+    {
+        id: 'legacy-syntax-pattern',
+        category: 'code-freshness',
+        description: 'Using legacy language syntax when modern alternatives exist',
+        examples: [
+            'var self = this;',
+            'function.apply(null, arguments)',
+            '.then(function(result) { return result; })',
+            'for (var i = 0; i < arr.length; i++)',
+        ],
+        severity: 'info',
+        languages: ['typescript', 'javascript'],
+    },
+    // ─── Context Coherence (Inconsistency) ─────────────────────────
+    {
+        id: 'naming-inconsistency',
+        category: 'context-coherence',
+        description: 'Inconsistent naming conventions within the same file or function',
+        examples: [
+            'const user_name = ""; const userName = ""; const UserName = "";',
+            'function getData() {} function process_result() {} function HandleError() {}',
+            'let maxRetries = 3; let min_timeout = 100;',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+    {
+        id: 'contradictory-comment',
+        category: 'context-coherence',
+        description: 'Comment that contradicts the actual code behavior',
+        examples: [
+            '// Returns true if valid\nfunction validate(x) { return false; }',
+            '// Sort in ascending order\narray.sort((a, b) => b - a)',
+            '// This function never throws\nasync function fetch() { throw new Error(); }',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+    {
+        id: 'unused-variable-from-context-loss',
+        category: 'context-coherence',
+        description: 'Variable declared and assigned but never used in the rest of the function',
+        examples: [
+            'const result = await fetchData();\n// result never referenced again\nreturn defaultValue;',
+            'const config = loadConfig();\nsetupApp(hardcodedConfig);',
+            'err := doSomething()\n_ = err\n// error silently ignored',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+    {
+        id: 'abrupt-style-shift',
+        category: 'context-coherence',
+        description: 'Sudden change in code style mid-function suggesting context window boundary',
+        examples: [
+            '// First half uses async/await, second half uses .then() callbacks',
+            '// First half uses const, second half uses var',
+            '// Error handling changes from try/catch to .catch() mid-function',
+        ],
+        severity: 'info',
+        languages: [],
+    },
+    {
+        id: 'duplicate-logic-different-style',
+        category: 'context-coherence',
+        description: 'Same logic implemented twice in different styles within a file',
+        examples: [
+            'function formatDate(d) { return d.toISOString(); }\nfunction dateToString(d) { return `${d.getFullYear()}-${d.getMonth()}`; }',
+            'const isValid = (x) => x > 0;\nfunction checkValid(value) { if (value > 0) return true; return false; }',
+        ],
+        severity: 'info',
+        languages: [],
+    },
+    // ─── Implementation (Over-engineering, Security, Incomplete) ───
+    {
+        id: 'unnecessary-abstraction',
+        category: 'implementation',
+        description: 'Over-engineered abstraction layers that add complexity without value',
+        examples: [
+            'class AbstractFactoryProvider<T> { abstract createFactory(): Factory<T>; }',
+            'interface IServiceLocatorStrategy<TService, TLocator>',
+            'class ConfigurationManagerBuilderFactory',
+            'export abstract class BaseAbstractHandler implements IHandler',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+    {
+        id: 'hardcoded-secret',
+        category: 'implementation',
+        description: 'Hardcoded API keys, passwords, or tokens in source code',
+        examples: [
+            'const API_KEY = "sk-proj-abc123def456"',
+            'password = "admin123"',
+            'private static final String SECRET = "my-secret-key"',
+            'token := "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"',
+        ],
+        severity: 'error',
+        languages: [],
+    },
+    {
+        id: 'empty-catch-block',
+        category: 'implementation',
+        description: 'Empty catch block that silently swallows errors',
+        examples: [
+            'try { riskyOperation(); } catch (e) { }',
+            'try { riskyOperation(); } catch (e) { /* TODO */ }',
+            'except Exception:\n    pass',
+            'catch (Exception e) { // ignore }',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+    {
+        id: 'todo-stub-placeholder',
+        category: 'implementation',
+        description: 'Placeholder or stub implementation that should be completed',
+        examples: [
+            'function processData() { /* TODO: implement */ return null; }',
+            'def calculate(): raise NotImplementedError()',
+            'public void handle() { throw new UnsupportedOperationException("Not implemented"); }',
+            'func (s *Service) Process() error { return nil // TODO }',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+    {
+        id: 'sql-injection-risk',
+        category: 'implementation',
+        description: 'SQL query built with string concatenation instead of parameterized queries',
+        examples: [
+            'const query = "SELECT * FROM users WHERE id = " + userId',
+            'cursor.execute(f"SELECT * FROM users WHERE name = \'{name}\'")',
+            'String sql = "DELETE FROM orders WHERE id=" + orderId;',
+        ],
+        severity: 'error',
+        languages: [],
+    },
+    {
+        id: 'insecure-random',
+        category: 'implementation',
+        description: 'Using non-cryptographic random for security-sensitive operations',
+        examples: [
+            'const token = Math.random().toString(36)',
+            'import random; secret = random.randint(0, 999999)',
+            'Random random = new Random(); int otp = random.nextInt(999999);',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+    {
+        id: 'excessive-function-complexity',
+        category: 'implementation',
+        description: 'Function with very high cyclomatic complexity suggesting AI generated a monolith',
+        examples: [
+            '// 200-line function with 15+ if/else branches',
+            '// deeply nested switch inside for inside if inside try',
+            '// function handling 10 different concerns in one method',
+        ],
+        severity: 'warning',
+        languages: [],
+    },
+];
+/**
+ * Get all defect patterns for a specific category.
+ */
+function getPatternsByCategory(category) {
+    return defect_patterns_DEFECT_PATTERNS.filter(p => p.category === category);
+}
+/**
+ * Get all defect patterns applicable to a specific language.
+ * Patterns with empty languages array apply to all languages.
+ */
+function defect_patterns_getPatternsForLanguage(language) {
+    return defect_patterns_DEFECT_PATTERNS.filter(p => p.languages.length === 0 || p.languages.includes(language));
+}
+/**
+ * Get the combined text representation of a pattern for embedding.
+ * Concatenates description and examples for richer embedding.
+ */
+function defect_patterns_getPatternText(pattern) {
+    return `${pattern.description}\n${pattern.examples.join('\n')}`;
+}
+//# sourceMappingURL=defect-patterns.js.map
+;// CONCATENATED MODULE: ../core/dist/ai/v4/patterns/index.js
+/**
+ * Defect Pattern Database Module
+ *
+ * @since 0.4.0
+ */
+
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ../core/dist/ai/v4/pipeline.js
+/**
+ * AI Scan Pipeline Orchestrator
+ *
+ * Coordinates the two-stage AI scan pipeline:
+ * - Stage 0: Structural detectors (always runs, passed in)
+ * - Stage 1: Embedding recall (L2+)
+ * - Stage 2: LLM deep scan (L3)
+ *
+ * @since 0.4.0
+ */
+
+
+
+
+
+
+
+/**
+ * Parse LLM JSON response into structured issues.
+ * Handles markdown code fences and malformed JSON gracefully.
+ */
+function parseLLMResponse(content) {
+    try {
+        // Strip markdown code fences if present
+        let jsonText = content.trim();
+        if (jsonText.startsWith('```')) {
+            const lines = jsonText.split('\n');
+            // Remove first and last line if they're code fence markers
+            if (lines[0].startsWith('```'))
+                lines.shift();
+            if (lines[lines.length - 1].trim() === '```')
+                lines.pop();
+            jsonText = lines.join('\n');
+        }
+        const parsed = JSON.parse(jsonText);
+        // Handle { issues: [...] } wrapper
+        const issues = Array.isArray(parsed.issues)
+            ? parsed.issues
+            : Array.isArray(parsed)
+                ? parsed
+                : [];
+        return issues
+            .filter((issue) => typeof issue === 'object' &&
+            issue !== null &&
+            'line' in issue &&
+            'message' in issue)
+            .map((issue) => ({
+            line: Math.max(1, Math.floor(Number(issue.line)) || 1),
+            severity: normalizeSeverity(issue.severity),
+            message: String(issue.message),
+            category: issue.category ?? 'implementation',
+        }));
+    }
+    catch {
+        return [];
+    }
+}
+function normalizeSeverity(severity) {
+    const s = (severity ?? 'info').toLowerCase();
+    if (s === 'error' || s === 'critical')
+        return 'error';
+    if (s === 'warning' || s === 'warn')
+        return 'warning';
+    return 'info';
+}
+function normalizeCategory(category) {
+    const c = category.toLowerCase();
+    if (c.includes('faithful') || c.includes('hallucin'))
+        return 'ai-faithfulness';
+    if (c.includes('fresh') || c.includes('stale') || c.includes('deprecat'))
+        return 'code-freshness';
+    if (c.includes('coher') || c.includes('context'))
+        return 'context-coherence';
+    return 'implementation';
+}
+// ─── AI Scan Pipeline ──────────────────────────────────────────────
+/**
+ * AI Scan Pipeline orchestrator.
+ *
+ * Runs the two-stage AI analysis based on SLA level configuration.
+ */
+class pipeline_AIScanPipeline {
+    config;
+    maxLLMBlocks;
+    similarityThreshold;
+    constructor(config) {
+        this.config = config;
+        this.maxLLMBlocks = config.maxLLMBlocks ?? 20;
+        this.similarityThreshold = config.similarityThreshold ?? 0.7;
+    }
+    /**
+     * Run the full scan pipeline.
+     *
+     * @param units CodeUnits from parsing
+     * @param structuralResults Results from structural detectors (V4 detectors)
+     * @returns Combined results from all stages
+     */
+    async scan(units, structuralResults) {
+        const stages = [];
+        const totalStartTime = Date.now();
+        // Stage 0: Structural (already done, just include)
+        stages.push({
+            stage: 'structural',
+            issues: structuralResults,
+            durationMs: 0,
+        });
+        // L1 stops here
+        if (this.config.sla === 'L1') {
+            return this.buildResult(stages, totalStartTime);
+        }
+        // Stage 1: Embedding recall (L2 and L3)
+        const embeddingResults = await this.runEmbeddingStage(units);
+        stages.push(embeddingResults);
+        // Stage 2: LLM deep scan (L3 only)
+        if (this.config.sla === 'L3') {
+            const suspiciousBlocks = this.getSuspiciousBlocks(units, embeddingResults);
+            const llmResults = await this.runLLMStage(suspiciousBlocks);
+            stages.push(llmResults);
+        }
+        return this.buildResult(stages, totalStartTime);
+    }
+    /**
+     * Build the final result object.
+     */
+    buildResult(stages, startTime) {
+        const totalIssues = stages.reduce((sum, s) => sum + s.issues.length, 0);
+        const totalDurationMs = Date.now() - startTime;
+        return {
+            stages,
+            totalIssues,
+            totalDurationMs,
+            slaLevel: this.config.sla,
+        };
+    }
+    /**
+     * Stage 1: Run embedding-based recall to find suspicious code blocks.
+     */
+    async runEmbeddingStage(units) {
+        const startTime = Date.now();
+        if (units.length === 0) {
+            return { stage: 'embedding', issues: [], durationMs: 0 };
+        }
+        // Create embedding provider
+        const embeddingProvider = this.createEmbeddingProvider();
+        // Build corpus: pattern descriptions + code unit sources
+        const patternTexts = DEFECT_PATTERNS.map(getPatternText);
+        const codeTexts = units.map(u => this.buildCodeText(u));
+        const allTexts = [...patternTexts, ...codeTexts];
+        // Build vocabulary and generate embeddings
+        if (embeddingProvider instanceof LocalEmbeddingProvider) {
+            embeddingProvider.buildVocabulary(allTexts);
+        }
+        const embeddings = await embeddingProvider.embed(allTexts);
+        // Split embeddings back into patterns and code
+        const patternEmbeddings = embeddings.slice(0, patternTexts.length);
+        const codeEmbeddings = embeddings.slice(patternTexts.length);
+        // Find suspicious blocks by comparing code embeddings to pattern embeddings
+        const issues = [];
+        for (let i = 0; i < units.length; i++) {
+            const unit = units[i];
+            const codeEmb = codeEmbeddings[i];
+            if (!codeEmb)
+                continue;
+            // Get patterns applicable to this language
+            const applicablePatterns = getPatternsForLanguage(unit.language);
+            // Find matching patterns
+            const matches = [];
+            for (const pattern of applicablePatterns) {
+                const patternIdx = DEFECT_PATTERNS.indexOf(pattern);
+                if (patternIdx === -1)
+                    continue;
+                const patternEmb = patternEmbeddings[patternIdx];
+                if (!patternEmb)
+                    continue;
+                const similarity = cosineSimilarity(codeEmb, patternEmb);
+                if (similarity >= this.similarityThreshold) {
+                    matches.push({ patternIdx, similarity });
+                }
+            }
+            // Create issues for top matches
+            for (const match of matches.slice(0, 3)) {
+                const pattern = DEFECT_PATTERNS[match.patternIdx];
+                if (!pattern)
+                    continue;
+                issues.push({
+                    detectorId: 'embedding-recall',
+                    severity: pattern.severity,
+                    category: pattern.category,
+                    messageKey: `ai.embedding.${pattern.id}`,
+                    message: pattern.description,
+                    file: unit.file,
+                    line: unit.location.startLine + 1, // Convert to 1-based
+                    confidence: match.similarity,
+                    metadata: {
+                        patternId: pattern.id,
+                        similarity: match.similarity,
+                    },
+                });
+            }
+        }
+        return {
+            stage: 'embedding',
+            issues,
+            durationMs: Date.now() - startTime,
+        };
+    }
+    /**
+     * Stage 2: Run LLM deep scan on suspicious blocks.
+     */
+    async runLLMStage(suspiciousUnits) {
+        const startTime = Date.now();
+        let totalTokens = 0;
+        if (suspiciousUnits.length === 0) {
+            return { stage: 'llm', issues: [], durationMs: 0, tokensUsed: 0 };
+        }
+        // Create LLM provider (local first, fallback to remote)
+        const llmProvider = await this.createLLMProvider();
+        if (!llmProvider) {
+            return { stage: 'llm', issues: [], durationMs: Date.now() - startTime, tokensUsed: 0 };
+        }
+        const issues = [];
+        // Process suspicious blocks (limited by maxLLMBlocks)
+        const blocksToAnalyze = suspiciousUnits.slice(0, this.maxLLMBlocks);
+        for (const unit of blocksToAnalyze) {
+            try {
+                const prompt = this.buildPrompt(unit);
+                const response = await llmProvider.complete(prompt, {
+                    maxTokens: 2000,
+                    temperature: 0.1,
+                    system: LLM_SYSTEM_PROMPT,
+                });
+                if (response.usage) {
+                    totalTokens += response.usage.total;
+                }
+                // Parse LLM response
+                const llmIssues = parseLLMResponse(response.content);
+                // Convert to DetectorResults
+                for (const issue of llmIssues) {
+                    issues.push({
+                        detectorId: 'llm-deep-scan',
+                        severity: issue.severity,
+                        category: normalizeCategory(issue.category),
+                        messageKey: 'ai.llm.detected',
+                        message: issue.message,
+                        file: unit.file,
+                        line: issue.line,
+                        confidence: 0.8, // LLM issues have high confidence
+                        metadata: {
+                            source: 'llm',
+                        },
+                    });
+                }
+            }
+            catch {
+                // Graceful degradation: skip this block on error
+                continue;
+            }
+        }
+        return {
+            stage: 'llm',
+            issues,
+            durationMs: Date.now() - startTime,
+            tokensUsed: totalTokens,
+        };
+    }
+    /**
+     * Get suspicious blocks from embedding results.
+     * Returns units that have embedding matches above threshold.
+     */
+    getSuspiciousBlocks(units, embeddingResults) {
+        // Get unique file paths with embedding issues
+        const suspiciousFiles = new Set(embeddingResults.issues
+            .filter(i => i.confidence >= this.similarityThreshold)
+            .map(i => i.file));
+        // Return units from suspicious files
+        return units.filter(u => suspiciousFiles.has(u.file));
+    }
+    /**
+     * Create embedding provider based on configuration.
+     */
+    createEmbeddingProvider() {
+        const embeddingConfig = this.config.embedding;
+        if (embeddingConfig?.provider === 'ollama') {
+            return new OllamaEmbeddingProvider(embeddingConfig.model ?? 'nomic-embed-text', embeddingConfig.baseUrl ?? this.config.local?.baseUrl ?? 'http://localhost:11434');
+        }
+        if (embeddingConfig?.provider === 'openai' && this.config.remote?.apiKey) {
+            return new OpenAIEmbeddingProvider(this.config.remote.apiKey, embeddingConfig.model ?? 'text-embedding-3-small');
+        }
+        // Default to local TF-IDF
+        return new LocalEmbeddingProvider(512);
+    }
+    /**
+     * Create LLM provider based on configuration.
+     * Prefers local (Ollama), falls back to remote.
+     */
+    async createLLMProvider() {
+        // Try local first (L2 and L3)
+        if (this.config.local) {
+            const ollama = new OllamaLLMProvider(this.config.local.model, this.config.local.baseUrl ?? 'http://localhost:11434');
+            if (await ollama.isAvailable()) {
+                return ollama;
+            }
+        }
+        // Fallback to remote (L3 only)
+        if (this.config.remote) {
+            if (this.config.remote.provider === 'anthropic') {
+                return new AnthropicLLMProvider(this.config.remote.apiKey, this.config.remote.model);
+            }
+            if (this.config.remote.provider === 'openai') {
+                return new OpenAILLMProvider(this.config.remote.apiKey, this.config.remote.model, this.config.remote.baseUrl);
+            }
+        }
+        return null;
+    }
+    /**
+     * Build text representation of a CodeUnit for embedding.
+     */
+    buildCodeText(unit) {
+        const parts = [];
+        // Add imports for context
+        for (const imp of unit.imports) {
+            parts.push(`import ${imp.module}`);
+        }
+        // Add function/method definitions
+        for (const def of unit.definitions) {
+            parts.push(`${def.kind} ${def.name}`);
+        }
+        // Add call sites
+        for (const call of unit.calls) {
+            parts.push(call.callee);
+        }
+        // Add source snippet (truncated)
+        const sourceSnippet = unit.source.slice(0, 2000);
+        parts.push(sourceSnippet);
+        return parts.join('\n');
+    }
+    /**
+     * Build a focused prompt for the LLM to analyze a code block.
+     */
+    buildPrompt(unit) {
+        return `Analyze this code for AI-generated defects.
+
+File: ${unit.file}
+Language: ${unit.language}
+
+Code:
+\`\`\`
+${unit.source.slice(0, 4000)}
+\`\`\`
+
+Check for:
+- Hallucinated imports (packages that don't exist)
+- Phantom APIs (methods/functions that don't exist on objects)
+- Deprecated API usage
+- Logic inconsistencies
+- Security anti-patterns
+- Incomplete implementations (TODOs, stubs)
+
+Respond in JSON format:
+{
+  "issues": [
+    { "line": <line_number>, "severity": "error|warning|info", "message": "<description>", "category": "<category>" }
+  ]
+}
+
+If no issues found, respond with: { "issues": [] }`;
+    }
+}
+// ─── Constants ─────────────────────────────────────────────────────
+const LLM_SYSTEM_PROMPT = (/* unused pure expression or super */ null && (`You are a code quality analyzer specialized in detecting AI-generated code defects.
+You analyze code and identify issues that are common in AI-generated code:
+- Hallucinated packages and APIs
+- Outdated/deprecated patterns
+- Logic inconsistencies from context window boundaries
+- Security vulnerabilities common in AI output
+- Over-engineering and unnecessary complexity
+
+Always respond with valid JSON matching the requested format.
+Be precise about line numbers.
+Only report issues you are confident about.`));
+//# sourceMappingURL=pipeline.js.map
 ;// CONCATENATED MODULE: ../core/dist/scanner/v4-scanner.js
 /**
  * V4 Scan Orchestrator
@@ -59940,6 +60662,7 @@ function createI18n(locale) {
  *
  * @since 0.4.0
  */
+
 
 
 
@@ -60055,8 +60778,27 @@ class V4Scanner {
             }
         }
         const detectDuration = Date.now() - detectStart;
-        // 5. AI pipeline (L2/L3 only) — not implemented in this phase
-        // Worker A handles this
+        // 5. AI pipeline (L2/L3 only)
+        let aiDuration;
+        const sla = this.config.sla ?? 'L1';
+        if (sla !== 'L1' && allUnits.length > 0) {
+            const aiStartTime = Date.now();
+            try {
+                const aiConfig = this.buildAIConfig(sla);
+                const pipeline = new AIScanPipeline(aiConfig);
+                const aiResult = await pipeline.scan(allUnits, allIssues);
+                // Merge AI issues (skip the structural stage which is duplicated)
+                for (const stage of aiResult.stages) {
+                    if (stage.stage !== 'structural') {
+                        allIssues.push(...stage.issues);
+                    }
+                }
+            }
+            catch {
+                // Graceful degradation: AI pipeline failure doesn't block scan
+            }
+            aiDuration = Date.now() - aiStartTime;
+        }
         // 6. Build result
         const result = {
             issues: allIssues,
@@ -60068,9 +60810,10 @@ class V4Scanner {
                 discovery: discoveryDuration,
                 parsing: parseDuration,
                 detection: detectDuration,
+                ai: aiDuration,
             },
             projectRoot: this.config.projectRoot,
-            sla: this.config.sla ?? 'L1',
+            sla,
         };
         return result;
     }
@@ -60171,6 +60914,37 @@ class V4Scanner {
      */
     getExtractor(language) {
         return this.extractors.get(language);
+    }
+    /**
+     * Build AIConfig from V4ScanConfig for the AI pipeline.
+     */
+    buildAIConfig(sla) {
+        const ai = this.config.ai;
+        const aiConfig = {
+            sla,
+            embedding: ai?.embedding ? {
+                provider: ai.embedding.provider ?? 'local',
+                model: ai.embedding.model,
+                baseUrl: ai.embedding.baseUrl,
+            } : { provider: 'local' },
+        };
+        // Wire up local LLM config from ai.llm
+        if (ai?.llm?.provider === 'ollama' && ai.llm.model) {
+            aiConfig.local = {
+                provider: 'ollama',
+                model: ai.llm.model,
+                baseUrl: ai.llm.endpoint ?? 'http://localhost:11434',
+            };
+        }
+        // Wire up remote LLM config
+        if (ai?.remote?.provider && ai.remote.apiKey) {
+            aiConfig.remote = {
+                provider: ai.remote.provider,
+                model: ai.remote.model ?? 'gpt-4o-mini',
+                apiKey: ai.remote.apiKey,
+            };
+        }
+        return aiConfig;
     }
 }
 // ─── Default Patterns ───────────────────────────────────────────────
@@ -60588,6 +61362,7 @@ function loadV4Config(options = {}) {
         exclude: config.scan?.exclude,
         languages: config.scan?.languages,
         threshold: config.scoring?.threshold ?? 70,
+        ai: config.ai,
     };
 }
 // ─── Environment Variables ──────────────────────────────────────────
@@ -60691,7 +61466,9 @@ scoring:
 # AI pipeline settings (for L2/L3)
 # ai:
 #   embedding:
-#     model: all-MiniLM-L6-v2
+#     provider: ollama         # local | openai | ollama
+#     model: nomic-embed-text  # Ollama embedding model
+#     baseUrl: http://localhost:11434
 #   llm:
 #     provider: ollama
 #     model: deepseek-coder-v2:16b
@@ -60699,724 +61476,6 @@ scoring:
 `;
 }
 //# sourceMappingURL=v4-config.js.map
-;// CONCATENATED MODULE: ../core/dist/ai/v4/patterns/defect-patterns.js
-/**
- * Defect Pattern Database
- *
- * Curated set of AI-generated code defect patterns.
- * These are used as embedding comparison targets in Stage 1 (Embedding Recall).
- *
- * Each pattern includes:
- * - Unique ID for tracking
- * - Category aligned with V4 scoring dimensions
- * - Description used for embedding generation
- * - Example code snippets matching the pattern
- * - Severity and applicable languages
- *
- * @since 0.4.0
- */
-// ─── Defect Pattern Database ───────────────────────────────────────
-/**
- * Curated defect patterns that AI commonly generates.
- * These are used as embedding comparison targets in Stage 1.
- *
- * Organized by category:
- * - ai-faithfulness: Hallucinated imports, phantom APIs, fabricated types
- * - code-freshness: Deprecated APIs, outdated patterns, stale knowledge
- * - context-coherence: Inconsistencies, contradictions, style shifts
- * - implementation: Over-engineering, security, incomplete implementations
- */
-const defect_patterns_DEFECT_PATTERNS = [
-    // ─── AI Faithfulness (Hallucinations) ──────────────────────────
-    {
-        id: 'hallucinated-import',
-        category: 'ai-faithfulness',
-        description: 'Import of a non-existent package or module that AI fabricated',
-        examples: [
-            'import { createAIValidator } from "ai-validator-pro"',
-            'from advanced_ml_toolkit import HyperOptimizer',
-            'import "github.com/ai-tools/nonexistent-package"',
-            'import ai.magic.transformer.AutoModel',
-        ],
-        severity: 'error',
-        languages: [],
-    },
-    {
-        id: 'phantom-api',
-        category: 'ai-faithfulness',
-        description: 'Usage of an API method that does not exist on the object or library',
-        examples: [
-            'array.filterMap(x => x > 0)',
-            'string.toCapitalCase()',
-            'response.getJSON()',
-            'promise.flatMap(result => result)',
-            'map.getOrDefault(key, fallback)',
-        ],
-        severity: 'error',
-        languages: [],
-    },
-    {
-        id: 'fabricated-type',
-        category: 'ai-faithfulness',
-        description: 'Reference to a type or interface that does not exist in the imported library',
-        examples: [
-            'const config: NextConfig<AppProps> = {}',
-            'type Handler = express.TypedHandler<Req, Res>',
-            'implements SpringSecurityFilter',
-            'class MyService extends AbstractServiceBase',
-        ],
-        severity: 'error',
-        languages: [],
-    },
-    {
-        id: 'wrong-api-signature',
-        category: 'ai-faithfulness',
-        description: 'Calling a real API with incorrect parameter types or wrong number of arguments',
-        examples: [
-            'fs.readFile(path, "utf8", callback, options)',
-            'json.loads(data, encoding="utf-8")',
-            'Arrays.sort(list, comparator, reverse)',
-            'http.Get(url, headers)',
-        ],
-        severity: 'error',
-        languages: [],
-    },
-    {
-        id: 'imaginary-config-option',
-        category: 'ai-faithfulness',
-        description: 'Using configuration options that do not exist for a library or framework',
-        examples: [
-            'new Webpack({ optimizeChunks: true, autoTree: true })',
-            'app.use(cors({ allowAllHeaders: true }))',
-            'logging.config({ autoRotate: true, maxSize: "10mb" })',
-        ],
-        severity: 'warning',
-        languages: [],
-    },
-    // ─── Code Freshness (Stale/Deprecated) ─────────────────────────
-    {
-        id: 'deprecated-node-api',
-        category: 'code-freshness',
-        description: 'Usage of deprecated Node.js API that should be replaced with modern alternative',
-        examples: [
-            'new Buffer("data")',
-            'require("url").parse(urlString)',
-            'fs.exists(path, callback)',
-            'new require("domain").Domain()',
-        ],
-        severity: 'warning',
-        languages: ['typescript', 'javascript'],
-    },
-    {
-        id: 'deprecated-python-api',
-        category: 'code-freshness',
-        description: 'Usage of deprecated Python API or pattern from older Python versions',
-        examples: [
-            'import imp',
-            'from collections import MutableMapping',
-            'asyncio.get_event_loop()',
-            'from distutils.core import setup',
-            'os.popen("command")',
-        ],
-        severity: 'warning',
-        languages: ['python'],
-    },
-    {
-        id: 'deprecated-java-api',
-        category: 'code-freshness',
-        description: 'Usage of deprecated Java API that has modern replacements',
-        examples: [
-            'new Date(year, month, day)',
-            'Thread.stop()',
-            'Runtime.getRuntime().exec("command")',
-            'new StringBuffer()',
-        ],
-        severity: 'warning',
-        languages: ['java', 'kotlin'],
-    },
-    {
-        id: 'outdated-framework-pattern',
-        category: 'code-freshness',
-        description: 'Using outdated framework patterns that have been superseded',
-        examples: [
-            'componentWillMount() { }',
-            'class MyComponent extends React.Component { render() { } }',
-            'app.use(bodyParser.json())',
-            '@RunWith(SpringJUnit4ClassRunner.class)',
-        ],
-        severity: 'info',
-        languages: [],
-    },
-    {
-        id: 'legacy-syntax-pattern',
-        category: 'code-freshness',
-        description: 'Using legacy language syntax when modern alternatives exist',
-        examples: [
-            'var self = this;',
-            'function.apply(null, arguments)',
-            '.then(function(result) { return result; })',
-            'for (var i = 0; i < arr.length; i++)',
-        ],
-        severity: 'info',
-        languages: ['typescript', 'javascript'],
-    },
-    // ─── Context Coherence (Inconsistency) ─────────────────────────
-    {
-        id: 'naming-inconsistency',
-        category: 'context-coherence',
-        description: 'Inconsistent naming conventions within the same file or function',
-        examples: [
-            'const user_name = ""; const userName = ""; const UserName = "";',
-            'function getData() {} function process_result() {} function HandleError() {}',
-            'let maxRetries = 3; let min_timeout = 100;',
-        ],
-        severity: 'warning',
-        languages: [],
-    },
-    {
-        id: 'contradictory-comment',
-        category: 'context-coherence',
-        description: 'Comment that contradicts the actual code behavior',
-        examples: [
-            '// Returns true if valid\nfunction validate(x) { return false; }',
-            '// Sort in ascending order\narray.sort((a, b) => b - a)',
-            '// This function never throws\nasync function fetch() { throw new Error(); }',
-        ],
-        severity: 'warning',
-        languages: [],
-    },
-    {
-        id: 'unused-variable-from-context-loss',
-        category: 'context-coherence',
-        description: 'Variable declared and assigned but never used in the rest of the function',
-        examples: [
-            'const result = await fetchData();\n// result never referenced again\nreturn defaultValue;',
-            'const config = loadConfig();\nsetupApp(hardcodedConfig);',
-            'err := doSomething()\n_ = err\n// error silently ignored',
-        ],
-        severity: 'warning',
-        languages: [],
-    },
-    {
-        id: 'abrupt-style-shift',
-        category: 'context-coherence',
-        description: 'Sudden change in code style mid-function suggesting context window boundary',
-        examples: [
-            '// First half uses async/await, second half uses .then() callbacks',
-            '// First half uses const, second half uses var',
-            '// Error handling changes from try/catch to .catch() mid-function',
-        ],
-        severity: 'info',
-        languages: [],
-    },
-    {
-        id: 'duplicate-logic-different-style',
-        category: 'context-coherence',
-        description: 'Same logic implemented twice in different styles within a file',
-        examples: [
-            'function formatDate(d) { return d.toISOString(); }\nfunction dateToString(d) { return `${d.getFullYear()}-${d.getMonth()}`; }',
-            'const isValid = (x) => x > 0;\nfunction checkValid(value) { if (value > 0) return true; return false; }',
-        ],
-        severity: 'info',
-        languages: [],
-    },
-    // ─── Implementation (Over-engineering, Security, Incomplete) ───
-    {
-        id: 'unnecessary-abstraction',
-        category: 'implementation',
-        description: 'Over-engineered abstraction layers that add complexity without value',
-        examples: [
-            'class AbstractFactoryProvider<T> { abstract createFactory(): Factory<T>; }',
-            'interface IServiceLocatorStrategy<TService, TLocator>',
-            'class ConfigurationManagerBuilderFactory',
-            'export abstract class BaseAbstractHandler implements IHandler',
-        ],
-        severity: 'warning',
-        languages: [],
-    },
-    {
-        id: 'hardcoded-secret',
-        category: 'implementation',
-        description: 'Hardcoded API keys, passwords, or tokens in source code',
-        examples: [
-            'const API_KEY = "sk-proj-abc123def456"',
-            'password = "admin123"',
-            'private static final String SECRET = "my-secret-key"',
-            'token := "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"',
-        ],
-        severity: 'error',
-        languages: [],
-    },
-    {
-        id: 'empty-catch-block',
-        category: 'implementation',
-        description: 'Empty catch block that silently swallows errors',
-        examples: [
-            'try { riskyOperation(); } catch (e) { }',
-            'try { riskyOperation(); } catch (e) { /* TODO */ }',
-            'except Exception:\n    pass',
-            'catch (Exception e) { // ignore }',
-        ],
-        severity: 'warning',
-        languages: [],
-    },
-    {
-        id: 'todo-stub-placeholder',
-        category: 'implementation',
-        description: 'Placeholder or stub implementation that should be completed',
-        examples: [
-            'function processData() { /* TODO: implement */ return null; }',
-            'def calculate(): raise NotImplementedError()',
-            'public void handle() { throw new UnsupportedOperationException("Not implemented"); }',
-            'func (s *Service) Process() error { return nil // TODO }',
-        ],
-        severity: 'warning',
-        languages: [],
-    },
-    {
-        id: 'sql-injection-risk',
-        category: 'implementation',
-        description: 'SQL query built with string concatenation instead of parameterized queries',
-        examples: [
-            'const query = "SELECT * FROM users WHERE id = " + userId',
-            'cursor.execute(f"SELECT * FROM users WHERE name = \'{name}\'")',
-            'String sql = "DELETE FROM orders WHERE id=" + orderId;',
-        ],
-        severity: 'error',
-        languages: [],
-    },
-    {
-        id: 'insecure-random',
-        category: 'implementation',
-        description: 'Using non-cryptographic random for security-sensitive operations',
-        examples: [
-            'const token = Math.random().toString(36)',
-            'import random; secret = random.randint(0, 999999)',
-            'Random random = new Random(); int otp = random.nextInt(999999);',
-        ],
-        severity: 'warning',
-        languages: [],
-    },
-    {
-        id: 'excessive-function-complexity',
-        category: 'implementation',
-        description: 'Function with very high cyclomatic complexity suggesting AI generated a monolith',
-        examples: [
-            '// 200-line function with 15+ if/else branches',
-            '// deeply nested switch inside for inside if inside try',
-            '// function handling 10 different concerns in one method',
-        ],
-        severity: 'warning',
-        languages: [],
-    },
-];
-/**
- * Get all defect patterns for a specific category.
- */
-function getPatternsByCategory(category) {
-    return defect_patterns_DEFECT_PATTERNS.filter(p => p.category === category);
-}
-/**
- * Get all defect patterns applicable to a specific language.
- * Patterns with empty languages array apply to all languages.
- */
-function defect_patterns_getPatternsForLanguage(language) {
-    return defect_patterns_DEFECT_PATTERNS.filter(p => p.languages.length === 0 || p.languages.includes(language));
-}
-/**
- * Get the combined text representation of a pattern for embedding.
- * Concatenates description and examples for richer embedding.
- */
-function defect_patterns_getPatternText(pattern) {
-    return `${pattern.description}\n${pattern.examples.join('\n')}`;
-}
-//# sourceMappingURL=defect-patterns.js.map
-;// CONCATENATED MODULE: ../core/dist/ai/v4/patterns/index.js
-/**
- * Defect Pattern Database Module
- *
- * @since 0.4.0
- */
-
-//# sourceMappingURL=index.js.map
-;// CONCATENATED MODULE: ../core/dist/ai/v4/pipeline.js
-/**
- * AI Scan Pipeline Orchestrator
- *
- * Coordinates the two-stage AI scan pipeline:
- * - Stage 0: Structural detectors (always runs, passed in)
- * - Stage 1: Embedding recall (L2+)
- * - Stage 2: LLM deep scan (L3)
- *
- * @since 0.4.0
- */
-
-
-
-
-
-
-/**
- * Parse LLM JSON response into structured issues.
- * Handles markdown code fences and malformed JSON gracefully.
- */
-function parseLLMResponse(content) {
-    try {
-        // Strip markdown code fences if present
-        let jsonText = content.trim();
-        if (jsonText.startsWith('```')) {
-            const lines = jsonText.split('\n');
-            // Remove first and last line if they're code fence markers
-            if (lines[0].startsWith('```'))
-                lines.shift();
-            if (lines[lines.length - 1].trim() === '```')
-                lines.pop();
-            jsonText = lines.join('\n');
-        }
-        const parsed = JSON.parse(jsonText);
-        // Handle { issues: [...] } wrapper
-        const issues = Array.isArray(parsed.issues)
-            ? parsed.issues
-            : Array.isArray(parsed)
-                ? parsed
-                : [];
-        return issues
-            .filter((issue) => typeof issue === 'object' &&
-            issue !== null &&
-            'line' in issue &&
-            'message' in issue)
-            .map((issue) => ({
-            line: Math.max(1, Math.floor(Number(issue.line)) || 1),
-            severity: normalizeSeverity(issue.severity),
-            message: String(issue.message),
-            category: issue.category ?? 'implementation',
-        }));
-    }
-    catch {
-        return [];
-    }
-}
-function normalizeSeverity(severity) {
-    const s = (severity ?? 'info').toLowerCase();
-    if (s === 'error' || s === 'critical')
-        return 'error';
-    if (s === 'warning' || s === 'warn')
-        return 'warning';
-    return 'info';
-}
-function normalizeCategory(category) {
-    const c = category.toLowerCase();
-    if (c.includes('faithful') || c.includes('hallucin'))
-        return 'ai-faithfulness';
-    if (c.includes('fresh') || c.includes('stale') || c.includes('deprecat'))
-        return 'code-freshness';
-    if (c.includes('coher') || c.includes('context'))
-        return 'context-coherence';
-    return 'implementation';
-}
-// ─── AI Scan Pipeline ──────────────────────────────────────────────
-/**
- * AI Scan Pipeline orchestrator.
- *
- * Runs the two-stage AI analysis based on SLA level configuration.
- */
-class pipeline_AIScanPipeline {
-    config;
-    maxLLMBlocks;
-    similarityThreshold;
-    constructor(config) {
-        this.config = config;
-        this.maxLLMBlocks = config.maxLLMBlocks ?? 20;
-        this.similarityThreshold = config.similarityThreshold ?? 0.7;
-    }
-    /**
-     * Run the full scan pipeline.
-     *
-     * @param units CodeUnits from parsing
-     * @param structuralResults Results from structural detectors (V4 detectors)
-     * @returns Combined results from all stages
-     */
-    async scan(units, structuralResults) {
-        const stages = [];
-        const totalStartTime = Date.now();
-        // Stage 0: Structural (already done, just include)
-        stages.push({
-            stage: 'structural',
-            issues: structuralResults,
-            durationMs: 0,
-        });
-        // L1 stops here
-        if (this.config.sla === 'L1') {
-            return this.buildResult(stages, totalStartTime);
-        }
-        // Stage 1: Embedding recall (L2 and L3)
-        const embeddingResults = await this.runEmbeddingStage(units);
-        stages.push(embeddingResults);
-        // Stage 2: LLM deep scan (L3 only)
-        if (this.config.sla === 'L3') {
-            const suspiciousBlocks = this.getSuspiciousBlocks(units, embeddingResults);
-            const llmResults = await this.runLLMStage(suspiciousBlocks);
-            stages.push(llmResults);
-        }
-        return this.buildResult(stages, totalStartTime);
-    }
-    /**
-     * Build the final result object.
-     */
-    buildResult(stages, startTime) {
-        const totalIssues = stages.reduce((sum, s) => sum + s.issues.length, 0);
-        const totalDurationMs = Date.now() - startTime;
-        return {
-            stages,
-            totalIssues,
-            totalDurationMs,
-            slaLevel: this.config.sla,
-        };
-    }
-    /**
-     * Stage 1: Run embedding-based recall to find suspicious code blocks.
-     */
-    async runEmbeddingStage(units) {
-        const startTime = Date.now();
-        if (units.length === 0) {
-            return { stage: 'embedding', issues: [], durationMs: 0 };
-        }
-        // Create embedding provider
-        const embeddingProvider = this.createEmbeddingProvider();
-        // Build corpus: pattern descriptions + code unit sources
-        const patternTexts = DEFECT_PATTERNS.map(getPatternText);
-        const codeTexts = units.map(u => this.buildCodeText(u));
-        const allTexts = [...patternTexts, ...codeTexts];
-        // Build vocabulary and generate embeddings
-        if (embeddingProvider instanceof LocalEmbeddingProvider) {
-            embeddingProvider.buildVocabulary(allTexts);
-        }
-        const embeddings = await embeddingProvider.embed(allTexts);
-        // Split embeddings back into patterns and code
-        const patternEmbeddings = embeddings.slice(0, patternTexts.length);
-        const codeEmbeddings = embeddings.slice(patternTexts.length);
-        // Find suspicious blocks by comparing code embeddings to pattern embeddings
-        const issues = [];
-        for (let i = 0; i < units.length; i++) {
-            const unit = units[i];
-            const codeEmb = codeEmbeddings[i];
-            if (!codeEmb)
-                continue;
-            // Get patterns applicable to this language
-            const applicablePatterns = getPatternsForLanguage(unit.language);
-            // Find matching patterns
-            const matches = [];
-            for (const pattern of applicablePatterns) {
-                const patternIdx = DEFECT_PATTERNS.indexOf(pattern);
-                if (patternIdx === -1)
-                    continue;
-                const patternEmb = patternEmbeddings[patternIdx];
-                if (!patternEmb)
-                    continue;
-                const similarity = cosineSimilarity(codeEmb, patternEmb);
-                if (similarity >= this.similarityThreshold) {
-                    matches.push({ patternIdx, similarity });
-                }
-            }
-            // Create issues for top matches
-            for (const match of matches.slice(0, 3)) {
-                const pattern = DEFECT_PATTERNS[match.patternIdx];
-                if (!pattern)
-                    continue;
-                issues.push({
-                    detectorId: 'embedding-recall',
-                    severity: pattern.severity,
-                    category: pattern.category,
-                    messageKey: `ai.embedding.${pattern.id}`,
-                    message: pattern.description,
-                    file: unit.file,
-                    line: unit.location.startLine + 1, // Convert to 1-based
-                    confidence: match.similarity,
-                    metadata: {
-                        patternId: pattern.id,
-                        similarity: match.similarity,
-                    },
-                });
-            }
-        }
-        return {
-            stage: 'embedding',
-            issues,
-            durationMs: Date.now() - startTime,
-        };
-    }
-    /**
-     * Stage 2: Run LLM deep scan on suspicious blocks.
-     */
-    async runLLMStage(suspiciousUnits) {
-        const startTime = Date.now();
-        let totalTokens = 0;
-        if (suspiciousUnits.length === 0) {
-            return { stage: 'llm', issues: [], durationMs: 0, tokensUsed: 0 };
-        }
-        // Create LLM provider (local first, fallback to remote)
-        const llmProvider = await this.createLLMProvider();
-        if (!llmProvider) {
-            return { stage: 'llm', issues: [], durationMs: Date.now() - startTime, tokensUsed: 0 };
-        }
-        const issues = [];
-        // Process suspicious blocks (limited by maxLLMBlocks)
-        const blocksToAnalyze = suspiciousUnits.slice(0, this.maxLLMBlocks);
-        for (const unit of blocksToAnalyze) {
-            try {
-                const prompt = this.buildPrompt(unit);
-                const response = await llmProvider.complete(prompt, {
-                    maxTokens: 2000,
-                    temperature: 0.1,
-                    system: LLM_SYSTEM_PROMPT,
-                });
-                if (response.usage) {
-                    totalTokens += response.usage.total;
-                }
-                // Parse LLM response
-                const llmIssues = parseLLMResponse(response.content);
-                // Convert to DetectorResults
-                for (const issue of llmIssues) {
-                    issues.push({
-                        detectorId: 'llm-deep-scan',
-                        severity: issue.severity,
-                        category: normalizeCategory(issue.category),
-                        messageKey: 'ai.llm.detected',
-                        message: issue.message,
-                        file: unit.file,
-                        line: issue.line,
-                        confidence: 0.8, // LLM issues have high confidence
-                        metadata: {
-                            source: 'llm',
-                        },
-                    });
-                }
-            }
-            catch {
-                // Graceful degradation: skip this block on error
-                continue;
-            }
-        }
-        return {
-            stage: 'llm',
-            issues,
-            durationMs: Date.now() - startTime,
-            tokensUsed: totalTokens,
-        };
-    }
-    /**
-     * Get suspicious blocks from embedding results.
-     * Returns units that have embedding matches above threshold.
-     */
-    getSuspiciousBlocks(units, embeddingResults) {
-        // Get unique file paths with embedding issues
-        const suspiciousFiles = new Set(embeddingResults.issues
-            .filter(i => i.confidence >= this.similarityThreshold)
-            .map(i => i.file));
-        // Return units from suspicious files
-        return units.filter(u => suspiciousFiles.has(u.file));
-    }
-    /**
-     * Create embedding provider based on configuration.
-     */
-    createEmbeddingProvider() {
-        const embeddingConfig = this.config.embedding;
-        if (embeddingConfig?.provider === 'openai' && this.config.remote?.apiKey) {
-            return new OpenAIEmbeddingProvider(this.config.remote.apiKey, embeddingConfig.model ?? 'text-embedding-3-small');
-        }
-        // Default to local TF-IDF
-        return new LocalEmbeddingProvider(512);
-    }
-    /**
-     * Create LLM provider based on configuration.
-     * Prefers local (Ollama), falls back to remote.
-     */
-    async createLLMProvider() {
-        // Try local first (L2 and L3)
-        if (this.config.local) {
-            const ollama = new OllamaLLMProvider(this.config.local.model, this.config.local.baseUrl ?? 'http://localhost:11434');
-            if (await ollama.isAvailable()) {
-                return ollama;
-            }
-        }
-        // Fallback to remote (L3 only)
-        if (this.config.remote) {
-            if (this.config.remote.provider === 'anthropic') {
-                return new AnthropicLLMProvider(this.config.remote.apiKey, this.config.remote.model);
-            }
-            if (this.config.remote.provider === 'openai') {
-                return new OpenAILLMProvider(this.config.remote.apiKey, this.config.remote.model, this.config.remote.baseUrl);
-            }
-        }
-        return null;
-    }
-    /**
-     * Build text representation of a CodeUnit for embedding.
-     */
-    buildCodeText(unit) {
-        const parts = [];
-        // Add imports for context
-        for (const imp of unit.imports) {
-            parts.push(`import ${imp.module}`);
-        }
-        // Add function/method definitions
-        for (const def of unit.definitions) {
-            parts.push(`${def.kind} ${def.name}`);
-        }
-        // Add call sites
-        for (const call of unit.calls) {
-            parts.push(call.callee);
-        }
-        // Add source snippet (truncated)
-        const sourceSnippet = unit.source.slice(0, 2000);
-        parts.push(sourceSnippet);
-        return parts.join('\n');
-    }
-    /**
-     * Build a focused prompt for the LLM to analyze a code block.
-     */
-    buildPrompt(unit) {
-        return `Analyze this code for AI-generated defects.
-
-File: ${unit.file}
-Language: ${unit.language}
-
-Code:
-\`\`\`
-${unit.source.slice(0, 4000)}
-\`\`\`
-
-Check for:
-- Hallucinated imports (packages that don't exist)
-- Phantom APIs (methods/functions that don't exist on objects)
-- Deprecated API usage
-- Logic inconsistencies
-- Security anti-patterns
-- Incomplete implementations (TODOs, stubs)
-
-Respond in JSON format:
-{
-  "issues": [
-    { "line": <line_number>, "severity": "error|warning|info", "message": "<description>", "category": "<category>" }
-  ]
-}
-
-If no issues found, respond with: { "issues": [] }`;
-    }
-}
-// ─── Constants ─────────────────────────────────────────────────────
-const LLM_SYSTEM_PROMPT = (/* unused pure expression or super */ null && (`You are a code quality analyzer specialized in detecting AI-generated code defects.
-You analyze code and identify issues that are common in AI-generated code:
-- Hallucinated packages and APIs
-- Outdated/deprecated patterns
-- Logic inconsistencies from context window boundaries
-- Security vulnerabilities common in AI output
-- Over-engineering and unnecessary complexity
-
-Always respond with valid JSON matching the requested format.
-Be precise about line numbers.
-Only report issues you are confident about.`));
-//# sourceMappingURL=pipeline.js.map
 ;// CONCATENATED MODULE: ../core/dist/ai/v4/sla.js
 /**
  * SLA Router — Maps SLA levels to pipeline configuration.

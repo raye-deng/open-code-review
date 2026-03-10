@@ -90,8 +90,9 @@ export interface AIConfig {
 
   /** Embedding provider configuration */
   embedding?: {
-    provider: 'local' | 'openai';
+    provider: 'local' | 'openai' | 'ollama';
     model?: string;
+    baseUrl?: string;
   };
 
   /** Local LLM configuration (Ollama) */

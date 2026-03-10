@@ -298,6 +298,7 @@ export {
   AIScanPipeline,
   LocalEmbeddingProvider,
   OpenAIEmbeddingProvider,
+  OllamaEmbeddingProvider,
   OllamaLLMProvider,
   OpenAILLMProvider,
   AnthropicLLMProvider,

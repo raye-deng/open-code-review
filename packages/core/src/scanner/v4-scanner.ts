@@ -22,6 +22,8 @@ import type { RegistryOptions } from '../registry/types.js';
 import { createV4Detectors } from '../detectors/v4/index.js';
 import type { V4Detector, DetectorResult, DetectorContext } from '../detectors/v4/types.js';
 import { DefaultI18nProvider, type Locale, type I18nProvider } from '../i18n/index.js';
+import type { AIConfig } from '../ai/v4/types.js';
+import { AIScanPipeline } from '../ai/v4/pipeline.js';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -55,6 +57,24 @@ export interface V4ScanConfig {
   exclude?: string[];
   /** Scoring threshold (default: 70) */
   threshold?: number;
+  /** AI pipeline configuration (for L2/L3) */
+  ai?: {
+    embedding?: {
+      provider?: 'local' | 'openai' | 'ollama';
+      model?: string;
+      baseUrl?: string;
+    };
+    llm?: {
+      provider?: 'ollama' | 'openai' | 'anthropic';
+      model?: string;
+      endpoint?: string;
+    };
+    remote?: {
+      provider?: 'openai' | 'anthropic';
+      model?: string;
+      apiKey?: string;
+    };
+  };
 }
 
 /**
@@ -201,8 +221,28 @@ export class V4Scanner {
     }
     const detectDuration = Date.now() - detectStart;
 
-    // 5. AI pipeline (L2/L3 only) — not implemented in this phase
-    // Worker A handles this
+    // 5. AI pipeline (L2/L3 only)
+    let aiDuration: number | undefined;
+    const sla = this.config.sla ?? 'L1';
+
+    if (sla !== 'L1' && allUnits.length > 0) {
+      const aiStartTime = Date.now();
+      try {
+        const aiConfig = this.buildAIConfig(sla);
+        const pipeline = new AIScanPipeline(aiConfig);
+        const aiResult = await pipeline.scan(allUnits, allIssues);
+
+        // Merge AI issues (skip the structural stage which is duplicated)
+        for (const stage of aiResult.stages) {
+          if (stage.stage !== 'structural') {
+            allIssues.push(...stage.issues);
+          }
+        }
+      } catch {
+        // Graceful degradation: AI pipeline failure doesn't block scan
+      }
+      aiDuration = Date.now() - aiStartTime;
+    }
 
     // 6. Build result
     const result: V4ScanResult = {
@@ -215,9 +255,10 @@ export class V4Scanner {
         discovery: discoveryDuration,
         parsing: parseDuration,
         detection: detectDuration,
+        ai: aiDuration,
       },
       projectRoot: this.config.projectRoot,
-      sla: this.config.sla ?? 'L1',
+      sla,
     };
 
     return result;
@@ -334,6 +375,42 @@ export class V4Scanner {
    */
   private getExtractor(language: SupportedLanguage): LanguageExtractor | undefined {
     return this.extractors.get(language);
+  }
+
+  /**
+   * Build AIConfig from V4ScanConfig for the AI pipeline.
+   */
+  private buildAIConfig(sla: SLALevel): AIConfig {
+    const ai = this.config.ai;
+
+    const aiConfig: AIConfig = {
+      sla,
+      embedding: ai?.embedding ? {
+        provider: ai.embedding.provider ?? 'local',
+        model: ai.embedding.model,
+        baseUrl: ai.embedding.baseUrl,
+      } : { provider: 'local' },
+    };
+
+    // Wire up local LLM config from ai.llm
+    if (ai?.llm?.provider === 'ollama' && ai.llm.model) {
+      aiConfig.local = {
+        provider: 'ollama',
+        model: ai.llm.model,
+        baseUrl: ai.llm.endpoint ?? 'http://localhost:11434',
+      };
+    }
+
+    // Wire up remote LLM config
+    if (ai?.remote?.provider && ai.remote.apiKey) {
+      aiConfig.remote = {
+        provider: ai.remote.provider,
+        model: ai.remote.model ?? 'gpt-4o-mini',
+        apiKey: ai.remote.apiKey,
+      };
+    }
+
+    return aiConfig;
   }
 }
 
