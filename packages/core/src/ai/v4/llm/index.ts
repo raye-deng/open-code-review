@@ -1,5 +1,5 @@
 /**
- * LLM Providers for the V4 AI Pipeline Stage 2.
+ * LLM Providers for V4 AI Pipeline Stage 2.
  *
  * @since 0.4.0
  */

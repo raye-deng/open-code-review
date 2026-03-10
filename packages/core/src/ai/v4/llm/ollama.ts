@@ -1,60 +1,67 @@
 /**
  * Ollama LLM Provider
  *
- * Local LLM provider using Ollama's HTTP API.
- * Designed for L2 SLA level with local model inference.
- *
- * Uses POST /api/generate for completions.
+ * Provides local LLM inference via Ollama API.
+ * Used for L2 SLA level where local models are preferred.
  *
  * @since 0.4.0
  */
 
 import type { LLMProvider, LLMOptions, LLMResponse } from '../types.js';
 
-/** Default Ollama endpoint */
-const DEFAULT_BASE_URL = 'http://localhost:11434';
-
-/** Default request timeout in milliseconds */
-const DEFAULT_TIMEOUT_MS = 60_000;
-
 /**
- * Ollama LLM provider for local model inference.
+ * Ollama provider for local LLM inference.
  *
- * Requires a running Ollama instance with the specified model pulled.
+ * Requires Ollama to be running locally with the specified model pulled.
+ *
+ * @example
+ * ```ts
+ * const provider = new OllamaProvider('codellama:13b');
+ * if (await provider.isAvailable()) {
+ *   const response = await provider.complete('Explain this code:', { maxTokens: 500 });
+ * }
+ * ```
  */
 export class OllamaLLMProvider implements LLMProvider {
   readonly name = 'ollama';
 
   constructor(
-    private model: string,
-    private baseUrl: string = DEFAULT_BASE_URL,
-    private timeoutMs: number = DEFAULT_TIMEOUT_MS,
+    private model: string = 'codellama:13b',
+    private baseUrl: string = 'http://localhost:11434',
   ) {}
 
   /**
-   * Send a prompt to Ollama and get a completion.
+   * Send a completion request to Ollama.
    *
-   * Uses the /api/generate endpoint with stream: false.
+   * Uses the /api/generate endpoint with streaming disabled.
    */
   async complete(prompt: string, options?: LLMOptions): Promise<LLMResponse> {
     const url = `${this.baseUrl}/api/generate`;
-    const start = Date.now();
+    const startTime = Date.now();
 
     const body: Record<string, unknown> = {
       model: this.model,
-      prompt: options?.system ? `${options.system}\n\n${prompt}` : prompt,
+      prompt,
       stream: false,
-      options: {
-        ...(options?.temperature !== undefined && { temperature: options.temperature }),
-        ...(options?.maxTokens !== undefined && { num_predict: options.maxTokens }),
-      },
     };
+
+    if (options?.system) {
+      body.system = options.system;
+    }
+
+    if (options?.maxTokens) {
+      body.options = { ...(body.options as object), num_predict: options.maxTokens };
+    }
+
+    if (options?.temperature !== undefined) {
+      body.options = { ...(body.options as object), temperature: options.temperature };
+    }
 
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(this.timeoutMs),
+      signal: AbortSignal.timeout(120_000), // 2 minute timeout for local LLM
     });
 
     if (!response.ok) {
@@ -64,22 +71,18 @@ export class OllamaLLMProvider implements LLMProvider {
 
     const data = (await response.json()) as {
       response: string;
-      done: boolean;
-      total_duration?: number;
-      prompt_eval_count?: number;
       eval_count?: number;
+      prompt_eval_count?: number;
     };
 
-    const latencyMs = Date.now() - start;
-    const promptTokens = data.prompt_eval_count ?? 0;
-    const completionTokens = data.eval_count ?? 0;
+    const latencyMs = Date.now() - startTime;
 
     return {
       content: data.response,
       usage: {
-        prompt: promptTokens,
-        completion: completionTokens,
-        total: promptTokens + completionTokens,
+        prompt: data.prompt_eval_count ?? 0,
+        completion: data.eval_count ?? 0,
+        total: (data.prompt_eval_count ?? 0) + (data.eval_count ?? 0),
       },
       latencyMs,
     };
@@ -87,8 +90,6 @@ export class OllamaLLMProvider implements LLMProvider {
 
   /**
    * Check if Ollama is running and the model is available.
-   *
-   * Sends a GET request to /api/tags and checks if the model exists.
    */
   async isAvailable(): Promise<boolean> {
     try {
@@ -103,12 +104,10 @@ export class OllamaLLMProvider implements LLMProvider {
         models?: Array<{ name: string }>;
       };
 
-      if (!data.models) return false;
-
-      // Check if our model is in the list (handle tag variations)
-      const modelBase = this.model.split(':')[0];
-      return data.models.some(
-        m => m.name === this.model || m.name.startsWith(`${modelBase}:`),
+      // Check if our model exists (exact match or without tag)
+      const modelName = this.model.split(':')[0];
+      return (data.models ?? []).some(
+        m => m.name === this.model || m.name.startsWith(`${modelName}:`),
       );
     } catch {
       return false;

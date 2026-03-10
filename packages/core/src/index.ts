@@ -302,15 +302,20 @@ export {
   OpenAILLMProvider,
   AnthropicLLMProvider,
   cosineSimilarity,
-  findTopMatches,
   tokenize,
   DEFECT_PATTERNS,
   getPatternsByCategory,
   getPatternsForLanguage,
   getPatternText,
+  SLA_DESCRIPTIONS,
+  DEFAULT_SLA_CONFIGS,
+  createPipelineForSLA,
+  getRecommendedSLA,
+  validateSLAConfig,
 } from './ai/v4/index.js';
 
 export type {
+  SLALevel as V4SLALevel,
   EmbeddingProvider,
   LLMProvider,
   LLMOptions,

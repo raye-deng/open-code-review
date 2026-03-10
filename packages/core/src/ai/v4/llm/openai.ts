@@ -1,26 +1,26 @@
 /**
  * OpenAI LLM Provider
  *
- * Remote LLM provider using OpenAI's Chat Completions API.
- * Designed for L3 SLA level with high-quality model inference.
- *
- * Uses POST /chat/completions endpoint.
+ * Provides LLM inference via OpenAI Chat Completions API.
+ * Used for L3 SLA level where remote high-quality models are needed.
  *
  * @since 0.4.0
  */
 
 import type { LLMProvider, LLMOptions, LLMResponse } from '../types.js';
 
-/** Default OpenAI API base URL */
-const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
-
-/** Default request timeout in milliseconds */
-const DEFAULT_TIMEOUT_MS = 60_000;
-
 /**
- * OpenAI LLM provider using the Chat Completions API.
+ * OpenAI provider for remote LLM inference.
  *
- * Requires a valid API key.
+ * Requires an API key. Supports all OpenAI chat models.
+ *
+ * @example
+ * ```ts
+ * const provider = new OpenAIProvider(process.env.OPENAI_API_KEY, 'gpt-4o-mini');
+ * if (await provider.isAvailable()) {
+ *   const response = await provider.complete('Review this code:', { maxTokens: 1000 });
+ * }
+ * ```
  */
 export class OpenAILLMProvider implements LLMProvider {
   readonly name = 'openai';
@@ -28,16 +28,15 @@ export class OpenAILLMProvider implements LLMProvider {
   constructor(
     private apiKey: string,
     private model: string = 'gpt-4o-mini',
-    private baseUrl: string = DEFAULT_BASE_URL,
-    private timeoutMs: number = DEFAULT_TIMEOUT_MS,
+    private baseUrl: string = 'https://api.openai.com/v1',
   ) {}
 
   /**
-   * Send a prompt to OpenAI Chat Completions and get a response.
+   * Send a completion request to OpenAI Chat Completions API.
    */
   async complete(prompt: string, options?: LLMOptions): Promise<LLMResponse> {
     const url = `${this.baseUrl}/chat/completions`;
-    const start = Date.now();
+    const startTime = Date.now();
 
     const messages: Array<{ role: string; content: string }> = [];
 
@@ -50,9 +49,15 @@ export class OpenAILLMProvider implements LLMProvider {
     const body: Record<string, unknown> = {
       model: this.model,
       messages,
-      ...(options?.temperature !== undefined && { temperature: options.temperature }),
-      ...(options?.maxTokens !== undefined && { max_tokens: options.maxTokens }),
     };
+
+    if (options?.maxTokens) {
+      body.max_tokens = options.maxTokens;
+    }
+
+    if (options?.temperature !== undefined) {
+      body.temperature = options.temperature;
+    }
 
     const response = await fetch(url, {
       method: 'POST',
@@ -61,7 +66,7 @@ export class OpenAILLMProvider implements LLMProvider {
         Authorization: `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(this.timeoutMs),
+      signal: AbortSignal.timeout(60_000),
     });
 
     if (!response.ok) {
@@ -78,8 +83,8 @@ export class OpenAILLMProvider implements LLMProvider {
       };
     };
 
-    const latencyMs = Date.now() - start;
-    const content = data.choices?.[0]?.message?.content ?? '';
+    const latencyMs = Date.now() - startTime;
+    const content = data.choices[0]?.message?.content ?? '';
 
     return {
       content,
@@ -95,23 +100,9 @@ export class OpenAILLMProvider implements LLMProvider {
   }
 
   /**
-   * Check if the OpenAI API is reachable and the key is valid.
-   *
-   * Sends a minimal request to verify authentication.
+   * Check if the provider is available (has API key configured).
    */
   async isAvailable(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.baseUrl}/models`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-        },
-        signal: AbortSignal.timeout(5_000),
-      });
-
-      return response.ok;
-    } catch {
-      return false;
-    }
+    return !!this.apiKey && this.apiKey.length > 0;
   }
 }

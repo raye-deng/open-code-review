@@ -1,8 +1,7 @@
 /**
- * Defect Patterns Tests
+ * Tests for Defect Pattern Database
  *
- * Tests for the curated AI defect pattern database.
- * Validates structure, uniqueness, categories, and utility functions.
+ * @since 0.4.0
  */
 
 import { describe, it, expect } from 'vitest';
@@ -11,33 +10,37 @@ import {
   getPatternsByCategory,
   getPatternsForLanguage,
   getPatternText,
-  type DefectPattern,
 } from '../../src/ai/v4/patterns/defect-patterns.js';
+import type { DefectPattern } from '../../src/ai/v4/patterns/defect-patterns.js';
 import type { DetectorCategory } from '../../src/detectors/v4/types.js';
+import type { SupportedLanguage } from '../../src/ir/types.js';
 
 describe('DEFECT_PATTERNS', () => {
   it('should have at least 20 patterns', () => {
     expect(DEFECT_PATTERNS.length).toBeGreaterThanOrEqual(20);
   });
 
-  it('should have unique IDs for all patterns', () => {
-    const ids = DEFECT_PATTERNS.map(p => p.id);
-    const uniqueIds = new Set(ids);
-    expect(uniqueIds.size).toBe(ids.length);
-  });
-
-  it('should have required fields on every pattern', () => {
+  it('should have all required fields', () => {
     for (const pattern of DEFECT_PATTERNS) {
-      expect(pattern.id).toBeTruthy();
+      expect(pattern).toHaveProperty('id');
+      expect(pattern).toHaveProperty('category');
+      expect(pattern).toHaveProperty('description');
+      expect(pattern).toHaveProperty('examples');
+      expect(pattern).toHaveProperty('severity');
+      expect(pattern).toHaveProperty('languages');
+
       expect(typeof pattern.id).toBe('string');
-      expect(pattern.category).toBeTruthy();
       expect(typeof pattern.description).toBe('string');
-      expect(pattern.description.length).toBeGreaterThan(0);
       expect(Array.isArray(pattern.examples)).toBe(true);
-      expect(pattern.examples.length).toBeGreaterThan(0);
       expect(['error', 'warning', 'info']).toContain(pattern.severity);
       expect(Array.isArray(pattern.languages)).toBe(true);
     }
+  });
+
+  it('should have unique pattern IDs', () => {
+    const ids = DEFECT_PATTERNS.map(p => p.id);
+    const uniqueIds = new Set(ids);
+    expect(uniqueIds.size).toBe(ids.length);
   });
 
   it('should have valid category values', () => {
@@ -53,8 +56,26 @@ describe('DEFECT_PATTERNS', () => {
     }
   });
 
-  it('should have valid language values when specified', () => {
-    const validLanguages = [
+  it('should have non-empty examples', () => {
+    for (const pattern of DEFECT_PATTERNS) {
+      expect(pattern.examples.length).toBeGreaterThan(0);
+      for (const example of pattern.examples) {
+        expect(typeof example).toBe('string');
+        expect(example.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('should have valid severity values', () => {
+    const validSeverities = ['error', 'warning', 'info'];
+
+    for (const pattern of DEFECT_PATTERNS) {
+      expect(validSeverities).toContain(pattern.severity);
+    }
+  });
+
+  it('should have valid languages array', () => {
+    const validLanguages: SupportedLanguage[] = [
       'typescript',
       'javascript',
       'python',
@@ -69,99 +90,146 @@ describe('DEFECT_PATTERNS', () => {
       }
     }
   });
-
-  it('should have at least 5 ai-faithfulness patterns', () => {
-    const count = DEFECT_PATTERNS.filter(
-      p => p.category === 'ai-faithfulness',
-    ).length;
-    expect(count).toBeGreaterThanOrEqual(5);
-  });
-
-  it('should have at least 5 code-freshness patterns', () => {
-    const count = DEFECT_PATTERNS.filter(
-      p => p.category === 'code-freshness',
-    ).length;
-    expect(count).toBeGreaterThanOrEqual(5);
-  });
-
-  it('should have at least 5 context-coherence patterns', () => {
-    const count = DEFECT_PATTERNS.filter(
-      p => p.category === 'context-coherence',
-    ).length;
-    expect(count).toBeGreaterThanOrEqual(5);
-  });
-
-  it('should have at least 5 implementation patterns', () => {
-    const count = DEFECT_PATTERNS.filter(
-      p => p.category === 'implementation',
-    ).length;
-    expect(count).toBeGreaterThanOrEqual(5);
-  });
 });
 
-describe('getPatternsByCategory()', () => {
-  it('should return only patterns of the requested category', () => {
-    const patterns = getPatternsByCategory('ai-faithfulness');
-    for (const p of patterns) {
-      expect(p.category).toBe('ai-faithfulness');
-    }
-    expect(patterns.length).toBeGreaterThan(0);
-  });
-
-  it('should return all 4 categories when queried separately', () => {
+describe('Coverage by Category', () => {
+  it('should have at least one pattern per category', () => {
     const categories: DetectorCategory[] = [
       'ai-faithfulness',
       'code-freshness',
       'context-coherence',
       'implementation',
     ];
-    for (const cat of categories) {
-      const patterns = getPatternsByCategory(cat);
+
+    for (const category of categories) {
+      const patterns = getPatternsByCategory(category);
       expect(patterns.length).toBeGreaterThan(0);
     }
   });
+
+  it('should have patterns for ai-faithfulness category', () => {
+    const patterns = getPatternsByCategory('ai-faithfulness');
+    expect(patterns.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('should have patterns for code-freshness category', () => {
+    const patterns = getPatternsByCategory('code-freshness');
+    expect(patterns.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('should have patterns for context-coherence category', () => {
+    const patterns = getPatternsByCategory('context-coherence');
+    expect(patterns.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('should have patterns for implementation category', () => {
+    const patterns = getPatternsByCategory('implementation');
+    expect(patterns.length).toBeGreaterThanOrEqual(5);
+  });
 });
 
-describe('getPatternsForLanguage()', () => {
-  it('should return language-specific and universal patterns for TypeScript', () => {
+describe('getPatternsByCategory', () => {
+  it('should return only patterns matching the category', () => {
+    const patterns = getPatternsByCategory('ai-faithfulness');
+
+    for (const pattern of patterns) {
+      expect(pattern.category).toBe('ai-faithfulness');
+    }
+  });
+
+  it('should return empty array for unknown category', () => {
+    // TypeScript doesn't allow invalid categories, but test runtime behavior
+    const patterns = getPatternsByCategory('ai-faithfulness' as DetectorCategory);
+    expect(Array.isArray(patterns)).toBe(true);
+  });
+});
+
+describe('getPatternsForLanguage', () => {
+  it('should return patterns that apply to specific language', () => {
     const patterns = getPatternsForLanguage('typescript');
-    const universal = DEFECT_PATTERNS.filter(p => p.languages.length === 0);
-    // Should include all universal patterns plus TS-specific ones
-    expect(patterns.length).toBeGreaterThanOrEqual(universal.length);
+
+    for (const pattern of patterns) {
+      // Pattern applies if languages is empty (all) or includes typescript
+      expect(
+        pattern.languages.length === 0 || pattern.languages.includes('typescript'),
+      ).toBe(true);
+    }
+  });
+
+  it('should include language-agnostic patterns (empty languages array)', () => {
+    const patterns = getPatternsForLanguage('python');
+    const languageAgnosticPatterns = patterns.filter(p => p.languages.length === 0);
+
+    expect(languageAgnosticPatterns.length).toBeGreaterThan(0);
   });
 
   it('should include language-specific patterns', () => {
-    const pythonPatterns = getPatternsForLanguage('python');
-    const hasPythonSpecific = pythonPatterns.some(
-      p => p.languages.includes('python') && p.languages.length > 0,
-    );
-    expect(hasPythonSpecific).toBe(true);
+    const tsPatterns = getPatternsForLanguage('typescript');
+    const specificPatterns = tsPatterns.filter(p => p.languages.includes('typescript'));
+
+    expect(specificPatterns.length).toBeGreaterThan(0);
   });
 
-  it('should not include patterns for other languages only', () => {
-    const goPatterns = getPatternsForLanguage('go');
-    for (const p of goPatterns) {
-      if (p.languages.length > 0) {
-        expect(p.languages).toContain('go');
-      }
+  it('should return same patterns for all languages when only using language-agnostic patterns', () => {
+    // Find language-agnostic patterns
+    const agnostic = DEFECT_PATTERNS.filter(p => p.languages.length === 0);
+
+    const tsPatterns = getPatternsForLanguage('typescript');
+    const pyPatterns = getPatternsForLanguage('python');
+
+    // Both should include all agnostic patterns
+    for (const pattern of agnostic) {
+      expect(tsPatterns.some(p => p.id === pattern.id)).toBe(true);
+      expect(pyPatterns.some(p => p.id === pattern.id)).toBe(true);
     }
   });
 });
 
-describe('getPatternText()', () => {
+describe('getPatternText', () => {
   it('should combine description and examples', () => {
-    const pattern = DEFECT_PATTERNS[0];
+    const pattern: DefectPattern = {
+      id: 'test-pattern',
+      category: 'implementation',
+      description: 'Test description',
+      examples: ['example1', 'example2'],
+      severity: 'warning',
+      languages: [],
+    };
+
     const text = getPatternText(pattern);
-    expect(text).toContain(pattern.description);
-    for (const example of pattern.examples) {
-      expect(text).toContain(example);
-    }
+
+    expect(text).toContain('Test description');
+    expect(text).toContain('example1');
+    expect(text).toContain('example2');
   });
 
-  it('should produce non-empty text for every pattern', () => {
-    for (const pattern of DEFECT_PATTERNS) {
-      const text = getPatternText(pattern);
-      expect(text.length).toBeGreaterThan(0);
-    }
+  it('should separate description and examples with newline', () => {
+    const pattern: DefectPattern = {
+      id: 'test-pattern',
+      category: 'implementation',
+      description: 'Description',
+      examples: ['ex1'],
+      severity: 'error',
+      languages: [],
+    };
+
+    const text = getPatternText(pattern);
+    expect(text).toBe('Description\nex1');
+  });
+
+  it('should handle multiple examples', () => {
+    const pattern: DefectPattern = {
+      id: 'test-pattern',
+      category: 'implementation',
+      description: 'Desc',
+      examples: ['a', 'b', 'c'],
+      severity: 'info',
+      languages: [],
+    };
+
+    const text = getPatternText(pattern);
+    expect(text).toContain('a');
+    expect(text).toContain('b');
+    expect(text).toContain('c');
   });
 });

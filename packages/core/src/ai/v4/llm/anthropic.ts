@@ -1,64 +1,62 @@
 /**
  * Anthropic LLM Provider
  *
- * Remote LLM provider using Anthropic's Messages API.
- * Designed for L3 SLA level with high-quality model inference.
- *
- * Uses POST /messages with x-api-key and anthropic-version headers.
+ * Provides LLM inference via Anthropic Messages API.
+ * Used for L3 SLA level as an alternative to OpenAI.
  *
  * @since 0.4.0
  */
 
 import type { LLMProvider, LLMOptions, LLMResponse } from '../types.js';
 
-/** Default Anthropic API base URL */
-const DEFAULT_BASE_URL = 'https://api.anthropic.com/v1';
-
-/** Default request timeout in milliseconds */
-const DEFAULT_TIMEOUT_MS = 60_000;
-
-/** Default Anthropic API version */
-const ANTHROPIC_VERSION = '2023-06-01';
-
 /**
- * Anthropic LLM provider using the Messages API.
+ * Anthropic provider for remote LLM inference using Claude models.
  *
- * Requires a valid API key. Uses x-api-key header authentication.
+ * Requires an API key. Supports Claude 3.5 and newer models.
+ *
+ * @example
+ * ```ts
+ * const provider = new AnthropicProvider(process.env.ANTHROPIC_API_KEY, 'claude-3-5-haiku-20241022');
+ * if (await provider.isAvailable()) {
+ *   const response = await provider.complete('Review this code:', { maxTokens: 1000 });
+ * }
+ * ```
  */
 export class AnthropicLLMProvider implements LLMProvider {
   readonly name = 'anthropic';
 
   constructor(
     private apiKey: string,
-    private model: string = 'claude-sonnet-4-20250514',
-    private baseUrl: string = DEFAULT_BASE_URL,
-    private timeoutMs: number = DEFAULT_TIMEOUT_MS,
+    private model: string = 'claude-3-5-haiku-20241022',
+    private baseUrl: string = 'https://api.anthropic.com/v1',
   ) {}
 
   /**
-   * Send a prompt to Anthropic Messages API and get a response.
+   * Send a completion request to Anthropic Messages API.
    */
   async complete(prompt: string, options?: LLMOptions): Promise<LLMResponse> {
     const url = `${this.baseUrl}/messages`;
-    const start = Date.now();
+    const startTime = Date.now();
 
     const body: Record<string, unknown> = {
       model: this.model,
       max_tokens: options?.maxTokens ?? 4096,
       messages: [{ role: 'user', content: prompt }],
-      ...(options?.system && { system: options.system }),
-      ...(options?.temperature !== undefined && { temperature: options.temperature }),
     };
+
+    if (options?.system) {
+      body.system = options.system;
+    }
 
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': this.apiKey,
-        'anthropic-version': ANTHROPIC_VERSION,
+        'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(this.timeoutMs),
+      signal: AbortSignal.timeout(60_000),
     });
 
     if (!response.ok) {
@@ -67,31 +65,28 @@ export class AnthropicLLMProvider implements LLMProvider {
     }
 
     const data = (await response.json()) as {
-      content: Array<{ type: string; text: string }>;
+      content: Array<{ type: string; text?: string }>;
       usage?: {
         input_tokens: number;
         output_tokens: number;
       };
     };
 
-    const latencyMs = Date.now() - start;
+    const latencyMs = Date.now() - startTime;
 
     // Extract text from content blocks
     const content = data.content
       .filter(block => block.type === 'text')
-      .map(block => block.text)
+      .map(block => block.text ?? '')
       .join('');
-
-    const inputTokens = data.usage?.input_tokens ?? 0;
-    const outputTokens = data.usage?.output_tokens ?? 0;
 
     return {
       content,
       usage: data.usage
         ? {
-            prompt: inputTokens,
-            completion: outputTokens,
-            total: inputTokens + outputTokens,
+            prompt: data.usage.input_tokens,
+            completion: data.usage.output_tokens,
+            total: data.usage.input_tokens + data.usage.output_tokens,
           }
         : undefined,
       latencyMs,
@@ -99,33 +94,9 @@ export class AnthropicLLMProvider implements LLMProvider {
   }
 
   /**
-   * Check if the Anthropic API is reachable and the key is valid.
-   *
-   * Sends a minimal message to verify authentication.
+   * Check if the provider is available (has API key configured).
    */
   async isAvailable(): Promise<boolean> {
-    try {
-      const url = `${this.baseUrl}/messages`;
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': this.apiKey,
-          'anthropic-version': ANTHROPIC_VERSION,
-        },
-        body: JSON.stringify({
-          model: this.model,
-          max_tokens: 1,
-          messages: [{ role: 'user', content: 'ping' }],
-        }),
-        signal: AbortSignal.timeout(10_000),
-      });
-
-      // 200 = success, 401/403 = bad key
-      return response.ok;
-    } catch {
-      return false;
-    }
+    return !!this.apiKey && this.apiKey.length > 0;
   }
 }
