@@ -1,7 +1,7 @@
 # 竞品深度分析报告
 
 > **调研日期**: 2026-03-10
-> **调研人**: AI Code Validator 团队
+> **调研人**: Open Code Review 团队
 > **版本**: v1.0
 > **数据来源**: 各工具官网、定价页面、文档、第三方评测文章
 
@@ -486,7 +486,7 @@
 | Sourcery | ✅ PR comment | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | Qlty (CodeClimate) | ✅ PR comment | ✅ 趋势图 | ❌ | ✅ Rust CLI | ❌ | ❌ | ❌ | ✅ Badge |
 
-### 报告格式建议（ai-code-validator v0.3）
+### 报告格式建议（open-code-review v0.3）
 
 我们应支持的输出格式优先级：
 
@@ -572,7 +572,7 @@
 └─────────────────────────────────────────┘
 ```
 
-### ai-code-validator 差异化定位建议
+### open-code-review 差异化定位建议
 
 #### 1. AI 代码特有缺陷检测（核心差异化 — 无竞品）
 
@@ -697,7 +697,7 @@ P2 (Nice to Have):
 
 ### 我们的定位
 
-**ai-code-validator = "AI 代码的 SonarQube" + 本地 AI 能力**
+**open-code-review = "AI 代码的 SonarQube" + 本地 AI 能力**
 
 核心差异化三角：
 1. 🎯 **AI 代码专属**：不做通用 lint，专注 AI 生成代码的特有问题

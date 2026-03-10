@@ -1,5 +1,5 @@
 /**
- * AI Code Validator V3 — Unified Type Definitions
+ * Open Code Review V3 — Unified Type Definitions
  *
  * Core types shared across all modules: detectors, scoring engine,
  * SLA framework, config system, and language adapters.

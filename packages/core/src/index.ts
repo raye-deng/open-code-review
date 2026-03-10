@@ -1,5 +1,5 @@
 /**
- * @ai-code-validator/core
+ * @open-code-review/core
  *
  * Core detection engine for AI-generated code quality validation.
  *
@@ -20,7 +20,7 @@
  *   type Detector,
  *   type FileAnalysis,
  *   AIDefectCategory,
- * } from '@ai-code-validator/core';
+ * } from '@open-code-review/core';
  *
  * // Register language adapter
  * const registry = LanguageRegistry.getInstance();
@@ -76,6 +76,7 @@ export type {
 
 export { LanguageRegistry } from './languages/index.js';
 export { TypeScriptAdapter } from './languages/index.js';
+export { KotlinAdapter, KOTLIN_STDLIB_PACKAGES, KOTLIN_COMMON_PACKAGES } from './languages/index.js';
 export type {
   LanguageAdapter,
   ASTNode,
@@ -109,10 +110,15 @@ export type { ContextBreakIssue, ContextBreakResult } from './detectors/context-
 export { ScoringEngine } from './scorer/scoring-engine.js';
 export type { FileScore, AggregateScore, DimensionScore } from './scorer/scoring-engine.js';
 
-// ─── Report ───
+// ─── Report (legacy) ───
 
 export { ReportGenerator } from './scorer/report.js';
 export type { ReportFormat } from './scorer/report.js';
+
+// ─── Reporter (V3) ───
+
+export { generateReport, generateHTML, generateSARIF, generateMarkdown, generateTerminal } from './reporter/index.js';
+export type { ReportFormat as ReportFormatV3, ReportOptions, ReportData } from './reporter/index.js';
 
 // ─── AI Analysis (Tier 3) ───
 

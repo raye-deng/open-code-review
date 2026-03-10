@@ -30,16 +30,16 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Test core
-        run: pnpm --filter @ai-code-validator/core test
+        run: pnpm --filter @open-code-review/core test
 
       - name: Build core
-        run: pnpm --filter @ai-code-validator/core build
+        run: pnpm --filter @open-code-review/core build
 
       - name: Build CLI
-        run: pnpm --filter ai-code-validator build
+        run: pnpm --filter open-code-review build
 
       - name: Build GitHub Action
-        run: pnpm --filter @ai-code-validator/github-action build
+        run: pnpm --filter @open-code-review/github-action build
 
       - name: Verify CLI works
         run: node packages/cli/dist/index.js scan packages/core/src --threshold 60
@@ -64,9 +64,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build core (needed by action)
-        run: pnpm --filter @ai-code-validator/core build
+        run: pnpm --filter @open-code-review/core build
 
-      - name: AI Code Validator (dogfood)
+      - name: Open Code Review (dogfood)
         uses: ./
         with:
           threshold: '60'
@@ -85,6 +85,6 @@ jobs:
 
       - name: Sync to GitLab
         run: |
-          git remote add gitlab https://fengsen.deng:${{ secrets.GITLAB_TOKEN }}@INTERNAL_REGISTRY/fengsen.deng/ai-code-validator.git || true
+          git remote add gitlab https://fengsen.deng:${{ secrets.GITLAB_TOKEN }}@INTERNAL_REGISTRY/fengsen.deng/open-code-review.git || true
           git push gitlab main --force
         continue-on-error: true

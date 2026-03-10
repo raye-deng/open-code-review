@@ -1,5 +1,5 @@
 {
-  "name": "@ai-code-validator/core",
+  "name": "@open-code-review/core",
   "version": "0.2.0",
   "description": "Core detection engine for AI-generated code validation",
   "main": "./dist/index.js",

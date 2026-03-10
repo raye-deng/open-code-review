@@ -1,6 +1,6 @@
-name: 'AI Code Validator'
+name: 'Open Code Review'
 description: 'Quality gate for AI-generated code - detect hallucinations, logic gaps, and architectural inconsistencies'
-author: 'ai-code-validator'
+author: 'open-code-review'
 
 branding:
   icon: 'shield'

@@ -14,10 +14,10 @@ All notable changes to this project will be documented in this file.
 - **Scoring engine** with 0–100 scale and letter grades (A–F)
 - **AI Healer** — suggests fixes for detected issues
 - **Report generator** — JSON and Markdown output formats
-- **CLI tool** (`ai-code-validator`) published to npm
+- **CLI tool** (`open-code-review`) published to npm
   - `scan` command with glob pattern support
   - Configurable threshold, output format, and fail behavior
-- **GitHub Action** (`raye-deng/ai-code-validator@v1`)
+- **GitHub Action** (`raye-deng/open-code-review@v1`)
   - Automatic PR comments with validation report
   - Configurable threshold and file paths
   - Quality gate — fails workflow on low scores

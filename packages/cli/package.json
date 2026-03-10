@@ -1,10 +1,11 @@
 {
-  "name": "ai-code-validator",
+  "name": "@open-code-review/cli",
   "version": "0.2.0",
   "description": "CLI tool for validating AI-generated code quality",
   "type": "module",
   "bin": {
-    "ai-code-validator": "./dist/index.js"
+    "open-code-review": "./dist/index.js",
+    "ocr": "./dist/index.js"
   },
   "main": "./dist/index.js",
   "files": ["dist"],
@@ -23,7 +24,7 @@
   "author": "Raye Deng <fengsen.deng@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "@ai-code-validator/core": "workspace:*",
+    "@open-code-review/core": "workspace:*",
     "glob": "^10.3.0"
   },
   "devDependencies": {

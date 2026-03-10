@@ -1,7 +1,7 @@
 # AI 生成代码缺陷分类体系
 
 > **版本**: v1.0 | **更新日期**: 2026-03-10
-> **目的**: 为 AI Code Validator 产品提供系统化的缺陷检测分类依据，并收集社区推广素材
+> **目的**: 为 Open Code Review 产品提供系统化的缺陷检测分类依据，并收集社区推广素材
 
 ---
 
@@ -736,7 +736,7 @@ AI 生成代码缺陷
 
 | 分类 | 社区讨论热度 | 最活跃社区 | 推广策略 |
 |------|------------|-----------|----------|
-| **幻觉包 (1.1)** | 🔥🔥🔥🔥🔥 | HN, Reddit, Security blogs | 最高推广价值 — 结合 supply chain attack 话题，展示 AI Code Validator 如何自动验证包名 |
+| **幻觉包 (1.1)** | 🔥🔥🔥🔥🔥 | HN, Reddit, Security blogs | 最高推广价值 — 结合 supply chain attack 话题，展示 Open Code Review 如何自动验证包名 |
 | **安全反模式 (4.x)** | 🔥🔥🔥🔥🔥 | HN, Security forums, GitHub | 极高价值 — 45% 安全漏洞率是强有力的营销数据点 |
 | **代码质量/churn (9.x)** | 🔥🔥🔥🔥 | HN, r/programming, Engineering blogs | 高价值 — GitClear 数据是被广泛引用的行业基准 |
 | **不完整实现 (5.x)** | 🔥🔥🔥🔥 | Reddit, HN (vibe coding) | 高价值 — "vibe coding" 话题正在爆发 |
@@ -754,7 +754,7 @@ AI 生成代码缺陷
 **目标**: HN, r/netsec, Security conferences
 **核心数据**: "205,474 个幻觉包名可被恶意利用 (USENIX 2025)"
 **推广方式**: 
-- 在 HN 上评论相关 AI 安全文章，提到 AI Code Validator 的包验证功能
+- 在 HN 上评论相关 AI 安全文章，提到 Open Code Review 的包验证功能
 - 在 GitHub 相关 issues 中提供解决方案链接
 - 在 security-focused subreddits 发布工具介绍
 
@@ -778,15 +778,15 @@ AI 生成代码缺陷
 
 | 优先级 | 链接 | 评论切入角度 |
 |--------|------|------------|
-| ⭐⭐⭐ | [HN: 45% AI code has security vulnerabilities](https://news.ycombinator.com/item?id=47282247) | "我们正在开发 AI Code Validator，专门检测这些问题" |
+| ⭐⭐⭐ | [HN: 45% AI code has security vulnerabilities](https://news.ycombinator.com/item?id=47282247) | "我们正在开发 Open Code Review，专门检测这些问题" |
 | ⭐⭐⭐ | [HN: AI Copilot Code Quality](https://news.ycombinator.com/item?id=43075703) | "GitClear 的数据验证了我们的方向 — 需要自动化 AI 代码质量检查" |
 | ⭐⭐⭐ | [r/ClaudeAI 模型降级讨论](https://www.reddit.com/r/ClaudeAI/comments/1nhvyu0/) | "不管用哪个 AI 工具，代码质量 gate 都是必须的" |
-| ⭐⭐ | [HN: Kintsugi](https://news.ycombinator.com/item?id=47006289) | "互补工具 — Kintsugi 做手动审查，AI Code Validator 做自动化 CI gate" |
+| ⭐⭐ | [HN: Kintsugi](https://news.ycombinator.com/item?id=47006289) | "互补工具 — Kintsugi 做手动审查，Open Code Review 做自动化 CI gate" |
 | ⭐⭐ | [HN: Doculearn vibe coding](https://news.ycombinator.com/item?id=46400512) | "理解代码很重要，但更重要的是在合入前就自动检测问题" |
 
 ---
 
-## 五、AI Code Validator 检测规则映射
+## 五、Open Code Review 检测规则映射
 
 ### 可立即实现的自动化检测（MVP 优先级）
 
@@ -807,4 +807,4 @@ AI 生成代码缺陷
 
 ---
 
-> **后续计划**: 基于此分类体系，开发 AI Code Validator 的检测规则集，并持续更新社区链接数据库用于推广。
+> **后续计划**: 基于此分类体系，开发 Open Code Review 的检测规则集，并持续更新社区链接数据库用于推广。

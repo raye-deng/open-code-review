@@ -1,18 +1,18 @@
-# AI Code Validator — Launch Plan
+# Open Code Review — Launch Plan
 
 ## 1. Show HN Post
 
-**Title:** Show HN: AI Code Validator – CI/CD quality gate for AI-generated code
+**Title:** Show HN: Open Code Review – CI/CD quality gate for AI-generated code
 
 **Body:**
 
 Hi HN,
 
-I built AI Code Validator, an open-source CI/CD quality gate specifically designed for AI-generated code.
+I built Open Code Review, an open-source CI/CD quality gate specifically designed for AI-generated code.
 
 The problem: AI coding assistants (Copilot, Cursor, Claude) generate code that *looks* correct but often contains subtle issues — hallucinated package imports, empty catch blocks, duplicated logic, and inconsistent naming conventions. Code review catches some of this, but it's tedious and error-prone at scale.
 
-AI Code Validator runs as part of your CI pipeline (GitHub Actions, GitLab CI, or CLI) and automatically detects:
+Open Code Review runs as part of your CI pipeline (GitHub Actions, GitLab CI, or CLI) and automatically detects:
 
 - **Hallucinated imports** — packages and APIs that don't actually exist
 - **Logic gaps** — empty catch blocks, TODO markers, unreachable code
@@ -22,14 +22,14 @@ AI Code Validator runs as part of your CI pipeline (GitHub Actions, GitLab CI, o
 Each file gets a score (0–100) with a letter grade. You set a threshold, and the pipeline fails if code doesn't meet it.
 
 Available as:
-- `npm install -g ai-code-validator` (CLI)
-- GitHub Action: `uses: raye-deng/ai-code-validator@v1`
+- `npm install -g open-code-review` (CLI)
+- GitHub Action: `uses: raye-deng/open-code-review@v1`
 - GitLab CI Component
 - Telegram bot for quick scans
 
 We dogfood it on our own repo — every push runs through the validator.
 
-GitHub: https://github.com/raye-deng/ai-code-validator
+GitHub: https://github.com/raye-deng/open-code-review
 Website: https://codes.evallab.ai
 
 Would love feedback from anyone dealing with AI-generated code in production.
@@ -44,7 +44,7 @@ Would love feedback from anyone dealing with AI-generated code in production.
 
 After months of reviewing AI-generated PRs and catching the same patterns — hallucinated npm packages, empty catch blocks everywhere, copy-paste duplication — I built a tool to automate it.
 
-**AI Code Validator** plugs into your CI/CD pipeline and catches the stuff AI assistants get wrong:
+**Open Code Review** plugs into your CI/CD pipeline and catches the stuff AI assistants get wrong:
 
 - Imports for packages that don't exist
 - Error handling that swallows everything silently
@@ -53,7 +53,7 @@ After months of reviewing AI-generated PRs and catching the same patterns — ha
 
 Works as a CLI, GitHub Action, GitLab CI component, or Telegram bot.
 
-It's open source: https://github.com/raye-deng/ai-code-validator
+It's open source: https://github.com/raye-deng/open-code-review
 
 Curious — what patterns do you see most often in AI-generated code that tooling should catch?
 
@@ -64,7 +64,7 @@ Curious — what patterns do you see most often in AI-generated code that toolin
 **Tweet 1:**
 AI coding assistants write code that looks perfect but isn't.
 
-I built AI Code Validator — an open-source CI/CD quality gate that catches what AI gets wrong.
+I built Open Code Review — an open-source CI/CD quality gate that catches what AI gets wrong.
 
 🧵 Here's what it detects and why you need it:
 
@@ -73,7 +73,7 @@ I built AI Code Validator — an open-source CI/CD quality gate that catches wha
 
 AI models confidently import packages that don't exist. "react-native-vector-icons/Ionicons", "openai-edge", made-up sub-paths.
 
-AI Code Validator flags these before they hit production.
+Open Code Review flags these before they hit production.
 
 **Tweet 3:**
 🧩 Logic gaps
@@ -91,12 +91,12 @@ The validator catches both automatically.
 
 **Tweet 5:**
 Ships as:
-• CLI: npm i -g ai-code-validator
+• CLI: npm i -g open-code-review
 • GitHub Action
 • GitLab CI Component
 • Telegram bot
 
-Open source → github.com/raye-deng/ai-code-validator
+Open source → github.com/raye-deng/open-code-review
 Website → codes.evallab.ai
 
 Star it, try it, break it. PRs welcome. 🚀
@@ -120,7 +120,7 @@ Star it, try it, break it. PRs welcome. 🚀
    - Copy-paste duplication
    - Style inconsistencies from context switching
 
-3. **Introducing AI Code Validator** (300 words)
+3. **Introducing Open Code Review** (300 words)
    - What it is and how it works
    - 4 detector categories
    - Scoring system (0-100, letter grades)
@@ -157,7 +157,7 @@ Star it, try it, break it. PRs welcome. 🚀
 
 **Description:**
 
-AI Code Validator catches what AI coding assistants get wrong — hallucinated imports, empty error handling, duplicated blocks, and style inconsistencies.
+Open Code Review catches what AI coding assistants get wrong — hallucinated imports, empty error handling, duplicated blocks, and style inconsistencies.
 
 Drop it into your CI/CD pipeline (GitHub Actions, GitLab CI, or CLI) and get a quality score on every push. Set a threshold, and bad AI code doesn't ship.
 

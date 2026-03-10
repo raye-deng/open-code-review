@@ -14,7 +14,7 @@
  *   OpenAIProvider,
  *   AnthropicProvider,
  *   buildAnalysisPrompt,
- * } from '@ai-code-validator/core';
+ * } from '@open-code-review/core';
  *
  * // Create orchestrator with config
  * const orchestrator = new AIOrchestrator({

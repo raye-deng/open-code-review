@@ -95,7 +95,7 @@ export class PromptBuilder {
     }
 
     const header = [
-      '# AI Code Validator — Fix Request',
+      '# Open Code Review — Fix Request',
       '',
       `Overall Score: ${report.overallScore}/100`,
       `Files needing fixes: ${prompts.length}`,

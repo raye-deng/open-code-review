@@ -2,10 +2,10 @@
 
 ## System Overview
 
-AI Code Validator is a monorepo containing:
+Open Code Review is a monorepo containing:
 
 ```
-ai-code-validator/
+open-code-review/
 ├── packages/
 │   ├── core/              # Detection engine (pure TypeScript, no side effects)
 │   ├── cli/               # CLI wrapper around core
@@ -15,7 +15,7 @@ ai-code-validator/
     └── web/               # Marketing website (Next.js)
 ```
 
-## Core Engine (`@ai-code-validator/core`)
+## Core Engine (`@open-code-review/core`)
 
 The core package is the heart of the system. It's a pure TypeScript library with no platform-specific dependencies.
 

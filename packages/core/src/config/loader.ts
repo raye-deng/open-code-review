@@ -20,7 +20,7 @@ import { mergeWithDefaults } from './defaults.js';
 
 // ─── Config File Discovery ─────────────────────────────────────────
 
-const CONFIG_FILENAMES = ['.aicv.yml', '.aicv.yaml', 'aicv.yml', 'aicv.yaml'];
+const CONFIG_FILENAMES = ['.ocrrc.yml', '.ocrrc.yaml', '.aicv.yml', '.aicv.yaml', 'aicv.yml', 'aicv.yaml'];
 
 /**
  * Search for a config file starting from `startDir` up to the filesystem root.

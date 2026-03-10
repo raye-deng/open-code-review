@@ -1,5 +1,5 @@
 /**
- * AI Code Validator — Detector Registry
+ * Open Code Review — Detector Registry
  *
  * All detectors are registered here and exposed for the scoring engine.
  *

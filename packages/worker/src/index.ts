@@ -1,5 +1,5 @@
 /**
- * AI Code Validator — Telegram Bot (Cloudflare Worker)
+ * Open Code Review — Telegram Bot (Cloudflare Worker)
  *
  * Webhook handler for Telegram bot that scans public GitHub repos
  * for AI-generated code quality issues.
@@ -349,7 +349,7 @@ async function fetchRepoFiles(
   // Fetch the tree recursively
   const treeRes = await fetch(
     `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`,
-    { headers: { 'User-Agent': 'ai-code-validator-bot', Accept: 'application/vnd.github.v3+json' } }
+    { headers: { 'User-Agent': 'open-code-review-bot', Accept: 'application/vnd.github.v3+json' } }
   );
 
   if (!treeRes.ok) {
@@ -384,7 +384,7 @@ async function fetchRepoFiles(
     const results = await Promise.allSettled(
       batch.map(async (item) => {
         const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/HEAD/${item.path}`;
-        const res = await fetch(rawUrl, { headers: { 'User-Agent': 'ai-code-validator-bot' } });
+        const res = await fetch(rawUrl, { headers: { 'User-Agent': 'open-code-review-bot' } });
         if (res.ok) {
           files.set(item.path, await res.text());
         }
@@ -438,7 +438,7 @@ function formatResult(owner: string, repo: string, result: ScanResult): string {
     F: '💀',
   };
 
-  let msg = `${emoji} <b>AI Code Validator Report</b>\n`;
+  let msg = `${emoji} <b>Open Code Review Report</b>\n`;
   msg += `📦 <code>${owner}/${repo}</code>\n\n`;
   msg += `${gradeEmoji[result.grade] || ''} Score: <b>${result.score}/100</b> (Grade: ${result.grade})\n`;
   msg += `📄 Files scanned: ${result.files}\n`;
@@ -547,7 +547,7 @@ async function handleScan(
 async function handleStart(token: string, chatId: number, firstName?: string): Promise<void> {
   const name = firstName ? ` ${firstName}` : '';
   const msg =
-    `👋 Hi${name}! I'm the <b>AI Code Validator</b> bot.\n\n` +
+    `👋 Hi${name}! I'm the <b>Open Code Review</b> bot.\n\n` +
     `I scan public GitHub repositories for common AI-generated code issues:\n` +
     `🔍 Hallucinated packages/APIs\n` +
     `🧩 Logic gaps (empty catch, TODOs)\n` +
@@ -640,6 +640,6 @@ export default {
       });
     }
 
-    return new Response('AI Code Validator Telegram Bot', { status: 200 });
+    return new Response('Open Code Review Telegram Bot', { status: 200 });
   },
 };

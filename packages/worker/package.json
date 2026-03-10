@@ -1,5 +1,5 @@
 {
-  "name": "@ai-code-validator/worker",
+  "name": "@open-code-review/worker",
   "version": "0.1.0",
   "private": true,
   "scripts": {

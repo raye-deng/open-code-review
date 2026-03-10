@@ -2,7 +2,7 @@
  * SLA Type Definitions
  *
  * Defines SLA levels, metrics, and target thresholds for
- * AI Code Validator scanning performance.
+ * Open Code Review scanning performance.
  */
 
 // ─── SLA Level ─────────────────────────────────────────────────────

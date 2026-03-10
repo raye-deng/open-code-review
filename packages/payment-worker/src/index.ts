@@ -1,5 +1,5 @@
 /**
- * AI Code Validator — Payment + Waitlist Worker (Cloudflare Worker)
+ * Open Code Review — Payment + Waitlist Worker (Cloudflare Worker)
  *
  * Endpoints:
  *   GET  /api/health              — Health check
@@ -29,12 +29,12 @@ const PLANS: Record<string, { name: string; price: string; description: string }
   early_access: {
     name: 'Early Access',
     price: '9.50',
-    description: 'AI Code Validator Early Access (50% off forever)',
+    description: 'Open Code Review Early Access (50% off forever)',
   },
   pro: {
     name: 'Pro',
     price: '19.00',
-    description: 'AI Code Validator Pro Plan',
+    description: 'Open Code Review Pro Plan',
   },
 };
 
@@ -127,7 +127,7 @@ async function handleCreate(request: Request, env: Env): Promise<Response> {
         intent: 'CAPTURE',
         purchase_units: [{ amount: { currency_code: 'USD', value: planDef.price }, description: planDef.description }],
         application_context: {
-          brand_name: 'AI Code Validator',
+          brand_name: 'Open Code Review',
           landing_page: 'NO_PREFERENCE',
           user_action: 'PAY_NOW',
           return_url: `${env.PUBLIC_URL}/early-access/?status=success`,
@@ -231,16 +231,16 @@ async function sendWaitlistWelcomeEmail(env: Env, data: { name: string; email: s
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'AI Code Validator <report@geo-boost.makesall.cn>',
+        from: 'Open Code Review <report@geo-boost.makesall.cn>',
         to: [data.email],
-        subject: "You're on the AI Code Validator waitlist 🛡️",
+        subject: "You're on the Open Code Review waitlist 🛡️",
         html: `
           <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
             <div style="text-align: center; margin-bottom: 32px;">
               <span style="font-size: 48px;">🛡️</span>
               <h1 style="font-size: 24px; font-weight: bold; margin-top: 16px;">You're on the list, ${data.name}!</h1>
             </div>
-            <p style="color: #374151; line-height: 1.6;">Thanks for joining the AI Code Validator waitlist. We're building the first CI/CD quality gate specifically for AI-generated code.</p>
+            <p style="color: #374151; line-height: 1.6;">Thanks for joining the Open Code Review waitlist. We're building the first CI/CD quality gate specifically for AI-generated code.</p>
             <p style="color: #374151; line-height: 1.6;">We'll notify you when we launch — and as an early waitlist member, you'll get first access plus our best pricing.</p>
             <div style="background: #f3f4f6; border-radius: 12px; padding: 20px; margin: 24px 0;">
               <p style="font-weight: 600; margin-bottom: 8px;">What we're building:</p>
@@ -252,8 +252,8 @@ async function sendWaitlistWelcomeEmail(env: Env, data: { name: string; email: s
               </ul>
             </div>
             <p style="color: #374151;">In the meantime, you can try our free CLI:</p>
-            <pre style="background: #1f2937; color: #a3e635; padding: 16px; border-radius: 8px; font-size: 14px;">npx ai-code-validator scan ./src</pre>
-            <p style="color: #6b7280; font-size: 14px; margin-top: 32px;">— The AI Code Validator team</p>
+            <pre style="background: #1f2937; color: #a3e635; padding: 16px; border-radius: 8px; font-size: 14px;">npx open-code-review scan ./src</pre>
+            <p style="color: #6b7280; font-size: 14px; margin-top: 32px;">— The Open Code Review team</p>
           </div>
         `,
       }),
@@ -302,10 +302,10 @@ async function sendConfirmationEmail(env: Env, body: any, planDef: { name: strin
       method: 'POST',
       headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'AI Code Validator <report@geo-boost.makesall.cn>',
+        from: 'Open Code Review <report@geo-boost.makesall.cn>',
         to: [body.email],
-        subject: `Welcome to AI Code Validator ${planDef.name} 🛡️`,
-        html: `<p>Hi ${body.name}, thank you for subscribing to AI Code Validator ${planDef.name}!</p><p>Your payment of $${planDef.price}/month has been confirmed.</p>`,
+        subject: `Welcome to Open Code Review ${planDef.name} 🛡️`,
+        html: `<p>Hi ${body.name}, thank you for subscribing to Open Code Review ${planDef.name}!</p><p>Your payment of $${planDef.price}/month has been confirmed.</p>`,
       }),
     });
   } catch (err) {

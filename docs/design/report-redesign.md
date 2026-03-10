@@ -51,7 +51,7 @@
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│  🔬 AI Code Validator Report                   ☀️/🌙 Toggle   │
+│  🔬 Open Code Review Report                   ☀️/🌙 Toggle   │
 ├────────────────────────────────────────────────────────────────┤
 │                     HEADER SECTION                             │
 │  ┌──────────┐  ┌─────────────────────────────────────────┐    │
@@ -109,8 +109,8 @@
 │  3  Empty catch block   format.ts:58  Med   Small   ❌        │
 │                                                                │
 ├──────────────── FOOTER ───────────────────────────────────────┤
-│  Powered by AI Code Validator v0.5.0                           │
-│  github.com/raye-deng/ai-code-validator                        │
+│  Powered by Open Code Review v0.5.0                           │
+│  github.com/raye-deng/open-code-review                        │
 └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -515,7 +515,7 @@ function gradeColor(grade: string): (s: string) => string {
 
 // Header
 console.log(pc.bold('╔══════════════════════════════════════════════════════════════╗'));
-console.log(pc.bold('║') + '              🔬 AI Code Validator — Quality Report           ' + pc.bold('║'));
+console.log(pc.bold('║') + '              🔬 Open Code Review — Quality Report           ' + pc.bold('║'));
 console.log(pc.bold('╚══════════════════════════════════════════════════════════════╝'));
 console.log('');
 console.log(`  Overall Score: ${gradeColor(grade)(pc.bold(String(score)))} / 100`);
@@ -702,7 +702,7 @@ const vsLink = termLink(`vscode://file/${filePath}:${lineNum}`, `${filePath}:${l
 ### 5.1 New Format Template
 
 ```markdown
-## 🟢 AI Code Validator Report
+## 🟢 Open Code Review Report
 
 **Score:** 87/100 | **Grade:** A | **Status:** ✅ Passed  
 **Files:** 12 scanned, 10 passed, 2 failed | **Issues:** 7 total
@@ -770,7 +770,7 @@ const vsLink = termLink(`vscode://file/${filePath}:${lineNum}`, `${filePath}:${l
 | 3 | Empty catch block | `format.ts:58` | 🟡 Med | Small | ❌ |
 
 ---
-*Powered by [AI Code Validator](https://github.com/raye-deng/ai-code-validator) v0.5.0*
+*Powered by [Open Code Review](https://github.com/raye-deng/open-code-review) v0.5.0*
 ```
 
 ### 5.2 Folding Details Usage

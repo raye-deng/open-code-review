@@ -1,5 +1,5 @@
 {
-  "name": "@ai-code-validator/github-action",
+  "name": "@open-code-review/github-action",
   "version": "0.2.0",
   "private": true,
   "description": "GitHub Action for AI-generated code validation",
@@ -12,7 +12,7 @@
   "dependencies": {
     "@actions/core": "^1.10.0",
     "@actions/github": "^6.0.0",
-    "@ai-code-validator/core": "workspace:*",
+    "@open-code-review/core": "workspace:*",
     "glob": "^10.3.0"
   },
   "devDependencies": {

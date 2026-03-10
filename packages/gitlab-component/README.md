@@ -1,4 +1,4 @@
-# AI Code Validator — GitLab CI Component
+# Open Code Review — GitLab CI Component
 
 A GitLab CI/CD component that validates AI-generated code quality as part of your pipeline.
 
@@ -8,7 +8,7 @@ A GitLab CI/CD component that validates AI-generated code quality as part of you
 
 ```yaml
 include:
-  - component: INTERNAL_REGISTRY/fengsen.deng/ai-code-validator/validate@main
+  - component: INTERNAL_REGISTRY/fengsen.deng/open-code-review/validate@main
     inputs:
       threshold: 70
       paths: src
@@ -18,7 +18,7 @@ include:
 
 ```yaml
 include:
-  - project: 'fengsen.deng/ai-code-validator'
+  - project: 'fengsen.deng/open-code-review'
     file: '/packages/gitlab-component/templates/validate.yml'
 
 ai-code-validate:

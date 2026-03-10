@@ -1,4 +1,4 @@
-# AI Code Validator V3 升级计划
+# Open Code Review V3 升级计划
 
 > 创建: 2026-03-10
 > 状态: 规划中
@@ -212,7 +212,7 @@ enum AIDefectCategory {
 检测到 "幻觉 API 调用" 
   → 归因到 GitHub Issue: github.com/copilot/issues/123
   → 自动生成评论: "We built a tool that catches this automatically..."
-  → 带链接: https://github.com/raye-deng/ai-code-validator
+  → 带链接: https://github.com/raye-deng/open-code-review
 
 检测到 "过时 API 使用"
   → 归因到 Stack Overflow 帖子: stackoverflow.com/questions/xxx
@@ -220,7 +220,7 @@ enum AIDefectCategory {
   → 带链接
 ```
 
-这就是 **ai-social-seller 和 ai-code-validator 的联动点**。
+这就是 **ai-social-seller 和 open-code-review 的联动点**。
 
 ---
 

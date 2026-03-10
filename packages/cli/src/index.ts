@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 
 /**
- * AI Code Validator CLI — V3
+ * Open Code Review CLI — V3
  *
  * Usage:
- *   npx ai-code-validator scan ./src
- *   npx ai-code-validator scan ./src --threshold 80 --format json
- *   npx ai-code-validator scan ./src --license AICV-XXXX-XXXX-XXXX-XXXX
- *   npx ai-code-validator login
- *   npx ai-code-validator config show
- *   npx ai-code-validator config set license AICV-XXXX
+ *   npx open-code-review scan ./src
+ *   npx open-code-review scan ./src --threshold 80 --format json
+ *   npx open-code-review scan ./src --license AICV-XXXX-XXXX-XXXX-XXXX
+ *   npx open-code-review login
+ *   npx open-code-review config show
+ *   npx open-code-review config set license AICV-XXXX
  *
  * @since 0.3.0
  */
@@ -29,8 +29,8 @@ import {
   PromptBuilder,
   LicenseValidator,
   isValidLicenseFormat,
-} from '@ai-code-validator/core';
-import type { ReportFormat, FileScore } from '@ai-code-validator/core';
+} from '@open-code-review/core';
+import type { ReportFormat, FileScore } from '@open-code-review/core';
 
 // ─── CLI Argument Parsing ──────────────────────────────────────────
 
@@ -155,7 +155,7 @@ async function validateLicense(cliLicense?: string): Promise<{ key: string | nul
   if (!licenseKey) {
     return {
       key: null,
-      status: '⚠ No license key found. Run `ai-code-validator login` to get one.',
+      status: '⚠ No license key found. Run `open-code-review login` to get one.',
     };
   }
 
@@ -260,7 +260,7 @@ async function commandScan(
 async function commandLogin(): Promise<void> {
   console.log('');
   console.log('  ┌──────────────────────────────────────────┐');
-  console.log('  │   AI Code Validator — License Setup       │');
+  console.log('  │   Open Code Review — License Setup       │');
   console.log('  └──────────────────────────────────────────┘');
   console.log('');
 
@@ -317,7 +317,7 @@ async function commandLogin(): Promise<void> {
   if (!trimmedKey) {
     console.log('');
     console.log('  No key entered. You can set it later with:');
-    console.log('    ai-code-validator config set license YOUR-KEY');
+    console.log('    open-code-review config set license YOUR-KEY');
     console.log('    # or set AICV_LICENSE environment variable');
     return;
   }
@@ -340,7 +340,7 @@ async function commandLogin(): Promise<void> {
     LicenseValidator.saveLicenseKey(trimmedKey);
     console.log(`  ✓ License key saved to ~/.aicv/license`);
     console.log('');
-    console.log('  You\'re all set! Run `ai-code-validator scan .` to get started.');
+    console.log('  You\'re all set! Run `open-code-review scan .` to get started.');
   } else {
     console.error(`  ⚠ Validation warning: ${result.error ?? 'could not verify'}`);
     console.log('  Saving anyway (free product — you can use the tool without verification).');
@@ -356,7 +356,7 @@ async function commandConfig(subcommand?: string, key?: string, value?: string):
   switch (subcommand) {
     case 'show': {
       console.log('');
-      console.log('  AI Code Validator — Configuration');
+      console.log('  Open Code Review — Configuration');
       console.log('  ─────────────────────────────────');
 
       // License
@@ -369,7 +369,7 @@ async function commandConfig(subcommand?: string, key?: string, value?: string):
       }
 
       // Config file
-      const configFiles = ['.aicv.yml', '.aicv.yaml'];
+      const configFiles = ['.ocrrc.yml', '.ocrrc.yaml', '.aicv.yml', '.aicv.yaml'];
       let foundConfig = false;
       for (const cf of configFiles) {
         if (existsSync(cf)) {
@@ -411,7 +411,7 @@ async function commandConfig(subcommand?: string, key?: string, value?: string):
 
     case 'set': {
       if (!key) {
-        console.error('Usage: ai-code-validator config set <key> <value>');
+        console.error('Usage: open-code-review config set <key> <value>');
         console.error('');
         console.error('Available keys:');
         console.error('  license   Set the license key');
@@ -421,7 +421,7 @@ async function commandConfig(subcommand?: string, key?: string, value?: string):
       switch (key) {
         case 'license': {
           if (!value) {
-            console.error('Usage: ai-code-validator config set license AICV-XXXX-XXXX-XXXX-XXXX');
+            console.error('Usage: open-code-review config set license AICV-XXXX-XXXX-XXXX-XXXX');
             process.exit(1);
           }
           const trimmed = value.trim().toUpperCase();
@@ -454,10 +454,10 @@ async function commandConfig(subcommand?: string, key?: string, value?: string):
 
 function printHelp(): void {
   console.log(`
-AI Code Validator — Quality gate for AI-generated code
+Open Code Review — Quality gate for AI-generated code
 
 USAGE:
-  ai-code-validator <command> [options]
+  open-code-review <command> [options]
 
 COMMANDS:
   scan [paths...]       Scan files for AI code quality issues
@@ -477,13 +477,13 @@ CONFIG COMMANDS:
   config set license <key>  Set license key
 
 EXAMPLES:
-  ai-code-validator scan ./src
-  ai-code-validator scan "src/**/*.ts" --threshold 80
-  ai-code-validator scan ./src --license AICV-8F3A-K9D2-P7XN-Q4M6
-  ai-code-validator scan ./src --format json --output report.json
-  ai-code-validator login
-  ai-code-validator config show
-  ai-code-validator config set license AICV-8F3A-K9D2-P7XN-Q4M6
+  open-code-review scan ./src
+  open-code-review scan "src/**/*.ts" --threshold 80
+  open-code-review scan ./src --license AICV-8F3A-K9D2-P7XN-Q4M6
+  open-code-review scan ./src --format json --output report.json
+  open-code-review login
+  open-code-review config show
+  open-code-review config set license AICV-8F3A-K9D2-P7XN-Q4M6
 `);
 }
 
@@ -534,7 +534,7 @@ async function main(): Promise<void> {
 
     default:
       console.error(`Unknown command: ${parsed.command}`);
-      console.error('Run `ai-code-validator help` for usage.');
+      console.error('Run `open-code-review help` for usage.');
       process.exit(1);
   }
 }

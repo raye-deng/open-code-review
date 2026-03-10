@@ -1,4 +1,4 @@
-name: 'AI Code Validator'
+name: 'Open Code Review'
 description: 'CI/CD quality gate for AI-generated code'
 author: 'raye-deng'
 branding:

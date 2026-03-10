@@ -1,4 +1,4 @@
-# AI Code Validator V3 — Roadmap & 执行计划
+# Open Code Review V3 — Roadmap & 执行计划
 
 > 创建: 2026-03-11 | 状态: 执行中
 > 设计文档: [V3-ARCHITECTURE.md](design/V3-ARCHITECTURE.md)
@@ -44,7 +44,7 @@
 
 ### 验收标准
 - [x] `npm test` 全通过（现有 + 新增）— 136 tests passing
-- [ ] `npx ai-code-validator scan .` 对 TS/JS 文件输出新格式评分
+- [ ] `npx open-code-review scan .` 对 TS/JS 文件输出新格式评分
 - [ ] SLA 计时信息在报告中可见
 - [ ] git tag v0.3.0-alpha.1
 
@@ -69,7 +69,7 @@
 
 ### 验收标准
 - [ ] 9 个检测器对 TS/JS + Python 均有测试覆盖
-- [ ] `npx ai-code-validator scan . --lang python` 可用
+- [ ] `npx open-code-review scan . --lang python` 可用
 - [ ] git tag v0.3.0-alpha.2
 
 ---
@@ -95,7 +95,7 @@
 
 ### 验收标准
 - [ ] Portal 可访问，GitHub OAuth 登录 → 自动获取 License
-- [ ] CLI `npx ai-code-validator login` → 浏览器跳转 → License 保存到 `~/.aicv`
+- [ ] CLI `npx open-code-review login` → 浏览器跳转 → License 保存到 `~/.aicv`
 - [ ] Java/Go 文件可扫描
 - [ ] git tag v0.3.0-beta.1
 

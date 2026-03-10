@@ -9,8 +9,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/raye-deng/ai-code-validator.git
-cd ai-code-validator
+git clone https://github.com/raye-deng/open-code-review.git
+cd open-code-review
 
 # Install dependencies
 pnpm install
@@ -25,10 +25,10 @@ pnpm test
 ## Project Structure
 
 ```
-ai-code-validator/
+open-code-review/
 ├── packages/
-│   ├── core/          # npm: @ai-code-validator/core
-│   ├── cli/           # npm: ai-code-validator
+│   ├── core/          # npm: @open-code-review/core
+│   ├── cli/           # npm: open-code-review
 │   ├── github-action/ # GitHub Marketplace action
 │   └── gitlab-component/ # GitLab CI Component
 ├── apps/
@@ -122,7 +122,7 @@ pnpm test
 pnpm -r exec vitest run --coverage
 
 # Run specific test file
-pnpm --filter @ai-code-validator/core exec vitest run tests/detectors.test.ts
+pnpm --filter @open-code-review/core exec vitest run tests/detectors.test.ts
 ```
 
 ## Releasing
@@ -148,7 +148,7 @@ git push origin v1.0.0
 Push to `main` branch — the component is referenced by branch/tag:
 ```yaml
 include:
-  - component: INTERNAL_REGISTRY/fengsen.deng/ai-code-validator/validate@main
+  - component: INTERNAL_REGISTRY/fengsen.deng/open-code-review/validate@main
 ```
 
 ## Code Style

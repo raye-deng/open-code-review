@@ -1,16 +1,16 @@
-# Show HN: AI Code Validator – CI/CD quality gate for AI-generated code
+# Show HN: Open Code Review – CI/CD quality gate for AI-generated code
 
 ---
 
 ## 帖子内容
 
 **标题**:
-Show HN: AI Code Validator – CI/CD quality gate for AI-generated code
+Show HN: Open Code Review – CI/CD quality gate for AI-generated code
 
 **正文**:
 Hi HN,
 
-I built AI Code Validator — the first CI/CD quality gate specifically designed to catch AI-generated code failures that traditional linters miss.
+I built Open Code Review — the first CI/CD quality gate specifically designed to catch AI-generated code failures that traditional linters miss.
 
 ## The Problem
 
@@ -25,7 +25,7 @@ These bugs slip into production because traditional linters were designed for hu
 
 ## The Solution
 
-AI Code Validator scans your codebase and detects AI-specific anti-patterns:
+Open Code Review scans your codebase and detects AI-specific anti-patterns:
 
 | Detection | Description |
 |-----------|-------------|
@@ -45,10 +45,10 @@ It produces a **0-100 quality score** across 4 dimensions:
 ### CLI
 ```bash
 # Scan your project
-npx ai-code-validator scan ./src
+npx open-code-review scan ./src
 
 # Generate AI self-heal prompt
-npx ai-code-validator scan ./src --heal
+npx open-code-review scan ./src --heal
 ```
 
 ### GitHub Actions
@@ -57,7 +57,7 @@ jobs:
   validate:
     steps:
       - uses: actions/checkout@v4
-      - uses: raye-deng/ai-code-validator@v1
+      - uses: raye-deng/open-code-review@v1
         with:
           threshold: 70
           fail-on-low-score: true
@@ -66,15 +66,15 @@ jobs:
 ### GitLab CI Component
 ```yaml
 include:
-  - component: $CI_SERVER_FQDN/fengsen.deng/ai-code-validator/validate@main
+  - component: $CI_SERVER_FQDN/fengsen.deng/open-code-review/validate@main
 ```
 
 ## AI Self-Heal Loop
 
-The unique feature: AI Code Validator generates structured fix prompts that feed directly back to your AI assistant:
+The unique feature: Open Code Review generates structured fix prompts that feed directly back to your AI assistant:
 
 ```bash
-npx ai-code-validator scan ./src --heal
+npx open-code-review scan ./src --heal
 # → Generates ai-heal-prompt.md
 ```
 
@@ -105,8 +105,8 @@ Traditional linters missed all of these because the code was syntactically valid
 
 ## Current Status
 
-- ✅ NPM published: `ai-code-validator@v0.2.0`
-- ✅ GitHub Action: `raye-deng/ai-code-validator@v1`
+- ✅ NPM published: `open-code-review@v0.2.0`
+- ✅ GitHub Action: `raye-deng/open-code-review@v1`
 - ✅ GitLab Component: Available
 - ✅ 97/100 dogfood score on itself
 - 🚧 Early access: 50% off first 50 users ($9.50/month)
@@ -126,8 +126,8 @@ Traditional linters missed all of these because the code was syntactically valid
 
 ## Try It
 
-GitHub: https://github.com/raye-deng/ai-code-validator
-NPM: https://www.npmjs.com/package/ai-code-validator
+GitHub: https://github.com/raye-deng/open-code-review
+NPM: https://www.npmjs.com/package/open-code-review
 Website: https://codes.evallab.ai
 
 I'd love feedback from HN community! Run it on your codebase and let me know what you think.
@@ -165,7 +165,7 @@ I'd love feedback from HN community! Run it on your codebase and let me know wha
 ## 常见问题准备
 
 ### Q: 这个工具和 ESLint/Prettier 有什么区别？
-A: 传统 linters 检查代码风格和语法错误，AI Code Validator 专门检测 AI 生成的代码缺陷（如幻觉包、逻辑缺口、空 catch 块）。它们是互补的，不是替代关系。
+A: 传统 linters 检查代码风格和语法错误，Open Code Review 专门检测 AI 生成的代码缺陷（如幻觉包、逻辑缺口、空 catch 块）。它们是互补的，不是替代关系。
 
 ### Q: 支持哪些编程语言？
 A: 目前支持 JavaScript/TypeScript（Node.js）。计划支持 Python、Go、Rust。

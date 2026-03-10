@@ -27,9 +27,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build core
-        run: pnpm --filter @ai-code-validator/core build
+        run: pnpm --filter @open-code-review/core build
 
-      - name: AI Code Validator
+      - name: Open Code Review
         uses: ./
         with:
           threshold: '60'

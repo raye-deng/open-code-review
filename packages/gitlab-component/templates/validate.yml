@@ -16,8 +16,8 @@ ai-code-validate:
   stage: test
   image: $[[ inputs.node-image ]]
   script:
-    - npm install -g ai-code-validator
-    - ai-code-validator scan "$[[ inputs.paths ]]/**/*.ts" "$[[ inputs.paths ]]/**/*.js"
+    - npm install -g open-code-review
+    - open-code-review scan "$[[ inputs.paths ]]/**/*.ts" "$[[ inputs.paths ]]/**/*.js"
         --threshold $[[ inputs.threshold ]]
         --format gitlab-report
         --output ai-validator-report.json

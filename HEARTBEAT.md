@@ -1,4 +1,4 @@
-# HEARTBEAT - ai-code-validator 项目状态
+# HEARTBEAT - open-code-review 项目状态
 
 > 本文件记录项目进展、待办事项和最新状态
 > 最后更新: 2026-03-07
@@ -7,7 +7,7 @@
 
 ## 🎯 当前重点
 
-**AI Code Validator** - 首个专为AI生成代码构建的CI/CD质量门禁工具
+**Open Code Review** - 首个专为AI生成代码构建的CI/CD质量门禁工具
 
 ---
 
@@ -17,8 +17,8 @@
 - [x] 4个检测器实现（幻觉检测、逻辑缺口、重复检测、上下文中断）
 - [x] 评分引擎（0-100综合评分，4个维度）
 - [x] AI Healer（为Copilot/Cursor/Claude生成修复提示）
-- [x] CLI工具（`npx ai-code-validator scan ./src`）
-- [x] NPM发布（`@ai-code-validator/core@0.1.0` + `ai-code-validator@0.1.0`）
+- [x] CLI工具（`npx open-code-review scan ./src`）
+- [x] NPM发布（`@open-code-review/core@0.1.0` + `open-code-review@0.1.0`）
 - [x] Dogfood测试（airline-ticket-booking评分87/100）
 
 ### M2: GitHub Action
@@ -58,17 +58,17 @@
 1. **r/MachineLearning** - 侧重ML技术和代码生成
    - 标题: Built a CI/CD quality gate specifically for AI-generated code
    - 重点: 幻觉检测、逻辑缺口、AI自愈循环
-   - 位置: `~/.openclaw/workspace/ai-code-validator-reddit-posts.md`
+   - 位置: `~/.openclaw/workspace/open-code-review-reddit-posts.md`
 
 2. **r/SideProject** - 侧重组独立开发和产品发布
-   - 标题: Launched AI Code Validator — first CI/CD tool that catches AI coding assistant bugs
+   - 标题: Launched Open Code Review — first CI/CD tool that catches AI coding assistant bugs
    - 重点: 个人故事、开源、dogfood测试
-   - 位置: `~/.openclaw/workspace/ai-code-validator-reddit-posts.md`
+   - 位置: `~/.openclaw/workspace/open-code-review-reddit-posts.md`
 
 3. **r/Entrepreneur** - 侧重创业和商业模式
    - 标题: How I'm validating AI-generated code at scale
    - 重点: 商业机会、早期用户、定价策略
-   - 位置: `~/.openclaw/workspace/ai-code-validator-reddit-posts.md`
+   - 位置: `~/.openclaw/workspace/open-code-review-reddit-posts.md`
 
 **发布建议时间**:
 - r/MachineLearning: 周二至周四，09:00-11:00 AM EST
@@ -150,11 +150,11 @@
 
 ## 🔗 重要链接
 
-- **GitHub**: https://github.com/raye-deng/ai-code-validator
-- **NPM**: https://www.npmjs.com/package/ai-code-validator
+- **GitHub**: https://github.com/raye-deng/open-code-review
+- **NPM**: https://www.npmjs.com/package/open-code-review
 - **Website**: https://codes.evallab.ai
 - **Early Access**: https://codes.evallab.ai/early-access
-- **Reddit推广帖子**: `~/.openclaw/workspace/ai-code-validator-reddit-posts.md`
+- **Reddit推广帖子**: `~/.openclaw/workspace/open-code-review-reddit-posts.md`
 
 ---
 

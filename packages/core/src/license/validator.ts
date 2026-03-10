@@ -259,7 +259,7 @@ export class LicenseValidator {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': 'ai-code-validator-cli/0.3.0',
+          'User-Agent': 'open-code-review-cli/0.3.0',
         },
         body: JSON.stringify({ key }),
         signal: controller.signal,

@@ -1,10 +1,10 @@
 # New Detectors Technical Design
 
-> Version: 1.0 | Date: 2026-03-10 | Author: AI Code Validator Team
+> Version: 1.0 | Date: 2026-03-10 | Author: Open Code Review Team
 
 ## Overview
 
-Three major upgrades for `@ai-code-validator/core`:
+Three major upgrades for `@open-code-review/core`:
 1. **AST-level detection** — replacing regex/string matching with AST traversal
 2. **Five new detectors** — StaleAPI, SecurityPattern, TypeSafety, OverEngineering, DeepHallucination
 3. **AI analysis integration** — local (Ollama) and remote (GPT-4o/Claude) AI-assisted review

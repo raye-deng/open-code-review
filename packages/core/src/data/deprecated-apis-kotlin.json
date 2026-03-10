@@ -1,0 +1,98 @@
+[
+  {
+    "api": "kotlin.coroutines.experimental",
+    "pattern": "kotlin\\.coroutines\\.experimental",
+    "replacement": "kotlinx.coroutines (stable coroutines API)",
+    "deprecated_since": "Kotlin 1.3",
+    "severity": "high",
+    "reason": "kotlin.coroutines.experimental was the preview coroutines API; use kotlinx.coroutines stable API instead"
+  },
+  {
+    "api": "@JvmDefault annotation",
+    "pattern": "@JvmDefault\\b",
+    "replacement": "Compile with -Xjvm-default=all or -Xjvm-default=all-compatibility",
+    "deprecated_since": "Kotlin 1.6",
+    "severity": "medium",
+    "reason": "@JvmDefault is deprecated; use compiler flag -Xjvm-default=all for default method generation"
+  },
+  {
+    "api": "kotlin.reflect.jvm.internal",
+    "pattern": "kotlin\\.reflect\\.jvm\\.internal",
+    "replacement": "Use public kotlin.reflect API",
+    "deprecated_since": "Internal API",
+    "severity": "high",
+    "reason": "kotlin.reflect.jvm.internal is an internal API not meant for public use; use kotlin.reflect public API"
+  },
+  {
+    "api": "newSingleThreadContext",
+    "pattern": "\\bnewSingleThreadContext\\b",
+    "replacement": "Dispatchers.Default or limitedParallelism(1)",
+    "deprecated_since": "kotlinx.coroutines 1.6",
+    "severity": "medium",
+    "reason": "newSingleThreadContext creates a dedicated thread; prefer Dispatchers.Default.limitedParallelism(1)"
+  },
+  {
+    "api": "java.util.Vector (Kotlin)",
+    "pattern": "\\bVector\\b\\s*<|\\bVector\\b\\s*\\(",
+    "replacement": "MutableList (ArrayList) or CopyOnWriteArrayList",
+    "deprecated_since": "Java legacy",
+    "severity": "medium",
+    "reason": "Vector is a legacy Java synchronized collection; in Kotlin use mutableListOf() or ArrayList"
+  },
+  {
+    "api": "java.util.Hashtable (Kotlin)",
+    "pattern": "\\bHashtable\\b\\s*<|\\bHashtable\\b\\s*\\(",
+    "replacement": "MutableMap (HashMap) or ConcurrentHashMap",
+    "deprecated_since": "Java legacy",
+    "severity": "medium",
+    "reason": "Hashtable is a legacy Java synchronized map; in Kotlin use mutableMapOf() or HashMap"
+  },
+  {
+    "api": "java.util.Stack (Kotlin)",
+    "pattern": "\\bStack\\b\\s*<|\\bStack\\b\\s*\\(",
+    "replacement": "ArrayDeque",
+    "deprecated_since": "Java legacy",
+    "severity": "medium",
+    "reason": "Stack extends Vector and is legacy; in Kotlin use ArrayDeque for stack operations"
+  },
+  {
+    "api": "kotlin.js.internal",
+    "pattern": "kotlin\\.js\\.internal",
+    "replacement": "Use public Kotlin/JS API",
+    "deprecated_since": "Internal API",
+    "severity": "high",
+    "reason": "kotlin.js.internal is an internal API; use official Kotlin/JS interop APIs"
+  },
+  {
+    "api": "ObservableProperty.afterChange",
+    "pattern": "\\.afterChange\\b",
+    "replacement": "Use Delegates.observable with custom setter logic",
+    "deprecated_since": "Kotlin 1.1",
+    "severity": "low",
+    "reason": "afterChange callback pattern is discouraged; use Delegates.observable for clearer property delegation"
+  },
+  {
+    "api": "StringBuffer (Kotlin)",
+    "pattern": "\\bStringBuffer\\b",
+    "replacement": "StringBuilder or buildString { }",
+    "deprecated_since": "Best practice",
+    "severity": "low",
+    "reason": "StringBuffer is synchronized and slower; use StringBuilder or Kotlin's buildString { } for string building"
+  },
+  {
+    "api": "kotlinx.coroutines.ObsoleteCoroutinesApi",
+    "pattern": "@ObsoleteCoroutinesApi|\\bactor\\b\\s*\\{|\\bproduce\\b\\s*\\{",
+    "replacement": "Use Channels or Flow API",
+    "deprecated_since": "kotlinx.coroutines 1.5",
+    "severity": "medium",
+    "reason": "Actor and produce builders are marked @ObsoleteCoroutinesApi; prefer Channel or Flow-based patterns"
+  },
+  {
+    "api": "Thread.stop() in Kotlin",
+    "pattern": "\\.stop\\(\\)",
+    "replacement": "Cooperative cancellation via coroutines or Thread.interrupt()",
+    "deprecated_since": "Java 1.2",
+    "severity": "critical",
+    "reason": "Thread.stop() is inherently unsafe; use cooperative cancellation patterns"
+  }
+]

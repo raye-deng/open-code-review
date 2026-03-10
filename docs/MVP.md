@@ -1,8 +1,8 @@
-# AI Code Validator — MVP Roadmap
+# Open Code Review — MVP Roadmap
 
 ## Vision
 
-**AI Code Validator** is the first CI/CD quality gate built specifically for AI-generated code. As AI coding assistants (Copilot, Cursor, Claude) become the primary code authoring tool, we need purpose-built validation that understands AI-specific failure modes.
+**Open Code Review** is the first CI/CD quality gate built specifically for AI-generated code. As AI coding assistants (Copilot, Cursor, Claude) become the primary code authoring tool, we need purpose-built validation that understands AI-specific failure modes.
 
 ## MVP Phases
 
@@ -19,9 +19,9 @@
 - [x] **Scoring engine**: 0-100 composite score, 4 dimensions (2026-03-04)
 - [x] **AI Healer**: Prompt builder for Copilot/Cursor/Claude (2026-03-04)
 - [x] **Tests**: 13 unit tests passing (2026-03-04)
-- [x] **CLI tool**: `npx ai-code-validator scan ./src` ✅ 可用
+- [x] **CLI tool**: `npx open-code-review scan ./src` ✅ 可用
 - [x] **CLI build**: pnpm build + 可执行文件打包 ✅
-- [x] **npm 发布**: `@ai-code-validator/core@0.1.0` + `ai-code-validator@0.1.0` ✅
+- [x] **npm 发布**: `@open-code-review/core@0.1.0` + `open-code-review@0.1.0` ✅
 - [x] **Output formats**: JSON / terminal / markdown ✅
 - [x] **Dogfood**: airline-ticket-booking 评分 87/100（Grade B）✅
 
@@ -43,7 +43,7 @@
 - [ ] **Published to GitHub Marketplace**
 - [ ] **PR comments**: Auto-post validation report on pull requests ← 代码已实现，待真实测试
 - [ ] **Quality Gate**: Score <70 blocks merge ← 代码已实现，待真实测试
-- [ ] **Dogfood**: 在 `ai-code-validator` 自身 GitHub repo 接入验证
+- [ ] **Dogfood**: 在 `open-code-review` 自身 GitHub repo 接入验证
 
 **Success Criteria**:
 - Works on any TypeScript/JavaScript GitHub repo
@@ -52,7 +52,7 @@
 
 **Integration example**:
 ```yaml
-- uses: raye-deng/ai-code-validator@v1
+- uses: raye-deng/open-code-review@v1
   with:
     threshold: 70
     paths: 'src/**/*.ts'
@@ -79,7 +79,7 @@
 **Integration example**:
 ```yaml
 include:
-  - component: INTERNAL_REGISTRY/fengsen.deng/ai-code-validator/validate@main
+  - component: INTERNAL_REGISTRY/fengsen.deng/open-code-review/validate@main
     inputs:
       threshold: 70
       paths: src

@@ -113,7 +113,7 @@ export class ReportGenerator {
 
     lines.push('');
     lines.push('╔══════════════════════════════════════════════════════════════╗');
-    lines.push('║           AI Code Validator V3 — Quality Report              ║');
+    lines.push('║           Open Code Review V3 — Quality Report              ║');
     lines.push('╚══════════════════════════════════════════════════════════════╝');
     lines.push('');
 
@@ -135,7 +135,7 @@ export class ReportGenerator {
     // SLA metrics
     if (sla) {
       lines.push('  ═══════════════════════════════════════════');
-      lines.push('    AI Code Validator — SLA Metrics');
+      lines.push('    Open Code Review — SLA Metrics');
       lines.push('  ═══════════════════════════════════════════');
       lines.push(`    Scan Level:      ${sla.level} (${slaLevelName(sla.level)})`);
       lines.push(`    Files Scanned:   ${sla.filesScanned}`);
@@ -207,7 +207,7 @@ export class ReportGenerator {
   private formatMarkdownV3(result: AggregateScoreV3, sla?: SLAMetrics): string {
     const lines: string[] = [];
 
-    lines.push(`## ${gradeEmoji(result.grade)} AI Code Validator V3 Report`);
+    lines.push(`## ${gradeEmoji(result.grade)} Open Code Review V3 Report`);
     lines.push('');
     lines.push(`**Overall Score:** ${result.overallScore}/100 (Grade: ${result.grade})`);
     lines.push(`**Status:** ${result.passed ? '✅ Passed' : '❌ Failed'} (threshold: ${result.threshold})`);
@@ -262,7 +262,7 @@ export class ReportGenerator {
 
     lines.push('');
     lines.push('---');
-    lines.push('*Powered by [AI Code Validator](https://github.com/raye-deng/ai-code-validator) v3*');
+    lines.push('*Powered by [Open Code Review](https://github.com/raye-deng/open-code-review) v3*');
 
     return lines.join('\n');
   }
@@ -300,7 +300,7 @@ export class ReportGenerator {
 
     lines.push('');
     lines.push('╔══════════════════════════════════════════════════════════════╗');
-    lines.push('║              AI Code Validator — Quality Report              ║');
+    lines.push('║              Open Code Review — Quality Report              ║');
     lines.push('╚══════════════════════════════════════════════════════════════╝');
     lines.push('');
     lines.push(`  Overall Score: ${result.overallScore}/100  Grade: ${gradeEmoji(result.grade)} ${result.grade}`);
@@ -348,7 +348,7 @@ export class ReportGenerator {
   private formatMarkdown(result: AggregateScore): string {
     const lines: string[] = [];
 
-    lines.push(`## ${gradeEmoji(result.grade)} AI Code Validator Report`);
+    lines.push(`## ${gradeEmoji(result.grade)} Open Code Review Report`);
     lines.push('');
     lines.push(`**Overall Score:** ${result.overallScore}/100 (Grade: ${result.grade})`);
     lines.push(`**Status:** ${result.passed ? '✅ Passed' : '❌ Failed'}`);
@@ -371,7 +371,7 @@ export class ReportGenerator {
 
     lines.push('');
     lines.push('---');
-    lines.push('*Powered by [AI Code Validator](https://github.com/raye-deng/ai-code-validator)*');
+    lines.push('*Powered by [Open Code Review](https://github.com/raye-deng/open-code-review)*');
 
     return lines.join('\n');
   }

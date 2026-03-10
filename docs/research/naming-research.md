@@ -4,7 +4,7 @@
 2026-03-11
 
 ## 背景
-AI Code Validator 改名，蹭 "open" 前缀热度，定位为 Claude Code Review 开源免费替代。目标：名称以 `open` 开头，暗示代码审查/质量/AI 检测，适合做 npm 包名和 GitHub 仓库名。
+Open Code Review 改名，蹭 "open" 前缀热度，定位为 Claude Code Review 开源免费替代。目标：名称以 `open` 开头，暗示代码审查/质量/AI 检测，适合做 npm 包名和 GitHub 仓库名。
 
 ## 候选名称可用性
 

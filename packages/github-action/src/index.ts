@@ -1,5 +1,5 @@
 /**
- * AI Code Validator — GitHub Action
+ * Open Code Review — GitHub Action
  *
  * Runs AI code validation as part of GitHub Actions CI/CD.
  * Posts results as PR comments and sets quality gate status.
@@ -17,8 +17,8 @@ import {
   ContextBreakDetector,
   ScoringEngine,
   ReportGenerator,
-} from '@ai-code-validator/core';
-import type { FileScore } from '@ai-code-validator/core';
+} from '@open-code-review/core';
+import type { FileScore } from '@open-code-review/core';
 
 async function run(): Promise<void> {
   try {
@@ -104,7 +104,7 @@ async function run(): Promise<void> {
     // Fail if below threshold
     if (!aggregate.passed && failOnLow) {
       core.setFailed(
-        `AI Code Validator: Score ${aggregate.overallScore}/100 is below threshold ${threshold}`,
+        `Open Code Review: Score ${aggregate.overallScore}/100 is below threshold ${threshold}`,
       );
     }
   } catch (error) {

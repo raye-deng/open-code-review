@@ -1,5 +1,5 @@
 {
-  "name": "ai-code-validator",
+  "name": "open-code-review",
   "version": "0.1.0",
   "private": true,
   "description": "The first CI/CD quality gate built specifically for AI-generated code",
@@ -9,7 +9,7 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
-    "dev": "pnpm --filter @ai-code-validator/web dev",
+    "dev": "pnpm --filter @open-code-review/web dev",
     "clean": "pnpm -r exec rm -rf dist node_modules"
   },
   "devDependencies": {
