@@ -7,11 +7,17 @@
  * @since 0.4.0
  */
 
-import Parser from 'web-tree-sitter';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import type { SupportedLanguage } from '../ir/types.js';
+
+// We use createRequire to get the real Parser class because vitest's
+// ESM module proxy doesn't propagate static property changes after
+// Parser.init() modifies the class (e.g., Parser.Language).
+const _require = createRequire(import.meta.url);
+const Parser: typeof import('web-tree-sitter').default = _require('web-tree-sitter');
 
 // ─── Grammar File Resolution ───────────────────────────────────────
 
@@ -97,7 +103,28 @@ export class ParserManager {
   async init(): Promise<void> {
     if (this._initialized) return;
 
-    await Parser.init();
+    // Resolve the tree-sitter WASM binary path.
+    // web-tree-sitter needs its own .wasm file to initialize the runtime.
+    // In bundled environments (vitest, webpack), the auto-detection may fail,
+    // so we provide an explicit locateFile function.
+    let treeSitterWasmDir: string;
+    try {
+      const req = createRequire(import.meta.url);
+      const treeSitterMainPath = req.resolve('web-tree-sitter');
+      treeSitterWasmDir = dirname(treeSitterMainPath);
+    } catch {
+      treeSitterWasmDir = '';
+    }
+
+    await Parser.init({
+      locateFile: (scriptName: string) => {
+        if (treeSitterWasmDir && scriptName.endsWith('.wasm')) {
+          const candidate = join(treeSitterWasmDir, scriptName);
+          if (existsSync(candidate)) return candidate;
+        }
+        return scriptName;
+      },
+    });
 
     // Load grammars for all supported languages
     const languages = Object.keys(GRAMMAR_FILES) as SupportedLanguage[];
