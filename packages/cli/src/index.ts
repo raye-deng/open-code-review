@@ -28,7 +28,7 @@ import { homedir } from 'node:os';
 import { createInterface } from 'node:readline';
 import { execSync } from 'node:child_process';
 import { glob } from 'glob';
-import { ConfigManager } from './utils/config-manager';
+import { ConfigManager } from './utils/config-manager.js';
 import {
   // V3 detectors (legacy)
   HallucinationDetector,
