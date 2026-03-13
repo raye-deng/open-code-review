@@ -1,0 +1,31 @@
+{
+  "devto": {
+    "status": "not_configured",
+    "api_key_needed": true,
+    "setup_url": "https://dev.to/settings/integrations",
+    "instructions": "1. Go to dev.to Settings > Integrations > DEV Community API Keys\n2. Generate a new API key\n3. Add to this config as apiKey\n4. Article draft ready at promotion/content/devto-article.md",
+    "article_title": "Open Code Review: The Missing Quality Gate for AI-Generated Code",
+    "article_path": "promotion/content/devto-article.md"
+  },
+  "reddit": {
+    "status": "not_configured",
+    "credentials_needed": true,
+    "setup_url": "https://www.reddit.com/prefs/apps",
+    "instructions": "1. Create a 'script' app at reddit.com/prefs/apps\n2. Get client_id and client_secret\n3. Add to this config\n4. Posts drafted for: r/programming, r/codesecurity, r/devops, r/javascript",
+    "posts_path": "promotion/content/reddit-posts.md",
+    "subreddits": ["programming", "codesecurity", "devops", "javascript"]
+  },
+  "hackernews": {
+    "status": "blocked",
+    "account": "aneyadeng",
+    "karma": 1,
+    "issue": "HN temporarily restricting Show HN for low-karma accounts (as of 2026-03-13)",
+    "recommendation": "Build karma by commenting on discussions for 1-2 weeks, then submit Show HN. Alternatively try submitting as regular story.",
+    "post_path": "promotion/content/hackernews-show.md"
+  },
+  "twitter": {
+    "status": "not_configured",
+    "credentials_needed": true,
+    "instructions": "Twitter API requires developer account. Consider posting manually."
+  }
+}
