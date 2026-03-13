@@ -273,6 +273,27 @@ const KOTLIN_DEPRECATIONS: DeprecatedPattern[] = [
     confidence: 0.95,
     description: 'Experimental coroutines API is deprecated; use stable kotlin.coroutines',
   },
+  {
+    pattern: /\bwithDefault\b/,
+    replacement: 'getOrElse or getOrPut',
+    since: 'Kotlin 1.0',
+    confidence: 0.5,
+    description: 'withDefault creates a wrapper map; prefer getOrElse/getOrPut for simpler cases',
+  },
+  {
+    pattern: /\bprint\b\s*\(/,
+    replacement: 'kotlin.io.println',
+    since: 'Kotlin 1.0',
+    confidence: 0.4,
+    description: 'print() without newline is rarely needed in server-side code; prefer println()',
+  },
+  {
+    pattern: /\b!!\b(?!\s*[.=])/,
+    replacement: 'Safe call (?.) or let { }',
+    since: 'Kotlin 1.0',
+    confidence: 0.55,
+    description: 'Non-null assertion (!!) can cause NullPointerException. Prefer safe calls (?.) or null checks.',
+  },
   // Kotlin inherits Java deprecations
   ...JAVA_DEPRECATIONS,
 ];

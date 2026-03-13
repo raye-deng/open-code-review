@@ -341,4 +341,59 @@ describe('HallucinatedImportDetector', () => {
     const results = await detector.detect([unit], createContext(mockManager));
     expect(results).toHaveLength(0);
   });
+
+  it('should detect hallucinated Kotlin package', async () => {
+    const unit = makeFileUnit({
+      file: 'App.kt',
+      language: 'kotlin',
+      imports: [
+        { module: 'com.fake.kotlin.library', symbols: ['FakeClient'], line: 0, isRelative: false, raw: 'import com.fake.kotlin.library.FakeClient' },
+      ],
+    });
+
+    const verifyResults = new Map<string, PackageVerifyResult>([
+      ['com.fake.kotlin.library', { exists: false, name: 'com.fake.kotlin.library', source: 'registry', latencyMs: 50 }],
+    ]);
+
+    const results = await detector.detect([unit], createContext(createMockRegistryManager(verifyResults)));
+    expect(results).toHaveLength(1);
+    expect(results[0].metadata?.registry).toBe('Maven Central');
+    expect(results[0].metadata?.language).toBe('kotlin');
+    expect(results[0].metadata?.packageName).toBe('com.fake.kotlin.library');
+  });
+
+  it('should skip Kotlin stdlib packages', async () => {
+    const unit = makeFileUnit({
+      file: 'App.kt',
+      language: 'kotlin',
+      imports: [
+        { module: 'kotlin.collections.List', symbols: ['List'], line: 0, isRelative: false, raw: 'import kotlin.collections.List' },
+        { module: 'kotlin.coroutines', symbols: [], line: 1, isRelative: false, raw: 'import kotlin.coroutines' },
+      ],
+    });
+
+    const verifyResults = new Map<string, PackageVerifyResult>();
+    const mockManager = createMockRegistryManager(verifyResults);
+    const results = await detector.detect([unit], createContext(mockManager));
+    expect(results).toHaveLength(0);
+  });
+
+  it('should detect hallucinated Python package', async () => {
+    const unit = makeFileUnit({
+      file: 'app.py',
+      language: 'python',
+      imports: [
+        { module: 'nonexistent_ai_library', symbols: ['MagicModel'], line: 0, isRelative: false, raw: 'from nonexistent_ai_library import MagicModel' },
+      ],
+    });
+
+    const verifyResults = new Map<string, PackageVerifyResult>([
+      ['nonexistent_ai_library', { exists: false, name: 'nonexistent_ai_library', source: 'registry', latencyMs: 50 }],
+    ]);
+
+    const results = await detector.detect([unit], createContext(createMockRegistryManager(verifyResults)));
+    expect(results).toHaveLength(1);
+    expect(results[0].metadata?.registry).toBe('PyPI');
+    expect(results[0].metadata?.language).toBe('python');
+  });
 });

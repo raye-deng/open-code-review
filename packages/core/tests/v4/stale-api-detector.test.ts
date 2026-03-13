@@ -294,4 +294,56 @@ const exists = fs.existsSync("./file");
     const urlResult = results.find(r => r.message.includes('url.parse'));
     expect(urlResult).toBeDefined();
   });
+
+  it('should detect Go deprecated io/ioutil package import', async () => {
+    const unit = makeFuncUnit({
+      file: 'main.go',
+      language: 'go',
+      source: 'import "io/ioutil"',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const ioutilResult = results.find(r => r.message.includes('io/ioutil'));
+    expect(ioutilResult).toBeDefined();
+  });
+
+  it('should detect Java Thread.stop() deprecated usage', async () => {
+    const unit = makeFuncUnit({
+      file: 'App.java',
+      language: 'java',
+      source: 'Thread.stop();',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const stopResult = results.find(r => r.message.includes('Thread.stop'));
+    expect(stopResult).toBeDefined();
+    expect(stopResult!.confidence).toBe(0.95);
+  });
+
+  it('should detect Kotlin experimental coroutines', async () => {
+    const unit = makeFuncUnit({
+      file: 'Coroutine.kt',
+      language: 'kotlin',
+      source: 'import kotlin.coroutines.experimental.Continuation',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const expResult = results.find(r => r.message.includes('coroutines') && r.metadata?.replacement === 'kotlin.coroutines');
+    expect(expResult).toBeDefined();
+  });
+
+  it('should detect Python distutils import as deprecated', async () => {
+    const unit = makeFileUnit({
+      file: 'setup.py',
+      language: 'python',
+      imports: [
+        { module: 'distutils', symbols: ['setup'], line: 1, isRelative: false, raw: 'from distutils import setup' },
+      ],
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const distutilsResult = results.find(r => r.message.includes('distutils'));
+    expect(distutilsResult).toBeDefined();
+    expect(distutilsResult!.metadata?.replacement).toBe('setuptools');
+  });
 });

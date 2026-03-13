@@ -205,6 +205,103 @@ const SECURITY_PATTERNS: SecurityPattern[] = [
     message: 'HTTP URL detected (not HTTPS). Consider using HTTPS for production endpoints.',
     languages: [],
   },
+
+  // ── Go-specific Security Patterns ──────────────────────────────
+
+  {
+    id: 'go-command-injection',
+    pattern: /\bexec\.Command\s*\(\s*["']sh["'],\s*["']-c["']/,
+    severity: 'error',
+    confidence: 0.85,
+    message: 'Shell command execution via exec.Command("sh", "-c") detected. This enables command injection. Use exec.Command directly with explicit arguments.',
+    languages: ['go'],
+  },
+  {
+    id: 'go-user-input-in-exec',
+    pattern: /\bexec\.Command\s*\([^)]*\+[^)]*\)/,
+    severity: 'error',
+    confidence: 0.8,
+    message: 'exec.Command with string concatenation detected. User input in command arguments can lead to command injection.',
+    languages: ['go'],
+  },
+  {
+    id: 'go-sql-injection',
+    pattern: /(?:SELECT|INSERT|UPDATE|DELETE)\s+.*?\+\s*(?:r\.|request\.|c\.|ctx\.|req\.)/i,
+    severity: 'error',
+    confidence: 0.8,
+    message: 'SQL query with string concatenation from request/context detected. Use parameterized queries (db.QueryContext with ? placeholders).',
+    languages: ['go'],
+  },
+  {
+    id: 'go-hardcoded-secret',
+    pattern: /(?:os\.Getenv|viper\.Get|config\.Get)\s*\(\s*["'][^"']*["']\s*\)\s*.*?(?:fallback|default|or)\s*["'][A-Za-z0-9_\-]{8,}["']/i,
+    severity: 'warning',
+    confidence: 0.6,
+    message: 'Environment variable lookup with hardcoded fallback secret detected.',
+    languages: ['go'],
+  },
+
+  // ── Java-specific Security Patterns ────────────────────────────
+
+  {
+    id: 'java-command-injection',
+    pattern: /\bRuntime\.getRuntime\(\)\.exec\s*\([^)]*\+/,
+    severity: 'error',
+    confidence: 0.85,
+    message: 'Runtime.exec() with string concatenation detected. Use ProcessBuilder with argument list to prevent command injection.',
+    languages: ['java', 'kotlin'],
+  },
+  {
+    id: 'java-unsafe-deserialization',
+    pattern: /\bObjectInputStream\s*\(/,
+    severity: 'error',
+    confidence: 0.9,
+    message: 'ObjectInputStream usage detected. Unsafe deserialization can lead to remote code execution. Use safe serialization alternatives.',
+    languages: ['java', 'kotlin'],
+  },
+  {
+    id: 'java-sql-string-concat',
+    pattern: /(?:createStatement|Statement)\s*\(\s*\).*?(?:executeQuery|executeUpdate)\s*\(\s*["']/i,
+    severity: 'warning',
+    confidence: 0.7,
+    message: 'Plain Statement with hardcoded query detected. Use PreparedStatement with parameterized queries to prevent SQL injection.',
+    languages: ['java', 'kotlin'],
+  },
+  {
+    id: 'java-reflective-access',
+    pattern: /\bsetAccessible\s*\(\s*true\s*\)/,
+    severity: 'warning',
+    confidence: 0.7,
+    message: 'setAccessible(true) bypasses Java access controls. Ensure this is necessary and the input is trusted.',
+    languages: ['java', 'kotlin'],
+  },
+  {
+    id: 'java-unsafe-file-path',
+    pattern: /\bnew\s+File\s*\(\s*(?:request\.|req\.|getParameter|getHeader)/,
+    severity: 'error',
+    confidence: 0.8,
+    message: 'File path constructed from user input detected. This may allow path traversal attacks. Validate and sanitize the path.',
+    languages: ['java', 'kotlin'],
+  },
+
+  // ── Kotlin-specific Security Patterns ──────────────────────────
+
+  {
+    id: 'kotlin-process-builder-injection',
+    pattern: /\bProcessBuilder\s*\([^)]*\+\s*\w/,
+    severity: 'error',
+    confidence: 0.8,
+    message: 'ProcessBuilder with string concatenation detected. Use explicit argument list to prevent command injection.',
+    languages: ['kotlin'],
+  },
+  {
+    id: 'kotlin-trust-all-certs',
+    pattern: /(?:TrustManager|X509TrustManager).*?checkClientTrusted\s*\(\s*[^,]*,\s*[^,]*\s*\)\s*\{\s*\}/,
+    severity: 'error',
+    confidence: 0.85,
+    message: 'TrustManager with empty checkClientTrusted implementation detected. This accepts all certificates and enables man-in-the-middle attacks.',
+    languages: ['kotlin', 'java'],
+  },
 ];
 
 // ─── Detector ──────────────────────────────────────────────────────

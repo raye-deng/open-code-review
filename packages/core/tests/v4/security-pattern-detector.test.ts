@@ -230,4 +230,131 @@ function generateCacheKey(data: string): string {
     const results = await detector.detect([unit], createContext());
     expect(results).toHaveLength(0);
   });
+
+  // ── Go-specific Security Patterns ──────────────────────────────
+
+  it('should detect Go shell command injection via exec.Command("sh", "-c")', async () => {
+    const unit = makeUnit(
+      'cmd := exec.Command("sh", "-c", userInput)',
+      'go',
+      'main.go',
+    );
+    const results = await detector.detect([unit], createContext());
+    const cmdResult = results.find(r => r.metadata?.patternId === 'go-command-injection');
+    expect(cmdResult).toBeDefined();
+    expect(cmdResult!.severity).toBe('error');
+    expect(cmdResult!.message).toContain('command injection');
+  });
+
+  it('should detect Go SQL injection', async () => {
+    const unit = makeUnit(
+      'query := "SELECT * FROM users WHERE id = " + r.URL.Query().Get("id")',
+      'go',
+      'handler.go',
+    );
+    const results = await detector.detect([unit], createContext());
+    const sqlResult = results.find(r => r.metadata?.patternId === 'go-sql-injection');
+    expect(sqlResult).toBeDefined();
+    expect(sqlResult!.severity).toBe('error');
+  });
+
+  it('should detect InsecureSkipVerify in Go', async () => {
+    const unit = makeUnit(
+      'tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}',
+      'go',
+      'client.go',
+    );
+    const results = await detector.detect([unit], createContext());
+    const tlsResult = results.find(r => r.metadata?.patternId === 'tls-verify-disabled');
+    expect(tlsResult).toBeDefined();
+    expect(tlsResult!.severity).toBe('error');
+  });
+
+  // ── Java-specific Security Patterns ────────────────────────────
+
+  it('should detect Java Runtime.exec() command injection', async () => {
+    const unit = makeUnit(
+      'Process p = Runtime.getRuntime().exec("cmd " + userInput);',
+      'java',
+      'App.java',
+    );
+    const results = await detector.detect([unit], createContext());
+    const execResult = results.find(r => r.metadata?.patternId === 'java-command-injection');
+    expect(execResult).toBeDefined();
+    expect(execResult!.severity).toBe('error');
+    expect(execResult!.message).toContain('ProcessBuilder');
+  });
+
+  it('should detect Java unsafe deserialization', async () => {
+    const unit = makeUnit(
+      'ObjectInputStream ois = new ObjectInputStream(new FileInputStream("data.ser"));',
+      'java',
+      'App.java',
+    );
+    const results = await detector.detect([unit], createContext());
+    const deserResult = results.find(r => r.metadata?.patternId === 'java-unsafe-deserialization');
+    expect(deserResult).toBeDefined();
+    expect(deserResult!.severity).toBe('error');
+    expect(deserResult!.message).toContain('remote code execution');
+  });
+
+  it('should detect Java setAccessible(true)', async () => {
+    const unit = makeUnit(
+      'field.setAccessible(true);',
+      'java',
+      'Reflect.java',
+    );
+    const results = await detector.detect([unit], createContext());
+    const reflectResult = results.find(r => r.metadata?.patternId === 'java-reflective-access');
+    expect(reflectResult).toBeDefined();
+    expect(reflectResult!.severity).toBe('warning');
+  });
+
+  it('should detect Java MD5 usage via MessageDigest', async () => {
+    const unit = makeUnit(
+      'MessageDigest md = MessageDigest.getInstance("MD5");',
+      'java',
+      'HashUtil.java',
+    );
+    const results = await detector.detect([unit], createContext());
+    const md5Result = results.find(r => r.metadata?.patternId === 'weak-hash-md5');
+    expect(md5Result).toBeDefined();
+  });
+
+  // ── Kotlin-specific Security Patterns ──────────────────────────
+
+  it('should detect Kotlin ProcessBuilder injection', async () => {
+    const unit = makeUnit(
+      'val process = ProcessBuilder("sh " + userInput)',
+      'kotlin',
+      'App.kt',
+    );
+    const results = await detector.detect([unit], createContext());
+    const pbResult = results.find(r => r.metadata?.patternId === 'kotlin-process-builder-injection');
+    expect(pbResult).toBeDefined();
+    expect(pbResult!.severity).toBe('error');
+  });
+
+  it('should detect Kotlin unsafe deserialization (inherits Java)', async () => {
+    const unit = makeUnit(
+      'val ois = ObjectInputStream(ByteArrayInputStream(data))',
+      'kotlin',
+      'Deserialize.kt',
+    );
+    const results = await detector.detect([unit], createContext());
+    const deserResult = results.find(r => r.metadata?.patternId === 'java-unsafe-deserialization');
+    expect(deserResult).toBeDefined();
+  });
+
+  it('should detect Kotlin hardcoded password', async () => {
+    const unit = makeUnit(
+      'val password = "SuperSecretKotlinPassword123"',
+      'kotlin',
+      'Config.kt',
+    );
+    const results = await detector.detect([unit], createContext());
+    const pwResult = results.find(r => r.metadata?.patternId === 'hardcoded-password');
+    expect(pwResult).toBeDefined();
+    expect(pwResult!.severity).toBe('error');
+  });
 });

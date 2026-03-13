@@ -64,6 +64,40 @@ func main() {
 }
 `;
 
+const JAVA_FILE_WITH_ISSUES = `
+import java.util.Vector;
+import java.util.Hashtable;
+import java.io.ObjectInputStream;
+
+public class App {
+    private String password = "admin123";
+
+    public void processData() {
+        Vector<String> list = new Vector<>();
+        Hashtable<String, Object> cache = new Hashtable<>();
+        StringBuffer sb = new StringBuffer();
+        sb.append("hello");
+    }
+
+    public Object deserialize(byte[] data) throws Exception {
+        ObjectInputStream ois = new ObjectInputStream(new java.io.ByteArrayInputStream(data));
+        return ois.readObject();
+    }
+}
+`;
+
+const KOTLIN_FILE_WITH_ISSUES = `
+import kotlin.coroutines.experimental.CoroutineContext
+import java.util.Vector
+
+data class User(val name: String, val email: String, val phone: String, val age: Int, val address: String, val city: String, val country: String, val zip: String, val role: String)
+
+fun process(a: String, b: String, c: String, d: String, e: String, f: String, g: String, h: String, i: String): String {
+    val result: String? = null
+    return result!!
+}
+`;
+
 const CLEAN_TS_FILE = `
 import { readFileSync } from 'node:fs';
 
@@ -89,6 +123,12 @@ describe('V4 Integration Test', () => {
     // Create Go file with issues
     await fs.writeFile(path.join(tmpDir, 'main.go'), GO_FILE_WITH_ISSUES);
 
+    // Create Java file with issues
+    await fs.writeFile(path.join(tmpDir, 'App.java'), JAVA_FILE_WITH_ISSUES);
+
+    // Create Kotlin file with issues
+    await fs.writeFile(path.join(tmpDir, 'User.kt'), KOTLIN_FILE_WITH_ISSUES);
+
     // Create clean file (should have no or minimal issues)
     await fs.writeFile(path.join(tmpDir, 'clean.ts'), CLEAN_TS_FILE);
   });
@@ -110,7 +150,7 @@ describe('V4 Integration Test', () => {
     const result = await scanner.scan();
 
     // Should find files
-    expect(result.files.length).toBeGreaterThanOrEqual(3);
+    expect(result.files.length).toBeGreaterThanOrEqual(4);
 
     // Should detect issues
     expect(result.issues.length).toBeGreaterThan(0);
@@ -559,6 +599,8 @@ describe('V4 Integration Test', () => {
     expect(result.languages).toContain('typescript');
     expect(result.languages).toContain('python');
     expect(result.languages).toContain('go');
+    expect(result.languages).toContain('java');
+    expect(result.languages).toContain('kotlin');
   });
 
   // ─── Test 16: Include/exclude patterns work ─────────────────
