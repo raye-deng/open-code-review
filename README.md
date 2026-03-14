@@ -3,9 +3,12 @@
 > The first CI/CD quality gate built for AI-generated code.
 > Free. Self-hostable. Not another linter.
 
-[![npm](https://img.shields.io/npm/v/@opencodereview/cli)](https://www.npmjs.com/package/@opencodereview/cli)
+[![npm version](https://img.shields.io/npm/v/@opencodereview/cli?style=flat-square)](https://www.npmjs.com/package/@opencodereview/cli)
+[![npm downloads](https://img.shields.io/npm/dw/@opencodereview/cli?style=flat-square)](https://www.npmjs.com/package/@opencodereview/cli)
 [![License: BUSL-1.1](https://img.shields.io/badge/License-BUSL--1.1-blue.svg)](LICENSE)
 [![CI](https://github.com/raye-deng/open-code-review/actions/workflows/ci.yml/badge.svg)](https://github.com/raye-deng/open-code-review/actions/workflows/ci.yml)
+[![GitHub Stars](https://img.shields.io/github/stars/raye-deng/open-code-review?style=flat-square)](https://github.com/raye-deng/open-code-review)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
 ## Why?
 
