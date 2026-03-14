@@ -1,7 +1,7 @@
 {
   "name": "@opencodereview/cli",
   "version": "2.0.2",
-  "description": "CLI tool for validating AI-generated code quality",
+  "description": "Detect AI-hallucinated packages, phantom dependencies, and stale APIs in your codebase. Open-source CI/CD quality gate with local Ollama support — zero API cost.",
   "type": "module",
   "bin": {
     "opencodereview": "./dist/index.js",
@@ -22,11 +22,36 @@
   "keywords": [
     "ai",
     "code-quality",
-    "cli",
-    "ci-cd"
+    "code-review",
+    "ci-cd",
+    "ci",
+    "static-analysis",
+    "linter",
+    "npm-audit",
+    "security",
+    "supply-chain",
+    "ollama",
+    "local-ai",
+    "sarif",
+    "github-actions",
+    "gitlab-ci",
+    "phantom-packages",
+    "hallucination-detection",
+    "code-scanner",
+    "ai-generated-code",
+    "developer-tools",
+    "quality-gate"
   ],
   "author": "Raye Deng <fengsen.deng@gmail.com>",
   "license": "BUSL-1.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/raye-deng/open-code-review"
+  },
+  "homepage": "https://codes.evallab.ai",
+  "bugs": {
+    "url": "https://github.com/raye-deng/open-code-review/issues"
+  },
   "dependencies": {
     "glob": "^10.3.0",
     "@opencodereview/core": "^2.0.0"

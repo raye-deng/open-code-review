@@ -1,7 +1,7 @@
 {
   "name": "@opencodereview/core",
   "version": "2.0.1",
-  "description": "Core detection engine for AI-generated code validation",
+  "description": "Core detection engine for AI-generated code — hallucinated packages, phantom dependencies, stale APIs, security anti-patterns. Structural, embedding, and LLM scanning.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "type": "module",
@@ -76,10 +76,22 @@
     "code-quality",
     "hallucination-detection",
     "ci-cd",
-    "quality-gate"
+    "quality-gate",
+    "phantom-packages",
+    "npm",
+    "security",
+    "static-analysis",
+    "ast",
+    "supply-chain",
+    "code-scanner"
   ],
   "author": "Raye Deng <fengsen.deng@gmail.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/raye-deng/open-code-review"
+  },
+  "homepage": "https://codes.evallab.ai",
   "devDependencies": {
     "@types/node": "^20.11.0",
     "typescript": "^5.4.0",
