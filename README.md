@@ -3,6 +3,8 @@
 > The first CI/CD quality gate built for AI-generated code.
 > Free. Self-hostable. Not another linter.
 
+![Open Code Review](.github/social-preview.png)
+
 [![npm version](https://img.shields.io/npm/v/@opencodereview/cli?style=flat-square)](https://www.npmjs.com/package/@opencodereview/cli)
 [![npm downloads](https://img.shields.io/npm/dw/@opencodereview/cli?style=flat-square)](https://www.npmjs.com/package/@opencodereview/cli)
 [![License: BUSL-1.1](https://img.shields.io/badge/License-BUSL--1.1-blue.svg)](LICENSE)
@@ -26,11 +28,13 @@ Open Code Review detects all of them — in **under 10 seconds**, for **free**, 
 
 ## Demo
 
-### Terminal Output (L2 Self-Scan)
+> 📺 **[See it in action — full terminal recording coming soon]**
 
-OCR scans itself. Here's what it found:
+### Quick Preview
 
-```
+```bash
+$ npx @opencodereview/cli scan src/ --sla L1
+
 ╔══════════════════════════════════════════════════════════════╗
 ║           Open Code Review V4 — Quality Report              ║
 ╚══════════════════════════════════════════════════════════════╝
@@ -43,29 +47,9 @@ OCR scans itself. Here's what it found:
   Overall Score: 67/100  🟠 D
   Threshold: 70  |  Status: ❌ FAILED
   Files Scanned: 110  |  Languages: typescript  |  Duration: 8.7s
-
-  ── Scoring Dimensions ──
-
-  AI Faithfulness           ████████████████████ 35/35 (100%)
-  Code Freshness            ████████████░░░░░░░░ 15/25 (60%)
-  Context Coherence         █████████████████░░░ 17/20 (85%)
-  Implementation Quality    ░░░░░░░░░░░░░░░░░░░░ 0/20 (0%)
-
-  ── Sample Findings ──
-
-  🔴 [error] defect-patterns.ts:269 — Possible hardcoded API key detected
-  🔴 [error] defect-patterns.ts:308 — SQL injection via string concatenation
-  🔴 [error] security-pattern.ts:73  — eval() enables code injection attacks
-  🔴 [error] security-pattern.ts:151 — TLS certificate verification disabled
-  🟡 [warn]  stale-api.ts:51        — url.parse() deprecated → WHATWG URL API
-  🟡 [warn]  over-engineering.ts:37  — Cyclomatic complexity 28 (max: 15)
-  🟡 [warn]  hallucination.ts:58    — Nesting depth 9 (max: 4)
-  ⚪ [info]  pipeline.ts:36         — Unused interface (context window artifact)
 ```
 
-Also available as HTML: `ocr scan src/ --format html -o report.html`
-
-### 📊 L2 HTML Report Sample
+### L2 HTML Report Sample
 
 ![L2 HTML Report Screenshot](docs/images/l2-html-report-screenshot.png)
 
@@ -126,6 +110,32 @@ L2: AI Deep Analysis (Embedding + LLM)
 ```
 
 ## CI/CD Integration
+
+### Add to Your Repo in 30 Seconds
+
+[![npm version](https://img.shields.io/npm/v/@opencodereview/cli?style=flat-square)](https://www.npmjs.com/package/@opencodereview/cli)
+[![CI](https://github.com/raye-deng/open-code-review/actions/workflows/ci.yml/badge.svg)](https://github.com/raye-deng/open-code-review/actions/workflows/ci.yml)
+[![License: BUSL-1.1](https://img.shields.io/badge/License-BUSL--1.1-blue.svg)](LICENSE)
+
+Copy this snippet into your `.github/workflows/ci.yml`:
+
+```yaml
+name: Code Review
+on: [pull_request]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: raye-deng/open-code-review@v1
+        with:
+          sla: L1
+          threshold: 60
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+That's it. Every PR will now be checked for AI-generated code quality issues.
 
 ### GitHub Action
 
