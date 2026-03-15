@@ -9,6 +9,7 @@ out/
 *.log
 .DS_Store
 .ocrrc.yml
+.smithery/
 
 # Operations & promotion (tracked in GitLab: ocr-operations)
 docs/promotion/

@@ -1,0 +1,18 @@
+startCommand:
+  type: npx
+  configSchema:
+    type: object
+    properties:
+      level:
+        type: string
+        enum: [L1, L2, L3]
+        default: L1
+        description: SLA level for scans (L1=fast structural, L2=+local AI, L3=+remote AI)
+      languages:
+        type: string
+        description: Comma-separated languages to target (e.g. typescript,python,java). Auto-detect if omitted.
+    required: []
+  command: npx
+  args:
+    - "-y"
+    - "@opencodereview/mcp-server"
