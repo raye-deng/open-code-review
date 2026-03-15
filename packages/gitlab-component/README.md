@@ -10,7 +10,7 @@ Only scan files changed in a Merge Request — fast feedback on what matters:
 
 ```yaml
 include:
-  - component: git.makesall.cn/fengsen.deng/open-code-review/validate@main
+  - component: github.com/raye-deng/open-code-review/validate@main
     inputs:
       sla: L1
       scan-mode: diff
@@ -23,7 +23,7 @@ Scan entire directories on every pipeline run:
 
 ```yaml
 include:
-  - component: git.makesall.cn/fengsen.deng/open-code-review/validate@main
+  - component: github.com/raye-deng/open-code-review/validate@main
     inputs:
       sla: L1
       scan-mode: full
@@ -93,7 +93,7 @@ For L2/L3 scanning with a self-hosted Ollama instance:
 
 ```yaml
 include:
-  - component: git.makesall.cn/fengsen.deng/open-code-review/validate@main
+  - component: github.com/raye-deng/open-code-review/validate@main
     inputs:
       sla: L2
       ollama-url: 'http://your-ollama-host:11434'
@@ -156,14 +156,14 @@ The report includes:
 
 ```yaml
 include:
-  - component: git.makesall.cn/fengsen.deng/open-code-review/validate@main
+  - component: github.com/raye-deng/open-code-review/validate@main
 ```
 
 ### Strict L2 with Ollama
 
 ```yaml
 include:
-  - component: git.makesall.cn/fengsen.deng/open-code-review/validate@main
+  - component: github.com/raye-deng/open-code-review/validate@main
     inputs:
       sla: L2
       threshold: 80
@@ -174,7 +174,7 @@ include:
 
 ```yaml
 include:
-  - component: git.makesall.cn/fengsen.deng/open-code-review/validate@main
+  - component: github.com/raye-deng/open-code-review/validate@main
     inputs:
       sla: L1
       scan-mode: full
