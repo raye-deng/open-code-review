@@ -7,6 +7,10 @@
  * - ContextCoherenceDetector: Detects AI context window inconsistencies
  * - OverEngineeringDetector: Detects over-engineered code patterns
  * - SecurityPatternDetector: Detects security anti-patterns common in AI code
+ * - GoLanguageDetector: Go-specific AI patterns (unhandled errors, deprecated ioutil)
+ * - JavaLanguageDetector: Java-specific AI patterns (System.out.println, deprecated Date)
+ * - KotlinLanguageDetector: Kotlin-specific AI patterns (!! abuse)
+ * - PythonLanguageDetector: Python-specific AI patterns (bare except, eval, mutable defaults)
  *
  * Traditional lint concerns (duplication, type safety) are excluded.
  *
@@ -27,6 +31,12 @@ export { StaleAPIDetector } from './stale-api.js';
 export { ContextCoherenceDetector } from './context-coherence.js';
 export { OverEngineeringDetector } from './over-engineering.js';
 export { SecurityPatternDetector } from './security-pattern.js';
+export {
+  GoLanguageDetector,
+  JavaLanguageDetector,
+  KotlinLanguageDetector,
+  PythonLanguageDetector,
+} from './language-specific.js';
 
 // ─── Factory ───────────────────────────────────────────────────────
 
@@ -36,6 +46,12 @@ import { StaleAPIDetector } from './stale-api.js';
 import { ContextCoherenceDetector } from './context-coherence.js';
 import { OverEngineeringDetector } from './over-engineering.js';
 import { SecurityPatternDetector } from './security-pattern.js';
+import {
+  GoLanguageDetector,
+  JavaLanguageDetector,
+  KotlinLanguageDetector,
+  PythonLanguageDetector,
+} from './language-specific.js';
 
 /**
  * Create all V4 detectors with default configuration.
@@ -49,5 +65,9 @@ export function createV4Detectors(): V4Detector[] {
     new ContextCoherenceDetector(),
     new OverEngineeringDetector(),
     new SecurityPatternDetector(),
+    new GoLanguageDetector(),
+    new JavaLanguageDetector(),
+    new KotlinLanguageDetector(),
+    new PythonLanguageDetector(),
   ];
 }
