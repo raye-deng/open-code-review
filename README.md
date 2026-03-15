@@ -7,6 +7,7 @@
 ![Open Code Review](.github/social-preview.png)
 
 [![npm version](https://img.shields.io/npm/v/@opencodereview/cli?style=flat-square&label=v2.1.0)](https://www.npmjs.com/package/@opencodereview/cli)
+[![npm version](https://img.shields.io/npm/v/@opencodereview/mcp-server?style=flat-square&label=mcp-server)](https://www.npmjs.com/package/@opencodereview/mcp-server)
 [![npm downloads](https://img.shields.io/npm/dw/@opencodereview/cli?style=flat-square)](https://www.npmjs.com/package/@opencodereview/cli)
 [![License: BUSL-1.1](https://img.shields.io/badge/License-BUSL--1.1-blue.svg)](LICENSE)
 [![CI](https://github.com/raye-deng/open-code-review/actions/workflows/ci.yml/badge.svg)](https://github.com/raye-deng/open-code-review/actions/workflows/ci.yml)
@@ -211,12 +212,37 @@ ai:
   # model: your-model
 ```
 
+## MCP Server — Use in Claude Desktop, Cursor, Windsurf
+
+Integrate Open Code Review directly into your AI IDE via the [Model Context Protocol](https://modelcontextprotocol.io/):
+
+```bash
+npx @opencodereview/mcp-server
+```
+
+**Claude Desktop** (`claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "open-code-review": {
+      "command": "npx",
+      "args": ["-y", "@opencodereview/mcp-server"]
+    }
+  }
+}
+```
+
+**Cursor / Windsurf / VS Code Copilot**: Add the same configuration in your MCP settings.
+
+**Available MCP Tools**: `ocr_scan` (quality gate scan), `ocr_heal` (AI auto-fix), `ocr_explain` (issue explanation).
+
 ## Project Structure
 
 ```
 packages/
   core/              # Detection engine + scoring (@opencodereview/core)
   cli/               # CLI tool — ocr command (@opencodereview/cli)
+  mcp-server/        # MCP Server for AI IDEs (@opencodereview/mcp-server)
   github-action/     # GitHub Action wrapper
 ```
 
