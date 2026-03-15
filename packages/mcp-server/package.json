@@ -1,11 +1,11 @@
 {
   "name": "@opencodereview/mcp-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP Server for Open Code Review - AI code quality gate for Claude Desktop, Cursor, Windsurf, VS Code Copilot",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
-    "ocr-mcp": "./dist/index.js"
+    "ocr-mcp": "dist/index.js"
   },
   "files": [
     "dist",
@@ -36,7 +36,7 @@
   "license": "BUSL-1.1",
   "repository": {
     "type": "git",
-    "url": "https://github.com/raye-deng/open-code-review"
+    "url": "git+https://github.com/raye-deng/open-code-review.git"
   },
   "homepage": "https://codes.evallab.ai",
   "dependencies": {

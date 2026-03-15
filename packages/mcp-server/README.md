@@ -72,6 +72,24 @@ Create or edit `.windsurf/mcp.json` in your project root:
 }
 ```
 
+### Cline
+
+Add to your VS Code Cline settings (Settings → Extensions → Cline → MCP Servers), or edit `.clinerules`:
+
+```json
+{
+  "mcpServers": {
+    "open-code-review": {
+      "command": "npx",
+      "args": ["-y", "@opencodereview/mcp-server"],
+      "env": {
+        "OCR_LICENSE_KEY": "ocr-xxxx-xxxx-xxxx"
+      }
+    }
+  }
+}
+```
+
 ### VS Code Copilot
 
 Add to your VS Code `settings.json`:
