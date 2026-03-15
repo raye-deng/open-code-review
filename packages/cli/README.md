@@ -3,6 +3,7 @@
 > **AI code quality scanner for the terminal** — Detect hallucinated packages, phantom dependencies, stale APIs, and logic gaps in seconds. Open-source, runs locally, zero API cost.
 
 [![npm version](https://img.shields.io/npm/v/@opencodereview/cli.svg?logo=npm)](https://www.npmjs.com/package/@opencodereview/cli)
+[![npm downloads](https://img.shields.io/npm/dw/@opencodereview/cli.svg?logo=npm)](https://www.npmjs.com/package/@opencodereview/cli)
 [![GitHub](https://img.shields.io/badge/GitHub-open--code--review-181717?logo=github)](https://github.com/raye-deng/open-code-review)
 [![License: BSL 1.1](https://img.shields.io/badge/License-BSL%201.1-blue.svg)](https://github.com/raye-deng/open-code-review/blob/main/LICENSE)
 
