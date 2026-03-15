@@ -13,6 +13,19 @@
 [![GitHub Stars](https://img.shields.io/github/stars/raye-deng/open-code-review?style=social)](https://github.com/raye-deng/open-code-review)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
+## Works With
+
+![Cursor](https://img.shields.io/badge/Cursor-000?logo=cursor&logoColor=white&style=flat-square)
+![GitHub Copilot](https://img.shields.io/badge/GitHub_Copilot-181717?logo=githubcopilot&logoColor=white&style=flat-square)
+![Claude Code](https://img.shields.io/badge/Claude_Code-D97757?logo=anthropic&logoColor=white&style=flat-square)
+![Windsurf](https://img.shields.io/badge/Windsurf-38bdf8?style=flat-square)
+![Codex](https://img.shields.io/badge/Codex-10a37f?logo=openai&logoColor=white&style=flat-square)
+![Augment Code](https://img.shields.io/badge/Augment_Code-6C5CE7?style=flat-square)
+![Supermaven](https://img.shields.io/badge/Supermaven-F24E1E?style=flat-square)
+![Aider](https://img.shields.io/badge/Aider-333333?style=flat-square)
+
+> Any AI tool that generates code — if it writes it, OCR reviews it.
+
 ## What AI Linters Miss
 
 AI coding assistants (Copilot, Cursor, Claude) generate code with **defects that traditional tools miss entirely**:
