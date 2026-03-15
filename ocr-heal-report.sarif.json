@@ -1,0 +1,210 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Open Code Review — AI Auto-Fix",
+          "version": "2.0.0",
+          "informationUri": "https://github.com/raye-deng/open-code-review",
+          "rules": [
+            {
+              "id": "ocr-auto-fixed",
+              "shortDescription": {
+                "text": "File auto-fixed by AI"
+              }
+            }
+          ]
+        }
+      },
+      "results": [],
+      "invocation": {
+        "executionSuccessful": false,
+        "endTimeUtc": "2026-03-15T00:56:06.493Z",
+        "toolConfigurationNotifications": [
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal scripts/v4-demo-scan.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/github-action/src/index.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/worker/src/index.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/cli/src/index.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/scorer/scoring-engine.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/scanner/v4-scanner.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/reporter/v4-html.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/reporter/html-reporter.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/registry/pypi-registry.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/registry/npm-registry.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/parser/manager.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/license/validator.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/i18n/en.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/detectors/type-safety.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/detectors/security-pattern.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/config/v4-config.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/ai-healer/auto-fix-engine.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/ai/ollama-provider.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/parser/extractors/typescript.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/parser/extractors/go.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/languages/typescript/parser.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/languages/python/parser.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/languages/kotlin/parser.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/languages/java/parser.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/languages/go/parser.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/detectors/v4/stale-api.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/detectors/v4/security-pattern.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/detectors/v4/language-specific.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/ai/v4/pipeline.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          },
+          {
+            "level": "error",
+            "message": {
+              "text": "Failed to heal packages/core/src/ai/v4/patterns/defect-patterns.ts: No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key."
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

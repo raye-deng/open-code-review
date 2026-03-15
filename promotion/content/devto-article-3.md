@@ -1,3 +1,12 @@
+---
+title: "How I Added AI Code Quality Checks to My CI Pipeline in 5 Minutes (And Found 47 Bugs on Day One)"
+published: true
+tags: ["ai", "cicd", "devops", "tutorial"]
+series: "AI Code Quality"
+canonical_url: "https://codes.evallab.ai/blog/ci-pipeline-setup-guide"
+description: "Step-by-step guide to adding Open Code Review — a free, open-source CI/CD quality gate for AI-generated code — to your pipeline. Found 47 bugs on day one."
+---
+
 # How I Added AI Code Quality Checks to My CI Pipeline in 5 Minutes (And Found 47 Bugs on Day One)
 
 **TL;DR:** Set up [Open Code Review](https://github.com/raye-deng/open-code-review) — a free, open-source tool that catches AI-generated code defects — in your CI/CD pipeline. Here's the step-by-step guide.

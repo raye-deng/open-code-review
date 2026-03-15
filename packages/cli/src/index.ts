@@ -73,7 +73,7 @@ import type { LLMProviderType } from '@opencodereview/core';
 
 // ─── Constants ─────────────────────────────────────────────────────
 
-const VERSION = '2.0.2';
+const VERSION = '2.1.1';
 
 // ─── Environment Variable Helpers ──────────────────────────────────
 
@@ -189,6 +189,7 @@ function parseArgs(argv: string[]): ParsedArgs {
   for (let i = 1; i < args.length; i++) {
     switch (args[i]) {
       case '--sla':
+      case '--level':
         sla = args[++i];
         break;
       case '--locale':
@@ -1065,16 +1066,24 @@ async function commandHeal(parsed: ParsedArgs): Promise<boolean> {
 
   // Step 3: Run auto-fix engine
   const engine = new AutoFixEngine();
+  
+  // Resolve provider from CLI args (support both --provider and legacy --ai-remote-provider)
+  const healProvider = parsed.provider ?? parsed.aiRemoteProvider;
+  const healApiKey = parsed.apiKey ?? parsed.aiRemoteKey ?? envDefaults.apiKey;
+  const healModel = parsed.model ?? parsed.aiRemoteModel;
+  const healApiBase = parsed.apiBase;
+
   const healReport = await engine.heal(aggregate, {
     projectRoot,
     threshold,
     dryRun: parsed.dryRun,
-    provider: (parsed.aiRemoteProvider as 'ollama' | 'openai') || undefined,
+    provider: healProvider || undefined,
     ollamaUrl: parsed.aiLocalUrl || envDefaults.ollamaUrl,
     ollamaModel: parsed.aiLocalModel || envDefaults.ollamaModel,
-    openaiKey: parsed.aiRemoteKey || envDefaults.apiKey,
-    openaiModel: parsed.aiRemoteModel || undefined,
-    strategy: parsed.aiRemoteProvider ? 'remote-first' : 'local-first',
+    openaiKey: healApiKey,
+    openaiModel: healModel || undefined,
+    openaiEndpoint: healApiBase,
+    strategy: healProvider ? 'remote-first' : 'local-first',
     setupIde: parsed.setupIde,
     outputPrompts: parsed.outputPrompts,
   });

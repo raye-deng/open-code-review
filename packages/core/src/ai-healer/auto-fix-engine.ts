@@ -10,6 +10,9 @@ import { resolve, dirname, relative, join } from 'node:path';
 import { OllamaProvider } from '../ai/ollama-provider.js';
 import { OpenAIProvider } from '../ai/openai-provider.js';
 import { PromptBuilder } from './prompt-builder.js';
+import { createRemoteLLMProvider, createLocalLLMProvider } from '../ai/v4/llm/provider-factory.js';
+import { ALL_LLM_PROVIDERS } from '../ai/v4/types.js';
+import type { LLMProviderType } from '../ai/v4/types.js';
 import type { AggregateScore, FileScore } from '../scorer/scoring-engine.js';
 import type { V4Config } from '../config/v4-config.js';
 
@@ -38,8 +41,8 @@ export interface HealOptions {
   threshold?: number;
   /** Dry-run mode: generate suggestions without modifying files */
   dryRun?: boolean;
-  /** AI provider: 'ollama' or 'openai' */
-  provider?: 'ollama' | 'openai';
+  /** AI provider: supports all V4 providers (glm, deepseek, openai, ollama, etc.) */
+  provider?: string;
   /** Ollama endpoint URL */
   ollamaUrl?: string;
   /** Ollama model name */
@@ -154,9 +157,48 @@ ${source}
 
 Return ONLY the complete fixed file content. Do NOT include explanations, markdown fences, or any text outside the code block. Return the raw code only.`;
 
-  // Try providers based on strategy
   const strategy = options.strategy || 'local-first';
+  const useProvider = options.provider;
 
+  // If a specific V4 provider is configured, use the provider factory
+  if (useProvider && ALL_LLM_PROVIDERS.includes(useProvider as LLMProviderType)) {
+    try {
+      const isOllama = useProvider === 'ollama';
+      let llmProvider;
+
+      if (isOllama) {
+        llmProvider = createLocalLLMProvider(
+          options.ollamaModel || 'qwen3-coder',
+          options.ollamaUrl || 'http://localhost:11434',
+        );
+      } else {
+        llmProvider = createRemoteLLMProvider({
+          provider: useProvider as LLMProviderType,
+          model: options.openaiModel || options.ollamaModel || 'gpt-4o-mini',
+          apiKey: options.openaiKey || process.env.OCR_API_KEY || '',
+          baseUrl: options.openaiEndpoint, // undefined = use preset default
+        });
+      }
+
+      const response = await llmProvider.complete(fullPrompt, {
+        temperature: 0.1,
+        maxTokens: 8192,
+      });
+
+      return {
+        code: response.content || '',
+        provider: useProvider,
+        model: options.openaiModel || options.ollamaModel || 'default',
+      };
+    } catch (err) {
+      if (strategy === 'remote-only') throw err;
+      // When a specific provider was requested, don't fall through to legacy providers
+      // — re-throw the error so the file-level handler can report it
+      if (useProvider) throw err;
+    }
+  }
+
+  // Legacy fallback: Try providers based on strategy
   if (strategy === 'local-first' || strategy === 'local-only') {
     try {
       const result = await callOllama(fullPrompt, options);

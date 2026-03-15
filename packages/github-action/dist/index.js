@@ -45321,6 +45321,593 @@ class AIDetector {
     }
 }
 //# sourceMappingURL=ai-detector.js.map
+;// CONCATENATED MODULE: ../core/dist/ai-healer/auto-fix-engine.js
+/**
+ * AI Auto-Fix Engine
+ *
+ * Executes AI-powered fixes on files that scored below the threshold.
+ * Uses existing AI providers (Ollama/OpenAI) and PromptBuilder.
+ */
+
+
+
+
+// ─── Diff Utility ──────────────────────────────────────────────────
+/**
+ * Generate a simple unified-style diff between two strings.
+ */
+function simpleDiff(original, fixed, filename) {
+    const origLines = original.split('\n');
+    const fixedLines = fixed.split('\n');
+    const lines = [];
+    lines.push(`--- ${filename} (original)`);
+    lines.push(`+++ ${filename} (fixed)`);
+    // Simple line-by-line diff
+    const maxLen = Math.max(origLines.length, fixedLines.length);
+    let contextLines = 0;
+    let inHunk = false;
+    let hunkStart = 0;
+    for (let i = 0; i < maxLen; i++) {
+        const origLine = i < origLines.length ? origLines[i] : null;
+        const fixedLine = i < fixedLines.length ? fixedLines[i] : null;
+        if (origLine !== fixedLine) {
+            if (!inHunk) {
+                hunkStart = Math.max(0, i - 2);
+                lines.push(`@@ -${hunkStart + 1},${Math.min(3, origLines.length - hunkStart)} +${hunkStart + 1},${Math.min(3, fixedLines.length - hunkStart)} @@`);
+                // Context lines before
+                for (let c = hunkStart; c < i; c++) {
+                    lines.push(` ${origLines[c]}`);
+                }
+                inHunk = true;
+            }
+            if (origLine !== null)
+                lines.push(`-${origLine}`);
+            if (fixedLine !== null)
+                lines.push(`+${fixedLine}`);
+            contextLines = 0;
+        }
+        else {
+            contextLines++;
+            if (inHunk && contextLines > 2) {
+                inHunk = false;
+            }
+            if (inHunk) {
+                lines.push(` ${origLine}`);
+            }
+        }
+    }
+    return lines.join('\n');
+}
+// ─── AI Code Generation ────────────────────────────────────────────
+/**
+ * Call an AI provider to generate fixed code based on a prompt and source.
+ */
+async function generateFixedCode(prompt, source, filename, options) {
+    const fullPrompt = `${prompt}
+
+Here is the file content to fix:
+
+\`\`\`
+${source}
+\`\`\`
+
+Return ONLY the complete fixed file content. Do NOT include explanations, markdown fences, or any text outside the code block. Return the raw code only.`;
+    // Try providers based on strategy
+    const strategy = options.strategy || 'local-first';
+    if (strategy === 'local-first' || strategy === 'local-only') {
+        try {
+            const result = await callOllama(fullPrompt, options);
+            return { code: result, provider: 'ollama', model: options.ollamaModel || 'codellama:13b' };
+        }
+        catch (err) {
+            if (strategy === 'local-only')
+                throw err;
+            // Fall through to remote
+        }
+    }
+    if (strategy === 'remote-first' || strategy === 'remote-only') {
+        try {
+            const result = await callOpenAI(fullPrompt, options);
+            return { code: result, provider: 'openai', model: options.openaiModel || 'gpt-4o-mini' };
+        }
+        catch (err) {
+            if (strategy === 'remote-only')
+                throw err;
+        }
+    }
+    // Try remaining provider as fallback
+    try {
+        const result = await callOllama(fullPrompt, options);
+        return { code: result, provider: 'ollama', model: options.ollamaModel || 'codellama:13b' };
+    }
+    catch {
+        // Fall through to OpenAI
+    }
+    const result = await callOpenAI(fullPrompt, options);
+    return { code: result, provider: 'openai', model: options.openaiModel || 'gpt-4o-mini' };
+}
+async function callOllama(prompt, options) {
+    const provider = new OllamaProvider({
+        endpoint: options.ollamaUrl || process.env.OCR_OLLAMA_URL,
+        model: options.ollamaModel || process.env.OCR_OLLAMA_MODEL || 'codellama:13b',
+    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120_000);
+    try {
+        const res = await fetch(`${provider['endpoint']}/api/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: provider['model'],
+                prompt,
+                stream: false,
+                options: { temperature: 0.1, num_predict: 8192 },
+            }),
+            signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (!res.ok) {
+            const errText = await res.text().catch(() => 'unknown error');
+            throw new Error(`Ollama API error ${res.status}: ${errText}`);
+        }
+        const data = (await res.json());
+        return extractCode(data.response);
+    }
+    catch (err) {
+        clearTimeout(timeout);
+        throw err;
+    }
+}
+async function callOpenAI(prompt, options) {
+    const apiKey = options.openaiKey || process.env.OCR_API_KEY || process.env.OPENAI_API_KEY || '';
+    const model = options.openaiModel || 'gpt-4o-mini';
+    const endpoint = options.openaiEndpoint || 'https://api.openai.com/v1';
+    if (!apiKey) {
+        throw new Error('No API key configured for OpenAI. Set OCR_API_KEY or --ai-remote-key.');
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120_000);
+    try {
+        const res = await fetch(`${endpoint}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                model,
+                messages: [
+                    { role: 'system', content: 'You are an expert code fixer. Return ONLY the fixed code, no explanations.' },
+                    { role: 'user', content: prompt },
+                ],
+                temperature: 0.1,
+                max_tokens: 8192,
+            }),
+            signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (!res.ok) {
+            const errText = await res.text().catch(() => 'unknown error');
+            throw new Error(`OpenAI API error ${res.status}: ${errText}`);
+        }
+        const data = (await res.json());
+        return extractCode(data.choices?.[0]?.message?.content || '');
+    }
+    catch (err) {
+        clearTimeout(timeout);
+        throw err;
+    }
+}
+/**
+ * Extract code from AI response (may contain markdown fences or explanations).
+ */
+function extractCode(response) {
+    // Try to extract from code block
+    const codeBlockMatch = response.match(/```(?:\w+)?\s*\n([\s\S]*?)\n```/);
+    if (codeBlockMatch) {
+        return codeBlockMatch[1].trim();
+    }
+    // If response starts with code-like content, use it directly
+    const trimmed = response.trim();
+    if (trimmed.startsWith('import ') || trimmed.startsWith('const ') || trimmed.startsWith('function ') ||
+        trimmed.startsWith('export ') || trimmed.startsWith('class ') || trimmed.startsWith('#') ||
+        trimmed.startsWith('from ') || trimmed.startsWith('package ') || trimmed.startsWith('<') ||
+        trimmed.startsWith('"""') || trimmed.startsWith("'")) {
+        return trimmed;
+    }
+    // Fallback: return as-is
+    return trimmed;
+}
+// ─── AutoFixEngine ─────────────────────────────────────────────────
+class AutoFixEngine {
+    promptBuilder;
+    constructor() {
+        this.promptBuilder = new PromptBuilder();
+    }
+    /**
+     * Heal all files with issues in a scan report.
+     */
+    async heal(report, options) {
+        const threshold = options.threshold ?? 95;
+        const results = [];
+        const errors = [];
+        // Filter files that need healing
+        const filesToHeal = report.files.filter(f => f.totalScore < threshold);
+        if (filesToHeal.length === 0) {
+            return {
+                filesScanned: report.totalFiles,
+                filesToHeal: 0,
+                filesHealed: 0,
+                issuesFixed: 0,
+                avgScoreImprovement: 0,
+                results: [],
+                providerName: 'none',
+                modelName: 'none',
+                timestamp: new Date().toISOString(),
+                errors: [],
+            };
+        }
+        // Process each file
+        for (const file of filesToHeal) {
+            try {
+                const result = await this.healFile(file, options);
+                if (result) {
+                    results.push(result);
+                }
+            }
+            catch (err) {
+                const msg = `Failed to heal ${file.file}: ${err instanceof Error ? err.message : String(err)}`;
+                errors.push(msg);
+                // Continue with next file
+            }
+        }
+        // Compute report
+        const filesHealed = results.filter(r => r.patches.length > 0).length;
+        const totalImprovement = results.reduce((sum, r) => sum + (r.fixedScore - r.originalScore), 0);
+        const avgImprovement = results.length > 0 ? totalImprovement / results.length : 0;
+        // Count "issues fixed" by summing the score improvements
+        const issuesFixed = results.reduce((sum, r) => sum + r.changes, 0);
+        return {
+            filesScanned: report.totalFiles,
+            filesToHeal: filesToHeal.length,
+            filesHealed,
+            issuesFixed,
+            avgScoreImprovement: Math.round(avgImprovement * 10) / 10,
+            results,
+            providerName: results[0]?.patches[0] ? (options.provider || 'auto') : 'none',
+            modelName: results[0] ? 'n/a' : 'none',
+            timestamp: new Date().toISOString(),
+            errors,
+        };
+    }
+    /**
+     * Heal a single file.
+     */
+    async healFile(file, options) {
+        const projectRoot = resolve(options.projectRoot);
+        const filePath = resolve(projectRoot, file.file);
+        // Read source
+        if (!existsSync(filePath)) {
+            throw new Error(`File not found: ${file.file}`);
+        }
+        const source = readFileSync(filePath, 'utf-8');
+        // Build fix prompt
+        const fixPrompt = this.buildFixPrompt(file, source);
+        // If output-prompts mode, just write the prompt file
+        if (options.outputPrompts) {
+            const outputDir = resolve(options.outputPrompts);
+            mkdirSync(outputDir, { recursive: true });
+            const promptPath = join(outputDir, `${file.file.replace(/[/\\]/g, '__')}.prompt.md`);
+            writeFileSync(promptPath, fixPrompt, 'utf-8');
+            return {
+                file: file.file,
+                originalScore: file.totalScore,
+                fixedScore: file.totalScore,
+                changes: 0,
+                patches: [],
+                errors: [],
+            };
+        }
+        // Call AI
+        const { code: fixedCode, provider: providerName, model: modelName } = await generateFixedCode(fixPrompt, source, file.file, options);
+        // Generate patch
+        const diff = simpleDiff(source, fixedCode, file.file);
+        const patch = {
+            file: file.file,
+            original: source,
+            fixed: fixedCode,
+            diff,
+        };
+        // Apply patch (unless dry-run)
+        if (!options.dryRun && source !== fixedCode) {
+            // Backup original
+            try {
+                copyFileSync(filePath, `${filePath}.bak`);
+            }
+            catch {
+                // Ignore backup errors
+            }
+            writeFileSync(filePath, fixedCode, 'utf-8');
+        }
+        // Count changes (lines changed)
+        const origLines = source.split('\n');
+        const fixedLines = fixedCode.split('\n');
+        let changes = 0;
+        const maxLen = Math.max(origLines.length, fixedLines.length);
+        for (let i = 0; i < maxLen; i++) {
+            if (origLines[i] !== fixedLines[i])
+                changes++;
+        }
+        return {
+            file: file.file,
+            originalScore: file.totalScore,
+            fixedScore: options.dryRun ? file.totalScore : Math.min(100, file.totalScore + Math.round(changes * 0.5)),
+            changes,
+            patches: source !== fixedCode ? [patch] : [],
+            errors: [],
+        };
+    }
+    /**
+     * Apply patches to files (batch mode).
+     */
+    async applyPatches(patches, projectRoot) {
+        for (const patch of patches) {
+            const filePath = resolve(projectRoot, patch.file);
+            mkdirSync(dirname(filePath), { recursive: true });
+            try {
+                copyFileSync(filePath, `${filePath}.bak`);
+            }
+            catch {
+                // Ignore backup errors
+            }
+            writeFileSync(filePath, patch.fixed, 'utf-8');
+        }
+    }
+    /**
+     * Build a fix prompt for a file using PromptBuilder + source context.
+     */
+    buildFixPrompt(file, source) {
+        // Use PromptBuilder's prompt as the base
+        // Create a minimal AggregateScore for the single file
+        const miniReport = {
+            overallScore: file.totalScore,
+            grade: file.grade,
+            totalFiles: 1,
+            passedFiles: 0,
+            failedFiles: 1,
+            files: [file],
+            passed: false,
+            timestamp: new Date().toISOString(),
+        };
+        const prompts = this.promptBuilder.buildPrompts(miniReport);
+        if (prompts.length === 0)
+            return '';
+        let fixPrompt = prompts[0].prompt;
+        // Enhance with source file summary
+        const lines = source.split('\n');
+        fixPrompt += `\n\n### File Statistics\n`;
+        fixPrompt += `- Total lines: ${lines.length}\n`;
+        fixPrompt += `- File extension: ${file.file.split('.').pop()}\n`;
+        return fixPrompt;
+    }
+}
+/* harmony default export */ const auto_fix_engine = ((/* unused pure expression or super */ null && (AutoFixEngine)));
+//# sourceMappingURL=auto-fix-engine.js.map
+;// CONCATENATED MODULE: ../core/dist/ai-healer/ide-rules-generator.js
+/**
+ * IDE Rules Generator
+ *
+ * Generates rule files for AI coding assistants (Cursor, Copilot, Augment)
+ * based on scan/heal results so they avoid repeating detected issues.
+ */
+
+
+// ─── Generator ─────────────────────────────────────────────────────
+class IDERulesGenerator {
+    /**
+     * Generate IDE rule files for all supported assistants.
+     */
+    generateAll(options) {
+        const files = [];
+        const cursorRules = this.generateCursorRules(options);
+        files.push({ path: '.cursor/rules/ocr-fixes.md', content: cursorRules });
+        const copilotInstructions = this.generateCopilotInstructions(options);
+        files.push({ path: '.github/copilot-instructions.md', content: copilotInstructions });
+        const augmentInstructions = this.generateAugmentInstructions(options);
+        files.push({ path: '.augment/instructions.md', content: augmentInstructions });
+        return files;
+    }
+    /**
+     * Write IDE rule files to disk.
+     */
+    writeAll(options) {
+        const files = this.generateAll(options);
+        const writtenPaths = [];
+        for (const file of files) {
+            const fullPath = resolve(options.projectRoot, file.path);
+            mkdirSync(resolve(options.projectRoot, file.path, '..'), { recursive: true });
+            writeFileSync(fullPath, file.content, 'utf-8');
+            writtenPaths.push(fullPath);
+        }
+        return writtenPaths;
+    }
+    /**
+     * Generate Cursor rules file.
+     */
+    generateCursorRules(options) {
+        const lines = [];
+        lines.push('---');
+        lines.push('description: Open Code Review — AI code quality rules');
+        lines.push('globs: ');
+        lines.push('  - "**/*.ts"');
+        lines.push('  - "**/*.js"');
+        lines.push('  - "**/*.tsx"');
+        lines.push('  - "**/*.jsx"');
+        lines.push('  - "**/*.py"');
+        lines.push('  - "**/*.java"');
+        lines.push('  - "**/*.go"');
+        lines.push('  - "**/*.kt"');
+        lines.push('---');
+        lines.push('');
+        lines.push('# AI Code Quality Rules (auto-generated by Open Code Review)');
+        lines.push('');
+        lines.push(`Last updated: ${new Date().toISOString()}`);
+        lines.push(`Overall score: ${options.report.overallScore}/100 (Grade: ${options.report.grade})`);
+        lines.push('');
+        lines.push('## Issue Patterns to Avoid');
+        lines.push('');
+        const issuePatterns = this.extractPatterns(options);
+        if (issuePatterns.length > 0) {
+            for (const pattern of issuePatterns) {
+                lines.push(`### ${pattern.category}`);
+                lines.push(`${pattern.description}`);
+                lines.push('');
+                if (pattern.examples.length > 0) {
+                    lines.push('Examples found in this project:');
+                    for (const ex of pattern.examples.slice(0, 5)) {
+                        lines.push(`- \`${ex.file}\` (line ${ex.line}): ${ex.message}`);
+                    }
+                    lines.push('');
+                }
+            }
+        }
+        else {
+            lines.push('No issues detected. Keep following best practices!');
+            lines.push('');
+        }
+        // Add heal-specific rules
+        if (options.healReport) {
+            lines.push('## Recently Fixed Issues');
+            lines.push('');
+            lines.push('The following issues were auto-fixed. Do NOT reintroduce them:');
+            lines.push('');
+            for (const result of options.healReport.results) {
+                if (result.patches.length > 0) {
+                    lines.push(`- **${result.file}** (score: ${result.originalScore} → ${result.fixedScore})`);
+                }
+            }
+            lines.push('');
+        }
+        lines.push('## General Guidelines');
+        lines.push('');
+        lines.push('1. Only import packages that exist in the project dependencies');
+        lines.push('2. Use up-to-date APIs — check for deprecation warnings');
+        lines.push('3. Add proper error handling to all async operations');
+        lines.push('4. Remove unused imports and variables');
+        lines.push('5. Use `crypto.randomInt()` instead of `Math.random()` for security-sensitive operations');
+        lines.push('6. Use `params` instead of `query` for URL parameters unless intentionally using query strings');
+        lines.push('7. Add proper TypeScript types — avoid `any` when possible');
+        lines.push('8. Handle edge cases and empty states in all functions');
+        return lines.join('\n');
+    }
+    /**
+     * Generate GitHub Copilot instructions file.
+     */
+    generateCopilotInstructions(options) {
+        const lines = [];
+        lines.push('# GitHub Copilot Instructions (auto-generated by Open Code Review)');
+        lines.push('');
+        lines.push(`Overall code quality score: ${options.report.overallScore}/100`);
+        lines.push('');
+        const issuePatterns = this.extractPatterns(options);
+        if (issuePatterns.length > 0) {
+            lines.push('## Known Issue Patterns — Avoid These');
+            lines.push('');
+            for (const pattern of issuePatterns) {
+                lines.push(`### ${pattern.category}`);
+                lines.push(pattern.description);
+                lines.push('');
+                for (const ex of pattern.examples.slice(0, 3)) {
+                    lines.push(`- ❌ \`${ex.file}:${ex.line}\` — ${ex.message}`);
+                }
+                lines.push('');
+            }
+        }
+        lines.push('## Coding Rules for This Project');
+        lines.push('');
+        lines.push('- Only use imports that exist in package.json / requirements.txt / go.mod');
+        lines.push('- Verify API methods exist before using them');
+        lines.push('- Add try/catch to all async/await calls');
+        lines.push('- Use `crypto` module for secure random number generation');
+        lines.push('- Type all function parameters and return values');
+        lines.push('- Remove TODO/FIXME comments before committing');
+        lines.push('- Prefer explicit error types over generic `catch`');
+        return lines.join('\n');
+    }
+    /**
+     * Generate Augment instructions file.
+     */
+    generateAugmentInstructions(options) {
+        const lines = [];
+        lines.push('# Augment Coding Assistant Instructions');
+        lines.push('');
+        lines.push(`Code quality score: ${options.report.overallScore}/100. Auto-generated by Open Code Review.`);
+        lines.push('');
+        const issuePatterns = this.extractPatterns(options);
+        if (issuePatterns.length > 0) {
+            lines.push('## Frequently Detected Issues');
+            lines.push('');
+            for (const pattern of issuePatterns) {
+                lines.push(`**${pattern.category}**: ${pattern.description}`);
+            }
+            lines.push('');
+        }
+        lines.push('## Rules');
+        lines.push('');
+        lines.push('- No hallucinated imports or APIs');
+        lines.push('- Use current, non-deprecated APIs');
+        lines.push('- Always handle errors properly');
+        lines.push('- Maintain consistent code style');
+        lines.push('- Avoid over-engineering — keep it simple');
+        lines.push('- Add proper types and null checks');
+        return lines.join('\n');
+    }
+    /**
+     * Extract common issue patterns from the report.
+     */
+    extractPatterns(options) {
+        // Extract patterns from file dimensions (legacy FileScore format)
+        const patterns = new Map();
+        const categoryDescriptions = {
+            completeness: 'Hallucinated imports, references to non-existent packages/APIs, incomplete code',
+            coherence: 'Logic gaps, context inconsistencies, broken control flow',
+            consistency: 'Style inconsistencies, mixed patterns, architectural drift',
+            conciseness: 'Code duplication, over-engineering, unnecessary abstraction',
+        };
+        for (const file of options.report.files) {
+            const dims = [
+                { key: 'completeness', dim: file.dimensions.completeness },
+                { key: 'coherence', dim: file.dimensions.coherence },
+                { key: 'consistency', dim: file.dimensions.consistency },
+                { key: 'conciseness', dim: file.dimensions.conciseness },
+            ];
+            for (const { key, dim } of dims) {
+                if (dim.issueCount > 0) {
+                    if (!patterns.has(key)) {
+                        patterns.set(key, {
+                            description: categoryDescriptions[key] || key,
+                            examples: [],
+                        });
+                    }
+                    const pattern = patterns.get(key);
+                    for (const detail of dim.details.slice(0, 3)) {
+                        pattern.examples.push({
+                            file: file.file,
+                            line: 0,
+                            message: detail,
+                        });
+                    }
+                }
+            }
+        }
+        return Array.from(patterns.entries()).map(([category, data]) => ({
+            category,
+            ...data,
+        }));
+    }
+}
+/* harmony default export */ const ide_rules_generator = ((/* unused pure expression or super */ null && (IDERulesGenerator)));
+//# sourceMappingURL=ide-rules-generator.js.map
 ;// CONCATENATED MODULE: external "node:os"
 const external_node_os_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:os");
 ;// CONCATENATED MODULE: ../core/dist/registry/cache.js
@@ -51344,6 +51931,567 @@ class SecurityPatternDetector {
     }
 }
 //# sourceMappingURL=security-pattern.js.map
+;// CONCATENATED MODULE: ../core/dist/detectors/v4/language-specific.js
+/**
+ * Language-Specific AI Detectors — V4 detectors for Go/Java/Kotlin/Python.
+ *
+ * These detectors catch AI-specific patterns that are unique to each language:
+ * - GoDetector: Unhandled errors, deprecated ioutil, unnecessary goroutines
+ * - JavaDetector: Deprecated Date/Calendar API, System.out.println leaks
+ * - KotlinDetector: Non-null assertion abuse (!!), coroutine misuse
+ * - PythonDetector: bare except, eval(), deprecated urlparse, mutable defaults
+ *
+ * @since 0.5.0
+ */
+// ═══════════════════════════════════════════════════════════════════
+// Go-specific AI Detector
+// ═══════════════════════════════════════════════════════════════════
+const GO_PATTERNS = [
+    {
+        id: 'go-unhandled-error',
+        pattern: /\b\w+\s*\([^)]*\)\s*$(?!\s*_\s*=)/m,
+        severity: 'warning',
+        confidence: 0.6,
+        message: 'Function call that may return an error is not assigned or checked. AI often ignores Go error returns.',
+    },
+    {
+        id: 'go-deprecated-ioutil',
+        pattern: /['"]io\/ioutil['"]/,
+        severity: 'warning',
+        confidence: 0.95,
+        message: 'io/ioutil is deprecated since Go 1.16. Use os and io packages instead.',
+    },
+    {
+        id: 'go-ioutil-readfile',
+        pattern: /\bioutil\.ReadFile\b/,
+        severity: 'warning',
+        confidence: 0.95,
+        message: 'ioutil.ReadFile is deprecated. Use os.ReadFile instead.',
+    },
+    {
+        id: 'go-ioutil-writefile',
+        pattern: /\bioutil\.WriteFile\b/,
+        severity: 'warning',
+        confidence: 0.95,
+        message: 'ioutil.WriteFile is deprecated. Use os.WriteFile instead.',
+    },
+    {
+        id: 'go-ioutil-readall',
+        pattern: /\bioutil\.ReadAll\b/,
+        severity: 'warning',
+        confidence: 0.95,
+        message: 'ioutil.ReadAll is deprecated. Use io.ReadAll instead.',
+    },
+    {
+        id: 'go-panic-in-library',
+        pattern: /\bpanic\s*\(/,
+        severity: 'warning',
+        confidence: 0.7,
+        message: 'panic() used in non-main code. AI often uses panic instead of proper error handling in library code.',
+    },
+    {
+        id: 'go-empty-defer',
+        pattern: /\bdefer\s+\w+\s*\(\s*\)/,
+        severity: 'info',
+        confidence: 0.5,
+        message: 'defer call with no arguments or empty function. May indicate AI-generated boilerplate.',
+    },
+];
+class GoLanguageDetector {
+    id = 'go-language-specific';
+    name = 'Go Language-Specific Detector';
+    category = 'implementation';
+    supportedLanguages = ['go'];
+    async detect(units, context) {
+        const results = [];
+        for (const unit of units) {
+            if (unit.language !== 'go')
+                continue;
+            if (!unit.source || unit.source.trim().length === 0)
+                continue;
+            // Check if this is a main package — relax panic rules for main
+            const isMainPackage = /package\s+main\b/.test(unit.source);
+            const lines = unit.source.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const trimmed = line.trim();
+                // Skip comments
+                if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*'))
+                    continue;
+                // Skip these patterns for clean code - only apply line-by-line patterns
+                for (const pat of GO_PATTERNS) {
+                    if (pat.id === 'go-panic-in-library' && isMainPackage)
+                        continue;
+                    if (pat.id === 'go-unhandled-error')
+                        continue; // Skip broad heuristic — handled by specific analysis
+                    pat.pattern.lastIndex = 0;
+                    if (pat.pattern.test(line)) {
+                        results.push({
+                            detectorId: this.id,
+                            severity: pat.severity,
+                            category: this.category,
+                            messageKey: `go-language-specific.${pat.id}`,
+                            message: pat.message,
+                            file: unit.file,
+                            line: unit.location.startLine + i + 1,
+                            confidence: pat.confidence,
+                            metadata: {
+                                patternId: pat.id,
+                                language: 'go',
+                                matchedLine: trimmed.substring(0, 100),
+                            },
+                        });
+                    }
+                }
+            }
+            // Unhandled error analysis: find assignments that ignore errors
+            this.detectUnhandledErrors(unit, lines, results);
+        }
+        return results;
+    }
+    detectUnhandledErrors(unit, lines, results) {
+        // Look for error-returning functions called without capturing the error
+        const errorReturningFuncs = /\b(?:os\.Open|os\.Create|os\.ReadFile|os\.WriteFile|os\.MkdirAll|os\.Remove|net\.Dial|net\.Listen|http\.Get|http\.Post|json\.Marshal|json\.Unmarshal|exec\.Command|ioutil\.\w+)\s*\(/;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line.startsWith('//') || line.startsWith('/*') || line.startsWith('*'))
+                continue;
+            errorReturningFuncs.lastIndex = 0;
+            if (!errorReturningFuncs.test(line))
+                continue;
+            // Check if the line properly assigns the error return
+            // Lines with "err" in them are considered handled
+            if (/\berr\b/.test(line))
+                continue;
+            // Lines that assign to _ (ignoring error) are fine
+            if (/:=\s*_\s*,/.test(line))
+                continue;
+            // Lines that are in a return statement using the result directly are ok
+            if (/return\s+.*(?:os\.|net\.|http\.|json\.|exec\.|ioutil\.)/.test(line))
+                continue;
+            // Lines in if conditions are ok (e.g., if err := ...)
+            if (/^\s*if\s/.test(line))
+                continue;
+            results.push({
+                detectorId: this.id,
+                severity: 'warning',
+                category: this.category,
+                messageKey: 'go-language-specific.unhandled-error-return',
+                message: 'Function that returns an error is called without proper error handling. AI-generated Go code commonly ignores error returns.',
+                file: unit.file,
+                line: unit.location.startLine + i + 1,
+                confidence: 0.7,
+                metadata: {
+                    patternId: 'unhandled-error-return',
+                    language: 'go',
+                    matchedLine: line.substring(0, 100),
+                },
+            });
+        }
+    }
+}
+// ═══════════════════════════════════════════════════════════════════
+// Java-specific AI Detector
+// ═══════════════════════════════════════════════════════════════════
+const JAVA_PATTERNS = [
+    {
+        id: 'java-system-out-println',
+        pattern: /\bSystem\.out\.println\s*\(/,
+        severity: 'warning',
+        confidence: 0.85,
+        message: 'System.out.println() used instead of a proper logging framework. AI frequently leaves debug prints in production code.',
+    },
+    {
+        id: 'java-system-err-println',
+        pattern: /\bSystem\.err\.println\s*\(/,
+        severity: 'warning',
+        confidence: 0.85,
+        message: 'System.err.println() used instead of a proper logging framework.',
+    },
+    {
+        id: 'java-equals-without-null',
+        pattern: /\w+\.equals\s*\(\s*\w+\s*\)/,
+        severity: 'info',
+        confidence: 0.5,
+        message: 'String.equals() called on a variable that may be null. AI often writes this without null checks.',
+    },
+    {
+        id: 'java-empty-catch',
+        pattern: /catch\s*\([^)]+\)\s*\{\s*\}/,
+        severity: 'warning',
+        confidence: 0.9,
+        message: 'Empty catch block — swallowing exceptions silently. AI commonly generates this pattern.',
+    },
+    {
+        id: 'java-raw-type',
+        pattern: /(?:ArrayList|HashMap|LinkedList|HashSet|TreeMap|TreeSet|Vector|Hashtable|Stack)\s*<\s*>/,
+        severity: 'info',
+        confidence: 0.8,
+        message: 'Raw generic type used (diamond without type). Consider specifying the generic type parameter.',
+    },
+    {
+        id: 'java-deprecated-date',
+        pattern: /\bnew\s+Date\s*\(\s*\)/,
+        severity: 'warning',
+        confidence: 0.8,
+        message: 'java.util.Date is outdated. Use java.time.LocalDateTime or java.time.Instant (Java 8+).',
+    },
+    {
+        id: 'java-deprecated-calendar',
+        pattern: /\bCalendar\.getInstance\s*\(\s*\)/,
+        severity: 'warning',
+        confidence: 0.8,
+        message: 'Calendar.getInstance() is outdated. Use java.time API (ZonedDateTime, LocalDate) instead.',
+    },
+    {
+        id: 'java-string-concatenation-loop',
+        pattern: /for\s*\([^)]*\)\s*\{[^}]*\+=\s*['"]/,
+        severity: 'warning',
+        confidence: 0.65,
+        message: 'String concatenation inside a loop. Use StringBuilder instead. AI commonly makes this mistake.',
+    },
+];
+class JavaLanguageDetector {
+    id = 'java-language-specific';
+    name = 'Java Language-Specific Detector';
+    category = 'implementation';
+    supportedLanguages = ['java'];
+    async detect(units, context) {
+        const results = [];
+        for (const unit of units) {
+            if (unit.language !== 'java')
+                continue;
+            if (!unit.source || unit.source.trim().length === 0)
+                continue;
+            const lines = unit.source.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const trimmed = line.trim();
+                if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('*'))
+                    continue;
+                for (const pat of JAVA_PATTERNS) {
+                    pat.pattern.lastIndex = 0;
+                    if (pat.pattern.test(line)) {
+                        results.push({
+                            detectorId: this.id,
+                            severity: pat.severity,
+                            category: this.category,
+                            messageKey: `java-language-specific.${pat.id}`,
+                            message: pat.message,
+                            file: unit.file,
+                            line: unit.location.startLine + i + 1,
+                            confidence: pat.confidence,
+                            metadata: {
+                                patternId: pat.id,
+                                language: 'java',
+                                matchedLine: trimmed.substring(0, 100),
+                            },
+                        });
+                    }
+                }
+            }
+            // Check source for multiline patterns (empty catch blocks span lines)
+            this.detectEmptyCatchBlocks(unit, results);
+        }
+        return results;
+    }
+    detectEmptyCatchBlocks(unit, results) {
+        // Match empty catch blocks: catch (...) { } possibly with whitespace
+        const emptyCatchPattern = /catch\s*\([^)]+\)\s*\{\s*\}/;
+        emptyCatchPattern.lastIndex = 0;
+        const match = emptyCatchPattern.exec(unit.source);
+        if (match) {
+            const lineNum = unit.source.substring(0, match.index).split('\n').length;
+            results.push({
+                detectorId: this.id,
+                severity: 'warning',
+                category: this.category,
+                messageKey: 'java-language-specific.java-empty-catch',
+                message: 'Empty catch block — swallowing exceptions silently. AI commonly generates this pattern.',
+                file: unit.file,
+                line: lineNum,
+                confidence: 0.9,
+                metadata: {
+                    patternId: 'java-empty-catch',
+                    language: 'java',
+                },
+            });
+        }
+    }
+}
+// ═══════════════════════════════════════════════════════════════════
+// Kotlin-specific AI Detector
+// ═══════════════════════════════════════════════════════════════════
+const KOTLIN_PATTERNS = [
+    {
+        id: 'kotlin-bang-bang-chain',
+        pattern: /!!\s*\.\s*\w/,
+        severity: 'warning',
+        confidence: 0.8,
+        message: 'Chained non-null assertion (!!) detected. This defeats Kotlin\'s null safety. Use safe calls (?.) or explicit null checks.',
+    },
+    {
+        id: 'kotlin-bang-bang-multiple',
+        pattern: /!!.*!!/,
+        severity: 'warning',
+        confidence: 0.85,
+        message: 'Multiple non-null assertions (!!) in one expression. AI often chains !! operators instead of handling nulls properly.',
+    },
+    {
+        id: 'kotlin-bare-println',
+        pattern: /\bprintln\s*\(/,
+        severity: 'info',
+        confidence: 0.7,
+        message: 'println() used instead of a logging framework. AI commonly leaves debug prints in production Kotlin code.',
+    },
+    {
+        id: 'kotlin-unnecessary-apply',
+        pattern: /\.\s*apply\s*\{\s*(?:\w+\s*=\s*\w+)\s*\}/,
+        severity: 'info',
+        confidence: 0.6,
+        message: 'apply {} with a single simple assignment. Direct assignment would be clearer.',
+    },
+    {
+        id: 'kotlin-empty-catch',
+        pattern: /catch\s*\([^)]+\)\s*\{\s*\}/,
+        severity: 'warning',
+        confidence: 0.9,
+        message: 'Empty catch block — silently swallowing exceptions. AI commonly generates this pattern.',
+    },
+];
+class KotlinLanguageDetector {
+    id = 'kotlin-language-specific';
+    name = 'Kotlin Language-Specific Detector';
+    category = 'implementation';
+    supportedLanguages = ['kotlin'];
+    async detect(units, context) {
+        const results = [];
+        for (const unit of units) {
+            if (unit.language !== 'kotlin')
+                continue;
+            if (!unit.source || unit.source.trim().length === 0)
+                continue;
+            const lines = unit.source.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const trimmed = line.trim();
+                if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*'))
+                    continue;
+                for (const pat of KOTLIN_PATTERNS) {
+                    pat.pattern.lastIndex = 0;
+                    if (pat.pattern.test(line)) {
+                        results.push({
+                            detectorId: this.id,
+                            severity: pat.severity,
+                            category: this.category,
+                            messageKey: `kotlin-language-specific.${pat.id}`,
+                            message: pat.message,
+                            file: unit.file,
+                            line: unit.location.startLine + i + 1,
+                            confidence: pat.confidence,
+                            metadata: {
+                                patternId: pat.id,
+                                language: 'kotlin',
+                                matchedLine: trimmed.substring(0, 100),
+                            },
+                        });
+                    }
+                }
+            }
+            // Detect !!. chains across lines (multiline)
+            this.detectBangBangChains(unit, lines, results);
+            // Check source for multiline patterns (empty catch blocks span lines)
+            this.detectEmptyCatchBlocks(unit, results);
+        }
+        return results;
+    }
+    detectEmptyCatchBlocks(unit, results) {
+        const emptyCatchPattern = /catch\s*\([^)]+\)\s*\{\s*\}/;
+        emptyCatchPattern.lastIndex = 0;
+        const match = emptyCatchPattern.exec(unit.source);
+        if (match) {
+            const lineNum = unit.source.substring(0, match.index).split('\n').length;
+            results.push({
+                detectorId: this.id,
+                severity: 'warning',
+                category: this.category,
+                messageKey: 'kotlin-language-specific.kotlin-empty-catch',
+                message: 'Empty catch block — silently swallowing exceptions. AI commonly generates this pattern.',
+                file: unit.file,
+                line: lineNum,
+                confidence: 0.9,
+                metadata: {
+                    patternId: 'kotlin-empty-catch',
+                    language: 'kotlin',
+                },
+            });
+        }
+    }
+    detectBangBangChains(unit, lines, results) {
+        // Count !! occurrences in each function/method unit
+        const bangBangCount = unit.source.match(/!!/g)?.length ?? 0;
+        if (bangBangCount >= 3) {
+            // Find the first occurrence
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].includes('!!')) {
+                    results.push({
+                        detectorId: this.id,
+                        severity: 'warning',
+                        category: this.category,
+                        messageKey: 'kotlin-language-specific.excessive-bang-bang',
+                        message: `Found ${bangBangCount} non-null assertions (!!) in this unit. AI often overuses !! instead of proper null handling.`,
+                        file: unit.file,
+                        line: unit.location.startLine + i + 1,
+                        confidence: 0.8,
+                        metadata: {
+                            patternId: 'excessive-bang-bang',
+                            language: 'kotlin',
+                            count: bangBangCount,
+                        },
+                    });
+                    break; // Only report once per unit
+                }
+            }
+        }
+    }
+}
+// ═══════════════════════════════════════════════════════════════════
+// Python-specific AI Detector
+// ═══════════════════════════════════════════════════════════════════
+const PYTHON_PATTERNS = [
+    {
+        id: 'python-bare-except',
+        pattern: /\bexcept\s*:/,
+        severity: 'warning',
+        confidence: 0.9,
+        message: 'Bare except: catches all exceptions including SystemExit and KeyboardInterrupt. Use except Exception: instead.',
+    },
+    {
+        id: 'python-eval-usage',
+        pattern: /\beval\s*\(/,
+        severity: 'error',
+        confidence: 0.9,
+        message: 'eval() usage detected — enables arbitrary code execution. Use ast.literal_eval() for safe evaluation.',
+    },
+    {
+        id: 'python-exec-usage',
+        pattern: /\bexec\s*\(/,
+        severity: 'error',
+        confidence: 0.85,
+        message: 'exec() usage detected — enables arbitrary code execution. Consider safer alternatives.',
+    },
+    {
+        id: 'python-deprecated-urlparse',
+        pattern: /\bfrom\s+urllib\.parse\s+import\s+urlparse\b/,
+        severity: 'info',
+        confidence: 0.5,
+        message: 'urlparse import detected. Note: urlparse is still valid in Python 3; however, AI sometimes confuses urlparse with urlsplit.',
+    },
+    {
+        id: 'python-mutable-default-arg',
+        pattern: /def\s+\w+\s*\([^)]*(?:=\s*\[\]|\s*=\s*\{\})\s*\)/,
+        severity: 'warning',
+        confidence: 0.85,
+        message: 'Mutable default argument (list/dict) detected. This is a common Python gotcha — use None as default and initialize inside the function.',
+    },
+    {
+        id: 'python-global-variable',
+        pattern: /\bglobal\s+\w+/,
+        severity: 'info',
+        confidence: 0.5,
+        message: 'global keyword used. Excessive use of global state is an anti-pattern common in AI-generated code.',
+    },
+    {
+        id: 'python-pass-in-except',
+        pattern: /\bexcept\s+.*?:\s*\n\s*pass/,
+        severity: 'warning',
+        confidence: 0.85,
+        message: 'except block with only pass — silently swallowing exceptions. AI commonly generates this pattern.',
+    },
+    {
+        id: 'python-os-system',
+        pattern: /\bos\.system\s*\(/,
+        severity: 'warning',
+        confidence: 0.75,
+        message: 'os.system() used instead of subprocess. Use subprocess.run() for better control and security.',
+    },
+    {
+        id: 'python-pickle-load',
+        pattern: /\bpickle\.load(?:s)?\s*\(/,
+        severity: 'error',
+        confidence: 0.8,
+        message: 'pickle.load() can execute arbitrary code. Use json or safer serialization for untrusted data.',
+    },
+];
+class PythonLanguageDetector {
+    id = 'python-language-specific';
+    name = 'Python Language-Specific Detector';
+    category = 'implementation';
+    supportedLanguages = ['python'];
+    async detect(units, context) {
+        const results = [];
+        for (const unit of units) {
+            if (unit.language !== 'python')
+                continue;
+            if (!unit.source || unit.source.trim().length === 0)
+                continue;
+            const lines = unit.source.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const trimmed = line.trim();
+                if (trimmed.startsWith('#') || trimmed.startsWith('"""') || trimmed.startsWith("'''"))
+                    continue;
+                for (const pat of PYTHON_PATTERNS) {
+                    pat.pattern.lastIndex = 0;
+                    if (pat.pattern.test(line)) {
+                        results.push({
+                            detectorId: this.id,
+                            severity: pat.severity,
+                            category: this.category,
+                            messageKey: `python-language-specific.${pat.id}`,
+                            message: pat.message,
+                            file: unit.file,
+                            line: unit.location.startLine + i + 1,
+                            confidence: pat.confidence,
+                            metadata: {
+                                patternId: pat.id,
+                                language: 'python',
+                                matchedLine: trimmed.substring(0, 100),
+                            },
+                        });
+                    }
+                }
+            }
+            // Multiline mutable default arg detection
+            this.detectMultilinePatterns(unit, results);
+        }
+        return results;
+    }
+    detectMultilinePatterns(unit, results) {
+        const source = unit.source;
+        // Detect except ... pass pattern across lines
+        const exceptPassMatches = source.matchAll(/except\s+(\w+)\s*:\s*\n\s*pass/g);
+        for (const match of exceptPassMatches) {
+            const lineNum = source.substring(0, match.index).split('\n').length;
+            results.push({
+                detectorId: this.id,
+                severity: 'warning',
+                category: this.category,
+                messageKey: 'python-language-specific.except-with-pass',
+                message: `except ${match[1]} with only pass — silently swallowing exceptions. Log the exception or handle it properly.`,
+                file: unit.file,
+                line: lineNum,
+                confidence: 0.85,
+                metadata: {
+                    patternId: 'except-with-pass',
+                    language: 'python',
+                    exceptionType: match[1],
+                },
+            });
+        }
+    }
+}
+//# sourceMappingURL=language-specific.js.map
 ;// CONCATENATED MODULE: ../core/dist/detectors/v4/context-coherence.js
 /**
  * ContextCoherenceDetector — V4 detector for AI context window issues.
@@ -51674,12 +52822,18 @@ class ContextCoherenceDetector {
  * - ContextCoherenceDetector: Detects AI context window inconsistencies
  * - OverEngineeringDetector: Detects over-engineered code patterns
  * - SecurityPatternDetector: Detects security anti-patterns common in AI code
+ * - GoLanguageDetector: Go-specific AI patterns (unhandled errors, deprecated ioutil)
+ * - JavaLanguageDetector: Java-specific AI patterns (System.out.println, deprecated Date)
+ * - KotlinLanguageDetector: Kotlin-specific AI patterns (!! abuse)
+ * - PythonLanguageDetector: Python-specific AI patterns (bare except, eval, mutable defaults)
  *
  * Traditional lint concerns (duplication, type safety) are excluded.
  *
  * @since 0.4.0
  */
 // Detectors
+
+
 
 
 
@@ -51702,6 +52856,10 @@ function createV4Detectors() {
         new ContextCoherenceDetector(),
         new OverEngineeringDetector(),
         new SecurityPatternDetector(),
+        new GoLanguageDetector(),
+        new JavaLanguageDetector(),
+        new KotlinLanguageDetector(),
+        new PythonLanguageDetector(),
     ];
 }
 //# sourceMappingURL=index.js.map
@@ -52348,7 +53506,7 @@ class OllamaEmbeddingProvider {
  * }
  * ```
  */
-class OllamaLLMProvider {
+class ollama_OllamaLLMProvider {
     model;
     baseUrl;
     name = 'ollama';
@@ -52422,6 +53580,62 @@ class OllamaLLMProvider {
     }
 }
 //# sourceMappingURL=ollama.js.map
+;// CONCATENATED MODULE: ../core/dist/ai/v4/types.js
+/**
+ * Open Code Review V4 — AI Pipeline Types
+ *
+ * Type definitions for the two-stage AI scan pipeline:
+ * - Stage 1 (Embedding): Fast similarity-based defect detection
+ * - Stage 2 (LLM): Deep analysis of suspicious code blocks
+ *
+ * SLA levels control which stages run:
+ * - L1 Fast: Structural detectors only (no AI)
+ * - L2 Standard: + Embedding recall + Local LLM (Ollama)
+ * - L3 Deep: + Remote LLM (OpenAI/Claude)
+ *
+ * @since 0.4.0
+ */
+/**
+ * Provider preset configurations.
+ * Each preset maps to a protocol type and default base URL.
+ */
+const types_LLM_PROVIDER_PRESETS = {
+    openai: {
+        protocol: 'openai',
+        baseUrl: 'https://api.openai.com/v1',
+    },
+    'openai-compatible': {
+        protocol: 'openai-compatible',
+        baseUrl: '', // must be provided by user
+    },
+    glm: {
+        protocol: 'openai-compatible',
+        baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4',
+    },
+    zai: {
+        protocol: 'openai-compatible',
+        baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    },
+    deepseek: {
+        protocol: 'openai-compatible',
+        baseUrl: 'https://api.deepseek.com/v1',
+    },
+    together: {
+        protocol: 'openai-compatible',
+        baseUrl: 'https://api.together.xyz/v1',
+    },
+    fireworks: {
+        protocol: 'openai-compatible',
+        baseUrl: 'https://api.fireworks.ai/inference/v1',
+    },
+    anthropic: {
+        protocol: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+    },
+};
+/** All valid provider/preset names for CLI validation */
+const ALL_LLM_PROVIDERS = Object.keys(types_LLM_PROVIDER_PRESETS);
+//# sourceMappingURL=types.js.map
 ;// CONCATENATED MODULE: ../core/dist/ai/v4/llm/openai.js
 /**
  * OpenAI LLM Provider
@@ -52598,6 +53812,105 @@ class AnthropicLLMProvider {
     }
 }
 //# sourceMappingURL=anthropic.js.map
+;// CONCATENATED MODULE: ../core/dist/ai/v4/llm/provider-factory.js
+/**
+ * LLM Provider Factory
+ *
+ * Creates the appropriate LLM provider adapter based on configuration.
+ * Supports:
+ * - OpenAI official API
+ * - Any OpenAI-compatible API (GLM, DeepSeek, Together AI, Fireworks, Azure, etc.)
+ * - Anthropic Messages API
+ * - Local Ollama
+ *
+ * Provider presets auto-fill `baseUrl`. The factory resolves presets
+ * to protocol-specific adapters.
+ *
+ * @since 0.4.0
+ */
+
+
+
+
+/**
+ * Resolve a provider preset to its effective config.
+ */
+function resolveProviderPreset(config) {
+    const preset = types_LLM_PROVIDER_PRESETS[config.provider];
+    if (!preset) {
+        throw new Error(`Unknown LLM provider: "${config.provider}". ` +
+            `Valid providers: ${Object.keys(types_LLM_PROVIDER_PRESETS).join(', ')}`);
+    }
+    return {
+        adapter: preset.protocol,
+        baseUrl: config.baseUrl ?? preset.baseUrl,
+    };
+}
+/**
+ * Create a remote LLM provider from configuration.
+ *
+ * Automatically resolves provider presets (glm, deepseek, etc.)
+ * to the appropriate adapter.
+ *
+ * @example
+ * ```ts
+ * // GLM preset (auto-resolves to OpenAI-compatible)
+ * const provider = createRemoteLLMProvider({
+ *   provider: 'glm',
+ *   model: 'pony-alpha-2',
+ *   apiKey: 'your-key',
+ * });
+ *
+ * // Custom OpenAI-compatible service
+ * const provider = createRemoteLLMProvider({
+ *   provider: 'openai-compatible',
+ *   model: 'my-model',
+ *   apiKey: 'your-key',
+ *   baseUrl: 'https://my-llm-server.com/v1',
+ * });
+ * ```
+ */
+function createRemoteLLMProvider(config) {
+    const { adapter, baseUrl } = resolveProviderPreset(config);
+    if (!baseUrl) {
+        throw new Error(`No baseUrl for provider "${config.provider}". ` +
+            `Set --api-base or provide baseUrl in config.`);
+    }
+    switch (adapter) {
+        case 'openai':
+        case 'openai-compatible':
+            // Both use OpenAI Chat Completions protocol
+            return new OpenAILLMProvider(config.apiKey, config.model, baseUrl);
+        case 'anthropic':
+            return new AnthropicLLMProvider(config.apiKey, config.model, baseUrl);
+        default:
+            throw new Error(`Unhandled adapter type: "${adapter}"`);
+    }
+}
+/**
+ * Create a local Ollama LLM provider.
+ */
+function createLocalLLMProvider(model, baseUrl) {
+    return new OllamaLLMProvider(model, baseUrl ?? 'http://localhost:11434');
+}
+/**
+ * Validate if a provider name is a valid preset.
+ */
+function isValidProvider(name) {
+    return name in LLM_PROVIDER_PRESETS;
+}
+//# sourceMappingURL=provider-factory.js.map
+;// CONCATENATED MODULE: ../core/dist/ai/v4/llm/index.js
+/**
+ * LLM Providers for V4 AI Pipeline Stage 2.
+ *
+ * @since 0.4.0
+ */
+
+
+
+
+//# sourceMappingURL=index.js.map
 ;// CONCATENATED MODULE: ../core/dist/ai/v4/patterns/defect-patterns.js
 /**
  * Defect Pattern Database
@@ -52955,7 +54268,6 @@ function getPatternText(pattern) {
 
 
 
-
 /**
  * Parse LLM JSON response into structured issues.
  * Handles markdown code fences and malformed JSON gracefully.
@@ -53237,19 +54549,14 @@ class pipeline_AIScanPipeline {
     async createLLMProvider() {
         // Try local first (L2 and L3)
         if (this.config.local) {
-            const ollama = new OllamaLLMProvider(this.config.local.model, this.config.local.baseUrl ?? 'http://localhost:11434');
+            const ollama = new ollama_OllamaLLMProvider(this.config.local.model, this.config.local.baseUrl ?? 'http://localhost:11434');
             if (await ollama.isAvailable()) {
                 return ollama;
             }
         }
         // Fallback to remote (L3 only)
         if (this.config.remote) {
-            if (this.config.remote.provider === 'anthropic') {
-                return new AnthropicLLMProvider(this.config.remote.apiKey, this.config.remote.model);
-            }
-            if (this.config.remote.provider === 'openai') {
-                return new OpenAILLMProvider(this.config.remote.apiKey, this.config.remote.model, this.config.remote.baseUrl);
-            }
+            return createRemoteLLMProvider(this.config.remote);
         }
         return null;
     }
@@ -53609,6 +54916,7 @@ class V4Scanner {
                 provider: ai.remote.provider,
                 model: ai.remote.model ?? 'gpt-4o-mini',
                 apiKey: ai.remote.apiKey,
+                baseUrl: ai.remote.baseUrl,
             };
         }
         return aiConfig;
@@ -54591,9 +55899,11 @@ function validateSLAConfig(sla, config) {
  * }
  * ```
  */
+
 // ─── Embedding Providers ───
 
 // ─── LLM Providers ───
+
 
 // Backward compatibility aliases
 
@@ -54683,6 +55993,9 @@ function validateSLAConfig(sla, config) {
 
 // ─── AI Healer ───
 
+
+
+
 // ─── Registry (V4) ───
 
 // ─── License ───
@@ -54710,6 +56023,7 @@ function validateSLAConfig(sla, config) {
 // ─── V4: Diff Support ───
 
 // ─── V4: AI Pipeline ───
+
 
 //# sourceMappingURL=index.js.map
 ;// CONCATENATED MODULE: ./src/index.ts
