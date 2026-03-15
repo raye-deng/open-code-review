@@ -1,0 +1,11 @@
+{
+  "name": "open-code-review",
+  "description": "MCP Server for Open Code Review - AI code quality gate that detects hallucinated imports, phantom packages, stale APIs, and security anti-patterns in AI-generated code",
+  "version": "1.0.1",
+  "mcpServers": {
+    "open-code-review": {
+      "command": "npx",
+      "args": ["-y", "@opencodereview/mcp-server"]
+    }
+  }
+}
