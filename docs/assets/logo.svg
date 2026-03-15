@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d1117"/>
+      <stop offset="100%" style="stop-color:#161b22"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00d4aa"/>
+      <stop offset="100%" style="stop-color:#00b4d8"/>
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00d4aa;stop-opacity:0.15"/>
+      <stop offset="100%" style="stop-color:#00b4d8;stop-opacity:0.08"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="url(#bgGrad)"/>
+  <!-- Subtle grid pattern -->
+  <g opacity="0.04" stroke="#00d4aa" stroke-width="1">
+    <line x1="128" y1="0" x2="128" y2="512"/>
+    <line x1="256" y1="0" x2="256" y2="512"/>
+    <line x1="384" y1="0" x2="384" y2="512"/>
+    <line x1="0" y1="128" x2="512" y2="128"/>
+    <line x1="0" y1="256" x2="512" y2="256"/>
+    <line x1="0" y1="384" x2="512" y2="384"/>
+  </g>
+  <!-- Shield outline -->
+  <path d="M256 80 L396 140 L396 280 Q396 380 256 440 Q116 380 116 280 L116 140 Z" 
+        fill="url(#shieldGrad)" stroke="url(#accentGrad)" stroke-width="3" stroke-linejoin="round"/>
+  <!-- OCR Text -->
+  <text x="256" y="270" text-anchor="middle" font-family="'SF Mono','Fira Code','JetBrains Mono',monospace" 
+        font-size="140" font-weight="700" fill="#e6edf3" letter-spacing="8">
+    OCR
+  </text>
+  <!-- Accent underline bar -->
+  <rect x="146" y="296" width="220" height="4" rx="2" fill="url(#accentGrad)"/>
+  <!-- Code brackets decoration -->
+  <text x="256" y="358" text-anchor="middle" font-family="'SF Mono','Fira Code',monospace" 
+        font-size="32" fill="#00d4aa" opacity="0.7" letter-spacing="4">
+    &lt;/&gt;
+  </text>
+  <!-- Corner accents -->
+  <circle cx="146" cy="200" r="3" fill="#00d4aa" opacity="0.4"/>
+  <circle cx="366" cy="200" r="3" fill="#00d4aa" opacity="0.4"/>
+</svg>
