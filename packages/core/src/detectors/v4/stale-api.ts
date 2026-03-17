@@ -88,6 +88,315 @@ const TYPESCRIPT_DEPRECATIONS: DeprecatedPattern[] = [
   },
 ];
 
+// ── React deprecated lifecycle methods & APIs ──────────────────────
+
+const REACT_DEPRECATIONS: DeprecatedPattern[] = [
+  {
+    pattern: /\bcomponentWillMount\b/,
+    replacement: 'componentDidMount or useEffect',
+    since: 'React 16.3',
+    confidence: 0.95,
+    description: 'componentWillMount is unsafe for async rendering. Use componentDidMount or useEffect instead.',
+  },
+  {
+    pattern: /\bcomponentWillReceiveProps\b/,
+    replacement: 'getDerivedStateFromProps or componentDidUpdate',
+    since: 'React 16.3',
+    confidence: 0.95,
+    description: 'componentWillReceiveProps is unsafe for async rendering. Use static getDerivedStateFromProps or componentDidUpdate.',
+  },
+  {
+    pattern: /\bcomponentWillUpdate\b/,
+    replacement: 'getSnapshotBeforeUpdate or componentDidUpdate',
+    since: 'React 16.3',
+    confidence: 0.95,
+    description: 'componentWillUpdate is unsafe for async rendering. Use getSnapshotBeforeUpdate or componentDidUpdate.',
+  },
+  {
+    pattern: /\bgetDefaultProps\b/,
+    replacement: 'static defaultProps class property',
+    since: 'React 16.3',
+    confidence: 0.9,
+    description: 'getDefaultProps is deprecated. Use static defaultProps as a class property.',
+  },
+  {
+    pattern: /\bReact\.createFactory\b/,
+    replacement: 'React.createElement or JSX',
+    since: 'React 16',
+    confidence: 0.9,
+    description: 'React.createFactory is deprecated. Use React.createElement or JSX directly.',
+  },
+  {
+    pattern: /\bReact\.DOM\b/,
+    replacement: 'react-dom package',
+    since: 'React 15.5',
+    confidence: 0.9,
+    description: 'React.DOM is removed. Import from react-dom instead.',
+  },
+  {
+    pattern: /\bfindDOMNode\b/,
+    replacement: 'React refs (useRef / React.createRef)',
+    since: 'React 18',
+    confidence: 0.95,
+    description: 'findDOMNode is deprecated and removed in strict mode. Use React refs instead.',
+  },
+  {
+    pattern: /\bString\s+refs\s*\(this\.refs\)/,
+    replacement: 'React.createRef() or useRef()',
+    since: 'React 16.3',
+    confidence: 0.85,
+    description: 'String refs are deprecated. Use React.createRef() or useRef() callback refs.',
+  },
+  {
+    pattern: /\bthis\.isMounted\b/,
+    replacement: 'componentDidMount + cleanup in componentWillUnmount',
+    since: 'React 16',
+    confidence: 0.95,
+    description: 'isMounted is deprecated as an anti-pattern. Restructure to use proper lifecycle cleanup.',
+  },
+  {
+    pattern: /\bUNSAFE_componentWillMount\b/,
+    replacement: 'componentDidMount or useEffect',
+    since: 'React 16.3',
+    confidence: 0.9,
+    description: 'UNSAFE_componentWillMount still exists but is a migration path only. Move to useEffect.',
+  },
+  {
+    pattern: /\bUNSAFE_componentWillReceiveProps\b/,
+    replacement: 'getDerivedStateFromProps or componentDidUpdate',
+    since: 'React 16.3',
+    confidence: 0.9,
+    description: 'UNSAFE_componentWillReceiveProps is a migration path only. Move to getDerivedStateFromProps.',
+  },
+  {
+    pattern: /\bUNSAFE_componentWillUpdate\b/,
+    replacement: 'getSnapshotBeforeUpdate or componentDidUpdate',
+    since: 'React 16.3',
+    confidence: 0.9,
+    description: 'UNSAFE_componentWillUpdate is a migration path only. Move to getSnapshotBeforeUpdate.',
+  },
+  {
+    pattern: /\bReact\.PureComponent\s*\(\s*\{\s*\}/,
+    replacement: 'React.memo() for functional components',
+    since: 'React 16.6+',
+    confidence: 0.7,
+    description: 'Consider using React.memo() for functional components instead of PureComponent class.',
+  },
+  {
+    pattern: /\blegacyRenderSubtreeIntoContainer\b/,
+    replacement: 'createRoot().render()',
+    since: 'React 18',
+    confidence: 0.95,
+    description: 'ReactDOM.render is replaced by createRoot().render() in React 18.',
+  },
+  {
+    pattern: /\bReactDOM\.render\b/,
+    replacement: 'createRoot().render()',
+    since: 'React 18',
+    confidence: 0.95,
+    description: 'ReactDOM.render is deprecated in React 18. Use createRoot from react-dom/client.',
+  },
+  {
+    pattern: /\bReactDOM\.hydrate\b/,
+    replacement: 'hydrateRoot()',
+    since: 'React 18',
+    confidence: 0.95,
+    description: 'ReactDOM.hydrate is deprecated in React 18. Use hydrateRoot from react-dom/client.',
+  },
+  {
+    pattern: /\bReactDOM\.unmountComponentAtNode\b/,
+    replacement: 'root.unmount()',
+    since: 'React 18',
+    confidence: 0.95,
+    description: 'unmountComponentAtNode is deprecated in React 18. Use root.unmount() instead.',
+  },
+];
+
+// ── Vue deprecated APIs ────────────────────────────────────────────
+
+const VUE_DEPRECATIONS: DeprecatedPattern[] = [
+  {
+    pattern: /\bVue\.set\b/,
+    replacement: 'Direct assignment (reactiveProxy.prop = value)',
+    since: 'Vue 3',
+    confidence: 0.95,
+    description: 'Vue.set is not needed in Vue 3 — the reactivity system handles it natively.',
+  },
+  {
+    pattern: /\bVue\.delete\b/,
+    replacement: 'delete reactiveProxy.prop',
+    since: 'Vue 3',
+    confidence: 0.95,
+    description: 'Vue.delete is not needed in Vue 3 — use the native delete operator.',
+  },
+  {
+    pattern: /\bthis\.\$set\b/,
+    replacement: 'Direct assignment',
+    since: 'Vue 3',
+    confidence: 0.95,
+    description: 'this.$set is removed in Vue 3. Reactivity handles reassignment natively.',
+  },
+  {
+    pattern: /\bthis\.\$delete\b/,
+    replacement: 'delete this.prop',
+    since: 'Vue 3',
+    confidence: 0.95,
+    description: 'this.$delete is removed in Vue 3. Use native delete.',
+  },
+  {
+    pattern: /\bthis\.\$on\b/,
+    replacement: 'mitt or provide/inject',
+    since: 'Vue 3',
+    confidence: 0.95,
+    description: 'this.$on (event bus) is removed in Vue 3. Use an external event emitter like mitt.',
+  },
+  {
+    pattern: /\bthis\.\$off\b/,
+    replacement: 'mitt or provide/inject',
+    since: 'Vue 3',
+    confidence: 0.95,
+    description: 'this.$off is removed in Vue 3. Use an external event emitter.',
+  },
+  {
+    pattern: /\bthis\.\$once\b/,
+    replacement: 'mitt or provide/inject',
+    since: 'Vue 3',
+    confidence: 0.95,
+    description: 'this.$once is removed in Vue 3.',
+  },
+  {
+    pattern: /\bthis\.\$listeners\b/,
+    replacement: '$attrs (Vue 3 merges $listeners into $attrs)',
+    since: 'Vue 3',
+    confidence: 0.9,
+    description: '$listeners is removed in Vue 3 — listeners are now part of $attrs.',
+  },
+  {
+    pattern: /\bthis\.\$children\b/,
+    replacement: 'template refs or provide/inject',
+    since: 'Vue 3',
+    confidence: 0.95,
+    description: '$children is removed in Vue 3. Use template refs or provide/inject.',
+  },
+  {
+    pattern: /\bthis\.\$scopedSlots\b/,
+    replacement: '$slots (Vue 3 unifies $slots and $scopedSlots)',
+    since: 'Vue 3',
+    confidence: 0.9,
+    description: '$scopedSlots is removed in Vue 3. Use $slots for all slots.',
+  },
+  {
+    pattern: /\bVue\.filter\b/,
+    replacement: 'computed properties or methods',
+    since: 'Vue 3',
+    confidence: 0.95,
+    description: 'Filters are removed in Vue 3. Use computed properties or method calls in templates.',
+  },
+  {
+    pattern: /\bVue\.directive\b/,
+    replacement: 'app.directive()',
+    since: 'Vue 3',
+    confidence: 0.85,
+    description: 'Vue.directive is removed in Vue 3. Register directives on the app instance.',
+  },
+  {
+    pattern: /\bVue\.component\b/,
+    replacement: 'app.component()',
+    since: 'Vue 3',
+    confidence: 0.8,
+    description: 'Vue.component global registration syntax changed in Vue 3. Use app.component().',
+  },
+  {
+    pattern: /\bVue\.mixin\b/,
+    replacement: 'composables or provide/inject',
+    since: 'Vue 3',
+    confidence: 0.9,
+    description: 'Vue.mixin is removed in Vue 3. Use composables or provide/inject for shared logic.',
+  },
+  {
+    pattern: /\bVue\.use\b/,
+    replacement: 'app.use()',
+    since: 'Vue 3',
+    confidence: 0.85,
+    description: 'Vue.use plugin installation changed in Vue 3. Use app.use() on the app instance.',
+  },
+  {
+    pattern: /\bnew\s+Vue\b/,
+    replacement: 'createApp()',
+    since: 'Vue 3',
+    confidence: 0.85,
+    description: 'new Vue() constructor is removed in Vue 3. Use createApp() from vue.',
+  },
+  {
+    pattern: /\bv-bind:\w+\.sync\b/,
+    replacement: 'v-model:propName',
+    since: 'Vue 3',
+    confidence: 0.95,
+    description: '.sync modifier is removed in Vue 3. Use v-model:propName instead.',
+  },
+  {
+    pattern: /\.\w+\.sync(?:\s|=|>|$)/,
+    replacement: 'v-model:propName',
+    since: 'Vue 3',
+    confidence: 0.85,
+    description: '.sync modifier is removed in Vue 3. Use v-model:propName instead.',
+  },
+  {
+    pattern: /\bv-on\.native\b/,
+    replacement: 'emits option',
+    since: 'Vue 3',
+    confidence: 0.95,
+    description: '.native modifier is removed in Vue 3. Use the emits option to declare component events.',
+  },
+];
+
+// ── Angular deprecated APIs ────────────────────────────────────────
+
+const ANGULAR_DEPRECATIONS: DeprecatedPattern[] = [
+  {
+    pattern: /\bHttpClientModule\b/,
+    replacement: 'provideHttpClient()',
+    since: 'Angular 17',
+    confidence: 0.9,
+    description: 'HttpClientModule is deprecated in Angular 17+. Use provideHttpClient() in app.config.',
+  },
+  {
+    pattern: /\bBrowserAnimationsModule\b/,
+    replacement: 'provideAnimations() or provideAnimationsAsync()',
+    since: 'Angular 17',
+    confidence: 0.9,
+    description: 'BrowserAnimationsModule is deprecated in Angular 17+. Use provideAnimations() in app.config.',
+  },
+  {
+    pattern: /\b\@angular\/platform-browser-dynamic\b/,
+    replacement: 'bootstrapApplication()',
+    since: 'Angular 17',
+    confidence: 0.7,
+    description: 'platformBrowserDynamic().bootstrapModule() is the legacy bootstrap method. Use bootstrapApplication().',
+  },
+  {
+    pattern: /\bViewChild\b.*?\bstatic\s*:\s*true\b/,
+    replacement: 'signals-based ViewChild (no static flag needed)',
+    since: 'Angular 17+',
+    confidence: 0.7,
+    description: 'ViewChild static flag is being phased out. Consider using Angular signals.',
+  },
+  {
+    pattern: /\bRenderer\b/,
+    replacement: 'Renderer2',
+    since: 'Angular 4+',
+    confidence: 0.85,
+    description: 'Renderer is deprecated since Angular 4. Use Renderer2 instead.',
+  },
+  {
+    pattern: /\b\@angular\/common\/http\/\$Http\b/,
+    replacement: 'HttpClient',
+    since: 'Angular 5',
+    confidence: 0.95,
+    description: 'The legacy Http service is removed. Use HttpClient from @angular/common/http.',
+  },
+];
+
 const PYTHON_DEPRECATIONS: DeprecatedPattern[] = [
   {
     pattern: /\bimport\s+optparse\b/,
@@ -300,9 +609,17 @@ const KOTLIN_DEPRECATIONS: DeprecatedPattern[] = [
 
 // ─── Deprecation patterns map ──────────────────────────────────────
 
+/** Combined TypeScript/JavaScript patterns including Node.js + React + Vue + Angular. */
+const TS_JS_DEPRECATIONS: DeprecatedPattern[] = [
+  ...TYPESCRIPT_DEPRECATIONS,
+  ...REACT_DEPRECATIONS,
+  ...VUE_DEPRECATIONS,
+  ...ANGULAR_DEPRECATIONS,
+];
+
 const DEPRECATION_PATTERNS: Map<SupportedLanguage, DeprecatedPattern[]> = new Map([
-  ['typescript', TYPESCRIPT_DEPRECATIONS],
-  ['javascript', TYPESCRIPT_DEPRECATIONS],
+  ['typescript', TS_JS_DEPRECATIONS],
+  ['javascript', TS_JS_DEPRECATIONS],
   ['python', PYTHON_DEPRECATIONS],
   ['java', JAVA_DEPRECATIONS],
   ['go', GO_DEPRECATIONS],

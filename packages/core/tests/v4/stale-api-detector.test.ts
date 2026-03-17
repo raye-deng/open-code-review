@@ -346,4 +346,266 @@ const exists = fs.existsSync("./file");
     expect(distutilsResult).toBeDefined();
     expect(distutilsResult!.metadata?.replacement).toBe('setuptools');
   });
+
+  // ── React deprecated lifecycle detection ────────────────────────
+
+  it('should detect React componentWillMount', async () => {
+    const unit = makeFuncUnit({
+      file: 'MyComponent.tsx',
+      language: 'typescript',
+      source: 'componentWillMount() {\n    this.fetchData();\n  }',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const cwmResult = results.find(r => r.message.includes('componentWillMount'));
+    expect(cwmResult).toBeDefined();
+    expect(cwmResult!.confidence).toBeGreaterThanOrEqual(0.9);
+    expect(cwmResult!.metadata?.since).toBe('React 16.3');
+  });
+
+  it('should detect React componentWillReceiveProps', async () => {
+    const unit = makeFuncUnit({
+      file: 'MyComponent.tsx',
+      language: 'typescript',
+      source: 'componentWillReceiveProps(nextProps) {\n    this.setState({ data: nextProps.data });\n  }',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const cwrpResult = results.find(r => r.message.includes('componentWillReceiveProps'));
+    expect(cwrpResult).toBeDefined();
+  });
+
+  it('should detect React findDOMNode', async () => {
+    const unit = makeFuncUnit({
+      file: 'MyComponent.tsx',
+      language: 'typescript',
+      source: 'const node = findDOMNode(this);',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const fdnResult = results.find(r => r.message.includes('findDOMNode'));
+    expect(fdnResult).toBeDefined();
+    expect(fdnResult!.metadata?.since).toBe('React 18');
+  });
+
+  it('should detect React ReactDOM.render (React 18)', async () => {
+    const unit = makeFuncUnit({
+      file: 'index.tsx',
+      language: 'typescript',
+      source: 'ReactDOM.render(<App />, document.getElementById("root"));',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const renderResult = results.find(r => r.message.includes('ReactDOM.render'));
+    expect(renderResult).toBeDefined();
+    expect(renderResult!.metadata?.replacement).toContain('createRoot');
+  });
+
+  it('should detect React ReactDOM.hydrate (React 18)', async () => {
+    const unit = makeFuncUnit({
+      file: 'index.tsx',
+      language: 'typescript',
+      source: 'ReactDOM.hydrate(<App />, document.getElementById("root"));',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const hydrateResult = results.find(r => r.message.includes('hydrate'));
+    expect(hydrateResult).toBeDefined();
+  });
+
+  it('should detect React this.isMounted anti-pattern', async () => {
+    const unit = makeFuncUnit({
+      file: 'MyComponent.tsx',
+      language: 'typescript',
+      source: 'if (this.isMounted()) {\n    this.setState({ loading: false });\n  }',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const mountedResult = results.find(r => r.message.includes('isMounted'));
+    expect(mountedResult).toBeDefined();
+  });
+
+  it('should detect React React.createFactory', async () => {
+    const unit = makeFuncUnit({
+      file: 'factory.tsx',
+      language: 'typescript',
+      source: 'const divFactory = React.createFactory("div");',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const factoryResult = results.find(r => r.message.includes('createFactory'));
+    expect(factoryResult).toBeDefined();
+  });
+
+  it('should detect React UNSAFE_ lifecycle methods', async () => {
+    const unit = makeFuncUnit({
+      file: 'LegacyComponent.tsx',
+      language: 'typescript',
+      source: 'UNSAFE_componentWillMount() {\n    this.loadData();\n  }',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const unsafeResult = results.find(r => r.message.includes('UNSAFE_componentWillMount'));
+    expect(unsafeResult).toBeDefined();
+  });
+
+  // ── Vue deprecated API detection ───────────────────────────────
+
+  it('should detect Vue 2 this.$set (removed in Vue 3)', async () => {
+    const unit = makeFuncUnit({
+      file: 'MyComponent.vue',
+      language: 'typescript',
+      source: 'this.$set(this.items, index, newValue);',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const setResult = results.find(r => r.message.includes('$set'));
+    expect(setResult).toBeDefined();
+    expect(setResult!.metadata?.since).toBe('Vue 3');
+  });
+
+  it('should detect Vue 2 event bus (this.$on)', async () => {
+    const unit = makeFuncUnit({
+      file: 'MyComponent.vue',
+      language: 'typescript',
+      source: 'this.$on("event-name", this.handler);',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const onResult = results.find(r => r.message.includes('$on'));
+    expect(onResult).toBeDefined();
+  });
+
+  it('should detect Vue 2 $children (removed in Vue 3)', async () => {
+    const unit = makeFuncUnit({
+      file: 'ParentComponent.vue',
+      language: 'typescript',
+      source: 'const child = this.$children[0];',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const childrenResult = results.find(r => r.message.includes('$children'));
+    expect(childrenResult).toBeDefined();
+  });
+
+  it('should detect Vue 2 new Vue() (removed in Vue 3)', async () => {
+    const unit = makeFuncUnit({
+      file: 'main.js',
+      language: 'javascript',
+      source: 'new Vue({\n  render: h => h(App),\n}).$mount("#app");',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const newVueResult = results.find(r => r.message.includes('new Vue'));
+    expect(newVueResult).toBeDefined();
+  });
+
+  it('should detect Vue 2 Vue.filter (removed in Vue 3)', async () => {
+    const unit = makeFuncUnit({
+      file: 'filters.js',
+      language: 'javascript',
+      source: 'Vue.filter("uppercase", (value) => value.toUpperCase());',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const filterResult = results.find(r => r.message.includes('Vue.filter') || r.message.includes('Filters are removed'));
+    expect(filterResult).toBeDefined();
+    expect(filterResult!.metadata?.since).toBe('Vue 3');
+  });
+
+  it('should detect Vue 2 .sync modifier (removed in Vue 3)', async () => {
+    const unit = makeFuncUnit({
+      file: 'Parent.vue',
+      language: 'typescript',
+      source: '<Child v-bind:title.sync="pageTitle" />',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const syncResult = results.find(r => r.message.includes('.sync'));
+    expect(syncResult).toBeDefined();
+    expect(syncResult!.metadata?.since).toBe('Vue 3');
+  });
+
+  it('should detect Vue 2 this.$listeners (merged into $attrs in Vue 3)', async () => {
+    const unit = makeFuncUnit({
+      file: 'Child.vue',
+      language: 'typescript',
+      source: 'const listeners = this.$listeners;',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const listenersResult = results.find(r => r.message.includes('$listeners'));
+    expect(listenersResult).toBeDefined();
+  });
+
+  // ── Angular deprecated API detection ───────────────────────────
+
+  it('should detect Angular deprecated HttpClientModule', async () => {
+    const unit = makeFuncUnit({
+      file: 'app.module.ts',
+      language: 'typescript',
+      source: "import { HttpClientModule } from '@angular/common/http';",
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const httpResult = results.find(r => r.message.includes('HttpClientModule'));
+    expect(httpResult).toBeDefined();
+    expect(httpResult!.metadata?.since).toBe('Angular 17');
+  });
+
+  it('should detect Angular deprecated BrowserAnimationsModule', async () => {
+    const unit = makeFuncUnit({
+      file: 'app.module.ts',
+      language: 'typescript',
+      source: "import { BrowserAnimationsModule } from '@angular/platform-browser/animations';",
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const animResult = results.find(r => r.message.includes('BrowserAnimationsModule'));
+    expect(animResult).toBeDefined();
+  });
+
+  it('should detect Angular deprecated Renderer (should use Renderer2)', async () => {
+    const unit = makeFuncUnit({
+      file: 'MyDirective.ts',
+      language: 'typescript',
+      source: 'constructor(private renderer: Renderer) {}',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const rendererResult = results.find(r => r.message.includes('Renderer'));
+    expect(rendererResult).toBeDefined();
+    expect(rendererResult!.metadata?.replacement).toContain('Renderer2');
+  });
+
+  // ── Cross-framework: no cross-pollination ──────────────────────
+
+  it('should not detect React/Vue patterns in Python files', async () => {
+    const unit = makeFuncUnit({
+      file: 'views.py',
+      language: 'python',
+      source: 'def componentWillMount(self): # Django, not React\n    pass',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const reactResults = results.filter(r =>
+      r.message.includes('componentWillMount') &&
+      r.metadata?.since === 'React 16.3',
+    );
+    expect(reactResults).toHaveLength(0);
+  });
+
+  it('should not detect React/Vue patterns in Go files', async () => {
+    const unit = makeFuncUnit({
+      file: 'main.go',
+      language: 'go',
+      source: 'func componentDidMount() {} // Go, not React',
+    });
+
+    const results = await detector.detect([unit], createContext());
+    const reactResults = results.filter(r =>
+      r.message.includes('componentDidMount'),
+    );
+    expect(reactResults).toHaveLength(0);
+  });
 });
