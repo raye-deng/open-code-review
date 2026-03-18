@@ -90,10 +90,16 @@ function resolveGrammarPath(grammarFile: string): string {
 export class ParserManager {
   private languages: Map<SupportedLanguage, TreeSitterModule.Language> = new Map();
   private _initialized = false;
+  private _initFailed = false;
 
   /** Whether the parser has been initialized */
   get initialized(): boolean {
     return this._initialized;
+  }
+
+  /** Whether WASM initialization failed (falls back to L1 regex-only mode) */
+  get initFailed(): boolean {
+    return this._initFailed;
   }
 
   /**
@@ -102,60 +108,68 @@ export class ParserManager {
    * Safe to call multiple times (idempotent).
    */
   async init(): Promise<void> {
-    if (this._initialized) return;
+    if (this._initialized || this._initFailed) return;
 
-    // Resolve the tree-sitter WASM binary path.
-    // web-tree-sitter needs its own .wasm file to initialize the runtime.
-    // In bundled environments (vitest, webpack), the auto-detection may fail,
-    // so we provide an explicit locateFile function.
-    let treeSitterWasmDir: string;
     try {
-      const req = createRequire(import.meta.url);
-      const treeSitterMainPath = req.resolve('web-tree-sitter');
-      treeSitterWasmDir = dirname(treeSitterMainPath);
-    } catch {
-      treeSitterWasmDir = '';
-    }
-
-    await Parser.init({
-      locateFile: (scriptName: string) => {
-        if (treeSitterWasmDir && scriptName.endsWith('.wasm')) {
-          const candidate = join(treeSitterWasmDir, scriptName);
-          if (existsSync(candidate)) return candidate;
-        }
-        return scriptName;
-      },
-    });
-
-    // Load grammars for all supported languages SEQUENTIALLY.
-    // web-tree-sitter ≤0.24.x has a race condition when loading multiple
-    // WASM grammars concurrently via Promise.all() — the Emscripten glue
-    // code shares global state during instantiation, causing cross-language
-    // symbol contamination (e.g., "bad export type for
-    // 'tree_sitter_javascript_external_scanner_create': undefined").
-    // This manifests on Node.js ≤20 but not on Node.js ≥22 due to
-    // differences in V8's WebAssembly.instantiate isolation.
-    // See: https://github.com/nicolo-ribaudo/tree-sitter/nicolo-ribaudo/tree-sitter/issues/5172
-    const languages = Object.keys(GRAMMAR_FILES) as SupportedLanguage[];
-    const errors: Array<{ lang: SupportedLanguage; error: Error }> = [];
-    for (const lang of languages) {
-      const grammarFile = GRAMMAR_FILES[lang];
+      // Resolve the tree-sitter WASM binary path.
+      // web-tree-sitter needs its own .wasm file to initialize the runtime.
+      // In bundled environments (vitest, webpack), the auto-detection may fail,
+      // so we provide an explicit locateFile function.
+      let treeSitterWasmDir: string;
       try {
-        const grammarPath = resolveGrammarPath(grammarFile);
-        const language = await Parser.Language.load(grammarPath);
-        this.languages.set(lang, language);
-      } catch (err) {
-        // Non-fatal: log and continue so other languages still work.
-        // The grammar file may be missing or ABI-incompatible.
-        errors.push({ lang, error: err as Error });
+        const req = createRequire(import.meta.url);
+        const treeSitterMainPath = req.resolve('web-tree-sitter');
+        treeSitterWasmDir = dirname(treeSitterMainPath);
+      } catch {
+        treeSitterWasmDir = '';
       }
+
+      await Parser.init({
+        locateFile: (scriptName: string) => {
+          if (treeSitterWasmDir && scriptName.endsWith('.wasm')) {
+            const candidate = join(treeSitterWasmDir, scriptName);
+            if (existsSync(candidate)) return candidate;
+          }
+          return scriptName;
+        },
+      });
+
+      // Load grammars for all supported languages SEQUENTIALLY.
+      // web-tree-sitter ≤0.24.x has a race condition when loading multiple
+      // WASM grammars concurrently via Promise.all() — the Emscripten glue
+      // code shares global state during instantiation, causing cross-language
+      // symbol contamination (e.g., "bad export type for
+      // 'tree_sitter_javascript_external_scanner_create': undefined").
+      // This manifests on Node.js ≤20 but not on Node.js ≥22 due to
+      // differences in V8's WebAssembly.instantiate isolation.
+      // See: https://github.com/nicolo-ribaudo/tree-sitter/nicolo-ribaudo/tree-sitter/issues/5172
+      const languages = Object.keys(GRAMMAR_FILES) as SupportedLanguage[];
+      const errors: Array<{ lang: SupportedLanguage; error: Error }> = [];
+      for (const lang of languages) {
+        const grammarFile = GRAMMAR_FILES[lang];
+        try {
+          const grammarPath = resolveGrammarPath(grammarFile);
+          const language = await Parser.Language.load(grammarPath);
+          this.languages.set(lang, language);
+        } catch (err) {
+          // Non-fatal: log and continue so other languages still work.
+          // The grammar file may be missing or ABI-incompatible.
+          errors.push({ lang, error: err as Error });
+        }
+      }
+      if (errors.length > 0 && this.languages.size === 0) {
+        // All grammars failed — this is fatal within the try block,
+        // but will be caught below and treated as init failure.
+        const msgs = errors.map(e => `  ${e.lang}: ${e.error.message}`).join('\n');
+        throw new Error(`Failed to load any tree-sitter grammars:\n${msgs}`);
+      }
+      this._initialized = true;
+    } catch (err) {
+      // Log warning but don't crash — fall back to regex-based detection
+      console.warn(`[OCR] Tree-sitter WASM initialization failed: ${err}`);
+      console.warn('[OCR] Falling back to regex-based analysis (L1 only)');
+      this._initFailed = true;
     }
-    if (errors.length > 0 && this.languages.size === 0) {
-      // All grammars failed — this is fatal.
-      const msgs = errors.map(e => `  ${e.lang}: ${e.error.message}`).join('\n');
-      throw new Error(`Failed to load any tree-sitter grammars:\n${msgs}`);
-    }
-    this._initialized = true;
   }
 
   /**
@@ -166,14 +180,14 @@ export class ParserManager {
    * @returns Parsed tree-sitter tree
    * @throws Error if not initialized or language not supported
    */
-  parse(source: string, language: SupportedLanguage): TreeSitterModule.Tree {
-    if (!this._initialized) {
-      throw new Error('ParserManager not initialized. Call init() first.');
+  parse(source: string, language: SupportedLanguage): TreeSitterModule.Tree | null {
+    if (this._initFailed || !this._initialized) {
+      return null; // Caller should handle null → use regex fallback
     }
 
     const lang = this.languages.get(language);
     if (!lang) {
-      throw new Error(`No grammar loaded for language: ${language}`);
+      return null; // Grammar not loaded for this language
     }
 
     const parser = new Parser();

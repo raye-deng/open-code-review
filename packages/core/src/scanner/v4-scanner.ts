@@ -190,6 +190,7 @@ export class V4Scanner {
         const absolutePath = join(this.config.projectRoot, file);
         const source = await readFile(absolutePath, 'utf-8');
         const tree = this.parserManager.parse(source, language);
+        if (!tree) continue; // WASM init failed — skip AST extraction, L1 regex still runs
         const extractor = this.extractors.get(language);
         if (extractor) {
           const units = extractor.extract(tree, file, source);

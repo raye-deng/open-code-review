@@ -49,16 +49,50 @@ describe('V4 ParserManager', () => {
   // ─── Error handling ──────────────────────────────────────────────
 
   describe('error handling', () => {
-    it('should throw on parse before init', () => {
+    it('should return null on parse before init', () => {
       const uninitManager = new ParserManager();
-      expect(() => uninitManager.parse('const x = 1;', 'typescript')).toThrow(
-        'ParserManager not initialized'
-      );
+      const result = uninitManager.parse('const x = 1;', 'typescript');
+      expect(result).toBeNull();
     });
 
     it('should not have unsupported language grammar', () => {
       // 'rust' is not in our supported list
       expect(manager.hasLanguage('rust' as SupportedLanguage)).toBe(false);
+    });
+
+    it('should return null for unsupported language parse', () => {
+      const result = manager.parse('fn main() {}', 'rust' as SupportedLanguage);
+      expect(result).toBeNull();
+    });
+  });
+
+  // ─── WASM init failure graceful fallback ─────────────────────────
+
+  describe('WASM init failure fallback', () => {
+    it('should not crash when WASM init fails and should fall back gracefully', async () => {
+      // Simulate a ParserManager where _initFailed is set
+      const failManager = new ParserManager();
+      // Manually trigger init failure state by accessing private field
+      // This simulates what happens when Parser.init() throws (e.g., WASM not available)
+      (failManager as any)._initFailed = true;
+
+      // init() should be a no-op after failure
+      await failManager.init();
+      expect(failManager.initialized).toBe(false);
+      expect(failManager.initFailed).toBe(true);
+
+      // parse() should return null, not throw
+      const result = failManager.parse('const x = 1;', 'typescript');
+      expect(result).toBeNull();
+    });
+
+    it('should be idempotent after init failure (does not retry)', async () => {
+      const failManager = new ParserManager();
+      (failManager as any)._initFailed = true;
+      await failManager.init(); // should return early
+      await failManager.init(); // should still return early
+      expect(failManager.initFailed).toBe(true);
+      expect(failManager.initialized).toBe(false);
     });
   });
 
