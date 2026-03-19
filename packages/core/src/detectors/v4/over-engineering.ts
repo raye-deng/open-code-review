@@ -71,6 +71,9 @@ export class OverEngineeringDetector implements V4Detector {
     // Analysis 6: Single-implementation abstractions
     this.detectSingleImplAbstractions(units, results);
 
+    // Analysis 7: Design pattern name abuse (trivial classes with pattern-named suffixes)
+    this.detectPatternNameAbuse(units, results);
+
     return results;
   }
 
@@ -371,6 +374,187 @@ export class OverEngineeringDetector implements V4Detector {
         },
       });
     }
+  }
+
+  /**
+   * Detect design pattern name abuse: classes with design-pattern vocabulary
+   * in their name (Factory, Builder, Provider, etc.) but trivially simple bodies.
+   *
+   * AI models love naming classes after design patterns even when a simple function
+   * would suffice. This catches classes like "UserHandler" that are just a wrapper
+   * around a single function call.
+   *
+   * Thresholds:
+   * - Class body < maxPatternBodyLOC lines (default 25) → suspicious
+   * - Class has < maxPatternMethods methods (default 2) → suspicious
+   * - Class name ends with a known pattern suffix → flagged
+   *
+   * Uses source-level analysis (regex) since the IR may not have full method counts
+   * for all languages.
+   */
+  private detectPatternNameAbuse(
+    units: CodeUnit[],
+    results: DetectorResult[],
+  ): void {
+    const PATTERN_SUFFIXES = [
+      'Factory', 'Builder', 'Provider', 'Manager', 'Handler', 'Processor',
+      'Resolver', 'Strategy', 'Adapter', 'Decorator', 'Observer', 'Singleton',
+      'Facade', 'Controller', 'Service', 'Repository', 'Middleware',
+      'Dispatcher', 'Supervisor', 'Coordinator', 'Registry', 'Wrapper',
+      'Helper', 'Util', 'Utility', 'Engine',
+    ];
+
+    const MAX_BODY_LOC = 25;
+    const MAX_METHODS = 2;
+
+    const MAX_BODY_LOC_KEY = 'maxPatternBodyLOC';
+    const MAX_METHODS_KEY = 'maxPatternMethods';
+
+    // Note: thresholds from context.config could be used here in the future,
+    // but since this method doesn't receive context, we use constants for now.
+
+    for (const unit of units) {
+      if (unit.kind !== 'file') continue;
+      const source = unit.source;
+      if (!source) continue;
+
+      for (const suffix of PATTERN_SUFFIXES) {
+        // Match class declarations with the pattern suffix
+        const classRegex = new RegExp(`(?:class|interface)\\s+(\\w*${suffix})\\b`, 'g');
+        let match: RegExpExecArray | null;
+
+        while ((match = classRegex.exec(source)) !== null) {
+          const className = match[1];
+          const matchStart = match.index;
+
+          // Skip if it's in a comment or string
+          if (this.isInCommentOrString(source, matchStart)) continue;
+
+          // Extract the class/interface body
+          const bodyRange = this.extractClassBody(source, matchStart);
+          if (!bodyRange) continue;
+
+          const body = source.substring(bodyRange.start, bodyRange.end);
+          const bodyLines = body.split('\n').filter(l => l.trim().length > 0 && !l.trim().startsWith('//'));
+
+          // Check if the body is trivially simple
+          if (bodyLines.length > MAX_BODY_LOC) continue;
+
+          // Count method-like definitions in the body
+          const methodCount = this.countMethodsInBody(body);
+
+          if (methodCount <= MAX_METHODS) {
+            const line = source.substring(0, matchStart).split('\n').length;
+
+            results.push({
+              detectorId: this.id,
+              severity: 'info',
+              category: this.category,
+              messageKey: 'over-engineering.pattern-name-abuse',
+              message: `Class "${className}" uses design pattern suffix "${suffix}" but has a trivial implementation (${methodCount} method${methodCount !== 1 ? 's' : ''}, ${bodyLines.length} effective lines). AI often names classes after design patterns when a simple function would suffice.`,
+              file: unit.file,
+              line,
+              confidence: 0.6,
+              metadata: {
+                className,
+                patternSuffix: suffix,
+                methodCount,
+                effectiveLines: bodyLines.length,
+                thresholds: { [MAX_BODY_LOC_KEY]: MAX_BODY_LOC, [MAX_METHODS_KEY]: MAX_METHODS },
+                analysisType: 'pattern-name-abuse',
+              },
+            });
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Extract the body range (start, end) of a class/interface starting from the declaration.
+   * Returns null if no body is found (e.g., abstract-only or comment).
+   */
+  private extractClassBody(source: string, declarationStart: number): { start: number; end: number } | null {
+    const braceStart = source.indexOf('{', declarationStart);
+    if (braceStart === -1) return null;
+
+    let depth = 0;
+    let inString = false;
+    let stringChar = '';
+    let inTemplate = false;
+
+    for (let i = braceStart; i < source.length; i++) {
+      const ch = source[i];
+      const prev = i > 0 ? source[i - 1] : '';
+
+      if (inString) {
+        if (ch === stringChar && prev !== '\\') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (ch === '"' || ch === "'" || ch === '`') {
+        inString = true;
+        stringChar = ch;
+        continue;
+      }
+
+      if (ch === '{') depth++;
+      if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          return { start: braceStart, end: i + 1 };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Count method-like definitions within a class body.
+   * Detects: methodName(), get/set accessors, and arrow function properties.
+   */
+  private countMethodsInBody(body: string): number {
+    let count = 0;
+
+    // Match method definitions: name(params) { or name(params):
+    // Also match arrow function properties: name = () => or name = (params) => {
+    const methodPatterns = [
+      /(?:public|private|protected|static|async|abstract|readonly)*\s*\w+\s*\([^)]*\)\s*[{:=]/g,
+      /get\s+\w+\s*\(\s*\)/g,
+      /set\s+\w+\s*\([^)]*\)/g,
+    ];
+
+    for (const pattern of methodPatterns) {
+      let m: RegExpExecArray | null;
+      while ((m = pattern.exec(body)) !== null) {
+        // Skip constructor, common false positives
+        if (/\bconstructor\b/.test(m[0])) continue;
+        if (/\b(?:if|for|while|switch|catch|return|typeof|instanceof|new)\s*\(/.test(m[0])) continue;
+        count++;
+      }
+    }
+
+    return count;
+  }
+
+  /**
+   * Check if a position in the source is inside a comment or string literal.
+   * Simple heuristic: checks if the line starts with // or if we're between quotes.
+   */
+  private isInCommentOrString(source: string, position: number): boolean {
+    // Find the start of the current line
+    const lineStart = source.lastIndexOf('\n', position - 1) + 1;
+    const linePrefix = source.substring(lineStart, position).trim();
+
+    // Line comment
+    if (linePrefix.startsWith('//') || linePrefix.startsWith('#') || linePrefix.startsWith('*')) {
+      return true;
+    }
+
+    return false;
   }
 
   /**

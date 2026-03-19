@@ -368,3 +368,179 @@ describe('OverEngineeringDetector - single implementation abstraction', () => {
     expect(singleImpl!.message).toContain('UserRepository');
   });
 });
+
+// ─── Design pattern name abuse ────────────────────────────────────
+
+describe('OverEngineeringDetector - design pattern name abuse', () => {
+  const detector = new OverEngineeringDetector();
+
+  it('should detect trivially simple Factory class', async () => {
+    const source = [
+      'class UserFactory {',
+      '  createUser(name: string) {',
+      '    return { name, id: crypto.randomUUID() };',
+      '  }',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const abuse = results.find(r => r.metadata?.analysisType === 'pattern-name-abuse');
+    expect(abuse).toBeDefined();
+    expect(abuse!.message).toContain('UserFactory');
+    expect(abuse!.message).toContain('Factory');
+    expect(abuse!.severity).toBe('info');
+    expect(abuse!.confidence).toBe(0.6);
+  });
+
+  it('should detect trivially simple Provider class', async () => {
+    const source = [
+      'class ConfigProvider {',
+      '  getConfig() {',
+      '    return { port: 3000, host: "localhost" };',
+      '  }',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const abuse = results.find(r => r.metadata?.analysisType === 'pattern-name-abuse');
+    expect(abuse).toBeDefined();
+    expect(abuse!.message).toContain('ConfigProvider');
+    expect(abuse!.message).toContain('Provider');
+  });
+
+  it('should detect trivially simple Strategy interface', async () => {
+    const source = [
+      'interface PaymentStrategy {',
+      '  pay(amount: number): boolean;',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const abuse = results.find(r => r.metadata?.analysisType === 'pattern-name-abuse');
+    expect(abuse).toBeDefined();
+    expect(abuse!.message).toContain('PaymentStrategy');
+  });
+
+  it('should detect trivially simple Handler class', async () => {
+    const source = [
+      'class ErrorHandler {',
+      '  handle(error: Error) {',
+      '    console.error(error.message);',
+      '  }',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const abuse = results.find(r => r.metadata?.analysisType === 'pattern-name-abuse');
+    expect(abuse).toBeDefined();
+    expect(abuse!.message).toContain('ErrorHandler');
+  });
+
+  it('should not flag a substantial Factory class with many methods', async () => {
+    const source = [
+      'class OrderFactory {',
+      '  private validator: Validator;',
+      '  private repository: OrderRepository;',
+      '',
+      '  constructor(validator: Validator, repository: OrderRepository) {',
+      '    this.validator = validator;',
+      '    this.repository = repository;',
+      '  }',
+      '',
+      '  createOrder(data: OrderData): Order {',
+      '    this.validator.validate(data);',
+      '    const order = new Order(data);',
+      '    this.repository.save(order);',
+      '    return order;',
+      '  }',
+      '',
+      '  createBulkOrder(items: OrderData[]): Order[] {',
+      '    return items.map(item => this.createOrder(item));',
+      '  }',
+      '',
+      '  createFromTemplate(template: OrderTemplate): Order {',
+      '    const data = this.applyTemplate(template);',
+      '    return this.createOrder(data);',
+      '  }',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const abuse = results.filter(r => r.metadata?.analysisType === 'pattern-name-abuse');
+    expect(abuse).toHaveLength(0);
+  });
+
+  it('should not flag non-pattern-named classes', async () => {
+    const source = [
+      'class User {',
+      '  constructor(private name: string) {}',
+      '  greet() { return `Hello, ${this.name}`; }',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const abuse = results.filter(r => r.metadata?.analysisType === 'pattern-name-abuse');
+    expect(abuse).toHaveLength(0);
+  });
+
+  it('should detect multiple pattern-named classes in one file', async () => {
+    const source = [
+      'class AuthHandler {',
+      '  authenticate(token: string) { return true; }',
+      '}',
+      '',
+      'class UserManager {',
+      '  getUser(id: string) { return { id, name: "test" }; }',
+      '}',
+      '',
+      'class DataProcessor {',
+      '  process(input: string) { return input.toUpperCase(); }',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const abuse = results.filter(r => r.metadata?.analysisType === 'pattern-name-abuse');
+    expect(abuse.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('should skip pattern names in comments', async () => {
+    const source = [
+      '// Factory pattern: create users',
+      '// class UserFactory { }',
+      'class User {',
+      '  constructor(private name: string) {}',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const abuse = results.filter(r => r.metadata?.analysisType === 'pattern-name-abuse');
+    expect(abuse).toHaveLength(0);
+  });
+
+  it('should include metadata with suffix and method count', async () => {
+    const source = [
+      'class EmailService {',
+      '  send(to: string, body: string) {',
+      '    console.log(`Sending to ${to}`);',
+      '  }',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const abuse = results.find(r => r.metadata?.analysisType === 'pattern-name-abuse');
+    expect(abuse).toBeDefined();
+    expect(abuse!.metadata!.patternSuffix).toBe('Service');
+    expect(abuse!.metadata!.className).toBe('EmailService');
+    expect(typeof abuse!.metadata!.methodCount).toBe('number');
+    expect(typeof abuse!.metadata!.effectiveLines).toBe('number');
+  });
+});
