@@ -74,6 +74,12 @@ export class OverEngineeringDetector implements V4Detector {
     // Analysis 7: Design pattern name abuse (trivial classes with pattern-named suffixes)
     this.detectPatternNameAbuse(units, results);
 
+    // Analysis 8: Deeply nested configuration objects
+    this.detectNestedConfigAbstraction(units, results);
+
+    // Analysis 9: TypeScript generic over-engineering
+    this.detectGenericOverengineering(units, results);
+
     return results;
   }
 
@@ -468,6 +474,270 @@ export class OverEngineeringDetector implements V4Detector {
         }
       }
     }
+  }
+
+  /**
+   * Detect deeply nested configuration object abstractions.
+   *
+   * AI models often create excessively nested configuration type hierarchies
+   * (Config → AppConfig → DatabaseConfig → PostgresConfig) when a flat
+   * configuration object would be simpler and more maintainable.
+   *
+   * Detects:
+   * - Interface/type chains where one config type references another
+   * - More than 2 levels of nesting in config-like types
+   */
+  private detectNestedConfigAbstraction(
+    units: CodeUnit[],
+    results: DetectorResult[],
+  ): void {
+    const CONFIG_NAME_PATTERN = /(?:Config|Configuration|Options|Settings|Params|Props)$/i;
+    const MAX_NESTING_DEPTH = 2;
+
+    for (const unit of units) {
+      if (unit.kind !== 'file') continue;
+      const source = unit.source;
+      if (!source) continue;
+
+      // Extract all config-like type definitions and their referenced types
+      const configTypes = new Map<string, {
+        line: number;
+        referencedTypes: string[];
+      }>();
+
+      // Match interface/type definitions with config-like names
+      const defRegex = /(?:interface|type)\s+(\w+(?:Config|Configuration|Options|Settings|Params|Props)\w*)\s*(?:=\s*)?(?:extends\s+(\w+)\s*)?\{([^}]*)\}/gi;
+      let match: RegExpExecArray | null;
+
+      while ((match = defRegex.exec(source)) !== null) {
+        const typeName = match[1];
+        const extendsType = match[2] || null;
+        const body = match[3];
+        const line = source.substring(0, match.index).split('\n').length;
+
+        // Find referenced config-like types in properties
+        const referencedTypes: string[] = [];
+        if (extendsType && CONFIG_NAME_PATTERN.test(extendsType)) {
+          referencedTypes.push(extendsType);
+        }
+
+        const propTypeRegex = /:\s*(\w+(?:Config|Configuration|Options|Settings|Params|Props)\w*)/gi;
+        let propMatch: RegExpExecArray | null;
+        while ((propMatch = propTypeRegex.exec(body)) !== null) {
+          referencedTypes.push(propMatch[1]);
+        }
+
+        configTypes.set(typeName, { line, referencedTypes });
+      }
+
+      // Build a depth map by walking the reference graph
+      const depthCache = new Map<string, number>();
+
+      const getDepth = (typeName: string, visited: Set<string>): number => {
+        if (depthCache.has(typeName)) return depthCache.get(typeName)!;
+        if (visited.has(typeName)) return 0; // Circular reference
+        visited.add(typeName);
+
+        const config = configTypes.get(typeName);
+        if (!config || config.referencedTypes.length === 0) {
+          depthCache.set(typeName, 0);
+          return 0;
+        }
+
+        let maxChildDepth = 0;
+        for (const ref of config.referencedTypes) {
+          const childDepth = getDepth(ref, visited);
+          maxChildDepth = Math.max(maxChildDepth, childDepth + 1);
+        }
+
+        depthCache.set(typeName, maxChildDepth);
+        return maxChildDepth;
+      };
+
+      // Find root config types (those that are not referenced by others)
+      const referencedByOthers = new Set<string>();
+      for (const [, config] of configTypes) {
+        for (const ref of config.referencedTypes) {
+          referencedByOthers.add(ref);
+        }
+      }
+
+      for (const [typeName, config] of configTypes) {
+        if (referencedByOthers.has(typeName)) continue; // Skip non-root types
+
+        const depth = getDepth(typeName, new Set());
+        if (depth > MAX_NESTING_DEPTH) {
+          // Walk the chain to report it
+          const chain: string[] = [typeName];
+          let current = typeName;
+          while (configTypes.has(current) && configTypes.get(current)!.referencedTypes.length > 0) {
+            const nextRef = configTypes.get(current)!.referencedTypes[0];
+            if (chain.includes(nextRef)) break; // Avoid circular
+            chain.push(nextRef);
+            current = nextRef;
+          }
+
+          results.push({
+            detectorId: this.id,
+            severity: 'warning',
+            category: this.category,
+            messageKey: 'over-engineering.nested-config-abstraction',
+            message: `Configuration type "${typeName}" has ${depth} levels of nesting (${chain.join(' → ')}). AI often creates unnecessarily deep config hierarchies. Consider flattening into a single configuration type.`,
+            file: unit.file,
+            line: config.line,
+            confidence: 0.7,
+            metadata: {
+              typeName,
+              nestingDepth: depth,
+              chain,
+              maxAllowed: MAX_NESTING_DEPTH,
+              analysisType: 'nested-config-abstraction',
+            },
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * Detect TypeScript generic over-engineering.
+   *
+   * AI models frequently produce excessively complex generic type signatures
+   * when simpler types would work. This detects:
+   * - Functions/classes with too many generic type parameters (>3)
+   * - Deeply nested generic types (Map<string, Array<Promise<Result<T, E>>>>)
+   * - Generic parameters that are used only once (could be replaced with concrete type)
+   */
+  private detectGenericOverengineering(
+    units: CodeUnit[],
+    results: DetectorResult[],
+  ): void {
+    const MAX_GENERIC_PARAMS = 3;
+    const MAX_GENERIC_NESTING = 3;
+
+    for (const unit of units) {
+      if (unit.kind !== 'file') continue;
+      if (unit.language !== 'typescript' && unit.language !== 'javascript') continue;
+      const source = unit.source;
+      if (!source) continue;
+
+      const lines = source.split('\n');
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        // Skip comments
+        if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
+
+        // Detect excessive generic type parameters on declarations
+        // Matches: function foo<A, B, C, D>  or  class Bar<T, U, V, W>  or  interface Baz<X, Y, Z, Q>
+        const genericDeclRegex = /(?:function|class|interface|type)\s+(\w+)\s*<([^>]+)>/g;
+        let match: RegExpExecArray | null;
+
+        while ((match = genericDeclRegex.exec(line)) !== null) {
+          const name = match[1];
+          const genericsStr = match[2];
+
+          // Count generic parameters (split by comma, accounting for nested <> and defaults)
+          const paramCount = this.countGenericParams(genericsStr);
+
+          if (paramCount > MAX_GENERIC_PARAMS) {
+            results.push({
+              detectorId: this.id,
+              severity: 'warning',
+              category: this.category,
+              messageKey: 'over-engineering.excessive-generics',
+              message: `"${name}" has ${paramCount} generic type parameters (max recommended: ${MAX_GENERIC_PARAMS}). AI often creates overly generic abstractions. Consider reducing type parameters or splitting into simpler types.`,
+              file: unit.file,
+              line: i + 1,
+              confidence: 0.7,
+              metadata: {
+                name,
+                genericParamCount: paramCount,
+                threshold: MAX_GENERIC_PARAMS,
+                analysisType: 'excessive-generics',
+              },
+            });
+          }
+        }
+
+        // Detect deeply nested generic types in type annotations
+        // e.g., Map<string, Array<Promise<Result<T, E>>>>
+        const maxNesting = this.measureGenericNesting(line);
+        if (maxNesting > MAX_GENERIC_NESTING) {
+          results.push({
+            detectorId: this.id,
+            severity: 'info',
+            category: this.category,
+            messageKey: 'over-engineering.deep-generic-nesting',
+            message: `Line contains ${maxNesting} levels of generic type nesting (max recommended: ${MAX_GENERIC_NESTING}). Consider extracting intermediate type aliases for readability.`,
+            file: unit.file,
+            line: i + 1,
+            confidence: 0.6,
+            metadata: {
+              nestingDepth: maxNesting,
+              threshold: MAX_GENERIC_NESTING,
+              matchedLine: trimmed.substring(0, 120),
+              analysisType: 'deep-generic-nesting',
+            },
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * Count generic type parameters, handling nested angle brackets and defaults.
+   * "T, U extends Foo, V = Bar<Baz>" → 3
+   */
+  private countGenericParams(genericsStr: string): number {
+    let depth = 0;
+    let count = 1; // At least one param if string is non-empty
+
+    for (const ch of genericsStr) {
+      if (ch === '<' || ch === '(') depth++;
+      else if (ch === '>' || ch === ')') depth--;
+      else if (ch === ',' && depth === 0) count++;
+    }
+
+    return count;
+  }
+
+  /**
+   * Measure the maximum generic nesting depth in a line.
+   * "Map<string, Array<Promise<T>>>" → 3
+   */
+  private measureGenericNesting(line: string): number {
+    let maxDepth = 0;
+    let currentDepth = 0;
+    let inString = false;
+    let stringChar = '';
+
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+
+      if (inString) {
+        if (ch === stringChar && line[i - 1] !== '\\') inString = false;
+        continue;
+      }
+
+      if (ch === '"' || ch === "'" || ch === '`') {
+        inString = true;
+        stringChar = ch;
+        continue;
+      }
+
+      // Only count < that looks like a generic (preceded by a word character)
+      if (ch === '<' && i > 0 && /\w/.test(line[i - 1])) {
+        currentDepth++;
+        maxDepth = Math.max(maxDepth, currentDepth);
+      } else if (ch === '>' && currentDepth > 0) {
+        currentDepth--;
+      }
+    }
+
+    return maxDepth;
   }
 
   /**

@@ -543,4 +543,163 @@ describe('OverEngineeringDetector - design pattern name abuse', () => {
     expect(typeof abuse!.metadata!.methodCount).toBe('number');
     expect(typeof abuse!.metadata!.effectiveLines).toBe('number');
   });
+
+  // ── Analysis 8: Nested Config Abstraction ─────────────────────────
+
+  it('should detect deeply nested configuration type hierarchies', async () => {
+    const source = [
+      'interface PostgresConfig {',
+      '  host: string;',
+      '  port: number;',
+      '}',
+      '',
+      'interface DatabaseConfig {',
+      '  postgres: PostgresConfig;',
+      '  poolSize: number;',
+      '}',
+      '',
+      'interface ServiceConfig {',
+      '  database: DatabaseConfig;',
+      '  timeout: number;',
+      '}',
+      '',
+      'interface AppConfig {',
+      '  service: ServiceConfig;',
+      '  name: string;',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const nested = results.filter(r => r.metadata?.analysisType === 'nested-config-abstraction');
+    expect(nested.length).toBeGreaterThanOrEqual(1);
+    expect(nested[0].metadata!.nestingDepth).toBeGreaterThan(2);
+    expect(nested[0].metadata!.chain).toBeDefined();
+    expect((nested[0].metadata!.chain as string[]).length).toBeGreaterThan(2);
+  });
+
+  it('should NOT flag shallow config hierarchies (depth <= 2)', async () => {
+    const source = [
+      'interface DatabaseConfig {',
+      '  host: string;',
+      '  port: number;',
+      '}',
+      '',
+      'interface AppConfig {',
+      '  database: DatabaseConfig;',
+      '  name: string;',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const nested = results.filter(r => r.metadata?.analysisType === 'nested-config-abstraction');
+    expect(nested.length).toBe(0);
+  });
+
+  it('should NOT flag non-config type hierarchies', async () => {
+    const source = [
+      'interface User {',
+      '  name: string;',
+      '  address: Address;',
+      '}',
+      '',
+      'interface Address {',
+      '  street: Street;',
+      '  city: string;',
+      '}',
+      '',
+      'interface Street {',
+      '  name: string;',
+      '  number: number;',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const nested = results.filter(r => r.metadata?.analysisType === 'nested-config-abstraction');
+    expect(nested.length).toBe(0);
+  });
+
+  // ── Analysis 9: Generic Over-engineering ──────────────────────────
+
+  it('should detect functions with too many generic type parameters', async () => {
+    const source = [
+      'function transform<TInput, TOutput, TContext, TError, TMetadata>(input: TInput): TOutput {',
+      '  return input as unknown as TOutput;',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const generics = results.filter(r => r.metadata?.analysisType === 'excessive-generics');
+    expect(generics.length).toBe(1);
+    expect(generics[0].metadata!.genericParamCount).toBe(5);
+    expect(generics[0].metadata!.name).toBe('transform');
+  });
+
+  it('should detect deeply nested generic types', async () => {
+    const source = [
+      'type Result = Map<string, Array<Promise<Either<Error, Response<Data>>>>>;',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const deepNesting = results.filter(r => r.metadata?.analysisType === 'deep-generic-nesting');
+    expect(deepNesting.length).toBe(1);
+    expect(deepNesting[0].metadata!.nestingDepth).toBeGreaterThan(3);
+  });
+
+  it('should NOT flag functions with reasonable generic params (<=3)', async () => {
+    const source = [
+      'function map<T, U>(arr: T[], fn: (item: T) => U): U[] {',
+      '  return arr.map(fn);',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const generics = results.filter(r => r.metadata?.analysisType === 'excessive-generics');
+    expect(generics.length).toBe(0);
+  });
+
+  it('should NOT flag shallow generic nesting (<=3)', async () => {
+    const source = [
+      'const data: Map<string, Array<number>> = new Map();',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const deepNesting = results.filter(r => r.metadata?.analysisType === 'deep-generic-nesting');
+    expect(deepNesting.length).toBe(0);
+  });
+
+  it('should detect class with excessive generics', async () => {
+    const source = [
+      'class ServiceFactory<TRequest, TResponse, TContext, TMiddleware> {',
+      '  create(req: TRequest): TResponse {',
+      '    return {} as TResponse;',
+      '  }',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const generics = results.filter(r => r.metadata?.analysisType === 'excessive-generics');
+    expect(generics.length).toBe(1);
+    expect(generics[0].metadata!.genericParamCount).toBe(4);
+  });
+
+  it('should skip generic detection for non-TypeScript files', async () => {
+    const source = [
+      'class Factory<A, B, C, D, E> {',
+      '  public A create() { return null; }',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source, language: 'java', file: 'Test.java' });
+    const results = await detector.detect([unit], createContext());
+    const generics = results.filter(r => r.metadata?.analysisType === 'excessive-generics');
+    expect(generics.length).toBe(0);
+  });
 });
