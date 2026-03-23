@@ -702,4 +702,114 @@ describe('OverEngineeringDetector - design pattern name abuse', () => {
     const generics = results.filter(r => r.metadata?.analysisType === 'excessive-generics');
     expect(generics.length).toBe(0);
   });
+
+  // ── Excessive Decorator Chains ─────────────────────────────────
+
+  it('should detect excessive decorator chain (>4 decorators)', async () => {
+    const source = [
+      '@Injectable',
+      '@Validated',
+      '@Cached',
+      '@Logged',
+      '@Timed',
+      'class UserService {',
+      '  getUser() { return {}; }',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const decoratorResults = results.filter(r => r.metadata?.analysisType === 'excessive-decorator-chain');
+    expect(decoratorResults.length).toBe(1);
+    expect(decoratorResults[0].metadata!.decoratorCount).toBe(5);
+    expect(decoratorResults[0].severity).toBe('warning');
+  });
+
+  it('should not flag 4 or fewer decorators', async () => {
+    const source = [
+      '@Injectable',
+      '@Validated',
+      '@Cached',
+      '@Logged',
+      'class UserService {',
+      '  getUser() { return {}; }',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const decoratorResults = results.filter(r => r.metadata?.analysisType === 'excessive-decorator-chain');
+    expect(decoratorResults.length).toBe(0);
+  });
+
+  it('should detect Python excessive decorators', async () => {
+    const source = [
+      '@app.route("/api/users")',
+      '@login_required',
+      '@cache_control(max_age=300)',
+      '@rate_limit(100)',
+      '@validate_json',
+      'def get_users():',
+      '    return []',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source, language: 'python', file: 'app.py' });
+    const results = await detector.detect([unit], createContext());
+    const decoratorResults = results.filter(r => r.metadata?.analysisType === 'excessive-decorator-chain');
+    expect(decoratorResults.length).toBe(1);
+    expect(decoratorResults[0].metadata!.decoratorCount).toBe(5);
+  });
+
+  it('should not flag JSDoc annotations as decorators', async () => {
+    const source = [
+      '@param {string} name',
+      '@returns {boolean}',
+      '@type {Object}',
+      '@deprecated Use newMethod',
+      '@see otherModule',
+      'function doStuff(name) { return true; }',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const decoratorResults = results.filter(r => r.metadata?.analysisType === 'excessive-decorator-chain');
+    expect(decoratorResults.length).toBe(0);
+  });
+
+  it('should handle decorators with blank lines in between', async () => {
+    const source = [
+      '@Injectable',
+      '@Validated',
+      '',
+      '@Cached',
+      '@Logged',
+      '@Timed',
+      'class Service {',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source });
+    const results = await detector.detect([unit], createContext());
+    const decoratorResults = results.filter(r => r.metadata?.analysisType === 'excessive-decorator-chain');
+    expect(decoratorResults.length).toBe(1);
+    expect(decoratorResults[0].metadata!.decoratorCount).toBe(5);
+  });
+
+  it('should detect Java annotation stacking', async () => {
+    const source = [
+      '@RestController',
+      '@RequestMapping("/api")',
+      '@CrossOrigin',
+      '@Validated',
+      '@Secured("ROLE_ADMIN")',
+      'public class UserController {',
+      '}',
+    ].join('\n');
+
+    const unit = makeFileUnit({ source, language: 'java', file: 'UserController.java' });
+    const results = await detector.detect([unit], createContext());
+    const decoratorResults = results.filter(r => r.metadata?.analysisType === 'excessive-decorator-chain');
+    expect(decoratorResults.length).toBe(1);
+    expect(decoratorResults[0].metadata!.decoratorCount).toBe(5);
+  });
 });

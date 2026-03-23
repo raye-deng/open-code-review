@@ -80,6 +80,9 @@ export class OverEngineeringDetector implements V4Detector {
     // Analysis 9: TypeScript generic over-engineering
     this.detectGenericOverengineering(units, results);
 
+    // Analysis 10: Excessive decorator chains
+    this.detectExcessiveDecoratorChains(units, results);
+
     return results;
   }
 
@@ -825,6 +828,80 @@ export class OverEngineeringDetector implements V4Detector {
     }
 
     return false;
+  }
+
+  /**
+   * Detect excessive decorator chains on classes, methods, or properties.
+   *
+   * AI models love stacking decorators — @Injectable @Validated @Cached
+   * @Logged @Timed @Deprecated all on a single method. This makes code
+   * hard to reason about and often indicates unnecessary abstraction.
+   *
+   * Detects:
+   * - TypeScript/JavaScript: consecutive @ decorators before a declaration
+   * - Python: consecutive @ decorators before a def/class
+   * - Java/Kotlin: consecutive @ annotations before a method/class
+   */
+  private detectExcessiveDecoratorChains(
+    units: CodeUnit[],
+    results: DetectorResult[],
+  ): void {
+    const MAX_DECORATORS = 4;
+
+    for (const unit of units) {
+      if (unit.kind !== 'file') continue;
+      const source = unit.source;
+      if (!source) continue;
+
+      const lines = source.split('\n');
+      let consecutiveDecorators = 0;
+      let chainStartLine = 0;
+      const collectedDecorators: string[] = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const trimmed = lines[i].trim();
+
+        // Check if line is a decorator/annotation
+        const isDecorator = /^@\w+/.test(trimmed) && !/^@(?:param|returns?|type|typedef|template|see|throws|deprecated|example|override)\b/.test(trimmed);
+
+        if (isDecorator) {
+          if (consecutiveDecorators === 0) {
+            chainStartLine = i;
+          }
+          consecutiveDecorators++;
+          const decoratorName = trimmed.match(/^@(\w+)/)?.[1] || trimmed;
+          collectedDecorators.push(decoratorName);
+        } else if (trimmed.length > 0) {
+          // Non-empty, non-decorator line — end of chain
+          if (consecutiveDecorators > MAX_DECORATORS) {
+            // Only flag if the next line looks like a declaration
+            const isDeclaration = /^(?:export\s+)?(?:class|function|async|const|let|var|def|public|private|protected|static|abstract|interface|fun|data\s+class|open\s+class)\b/.test(trimmed);
+            if (isDeclaration || trimmed.includes('(') || trimmed.includes('{')) {
+              results.push({
+                detectorId: this.id,
+                severity: 'warning',
+                category: this.category,
+                messageKey: 'over-engineering.excessive-decorator-chain',
+                message: `${consecutiveDecorators} decorators stacked on a single declaration (max recommended: ${MAX_DECORATORS}). AI tends to over-apply decorators. Consider consolidating or removing unnecessary ones. Decorators: @${collectedDecorators.join(', @')}.`,
+                file: unit.file,
+                line: chainStartLine + 1,
+                endLine: i + 1,
+                confidence: 0.7,
+                metadata: {
+                  decoratorCount: consecutiveDecorators,
+                  threshold: MAX_DECORATORS,
+                  decorators: [...collectedDecorators],
+                  analysisType: 'excessive-decorator-chain',
+                },
+              });
+            }
+          }
+          consecutiveDecorators = 0;
+          collectedDecorators.length = 0;
+        }
+        // Empty lines within a decorator chain are OK (don't reset)
+      }
+    }
   }
 
   /**

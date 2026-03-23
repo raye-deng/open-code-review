@@ -533,4 +533,90 @@ function handleRequest(req: Request) {
     );
     expect(todoResults).toHaveLength(0);
   });
+
+  // ── Shell Template Literal Injection ─────────────────────────
+
+  it('should detect execSync with template literal interpolation', async () => {
+    const unit = makeUnit('const output = execSync(`rm -rf ${userDir}/tmp`);');
+    const results = await detector.detect([unit], createContext());
+    const shellResult = results.find(r => r.metadata?.patternId === 'shell-template-literal-injection');
+    expect(shellResult).toBeDefined();
+    expect(shellResult!.severity).toBe('error');
+  });
+
+  it('should detect exec with string concatenation', async () => {
+    const unit = makeUnit('exec("ls -la " + userInput, callback);');
+    const results = await detector.detect([unit], createContext());
+    const shellResult = results.find(r => r.metadata?.patternId === 'shell-string-concat-exec');
+    expect(shellResult).toBeDefined();
+    expect(shellResult!.severity).toBe('error');
+  });
+
+  it('should detect Python subprocess with f-string', async () => {
+    const unit = makeUnit("subprocess.run(f'rm -rf {user_dir}')", 'python', 'app.py');
+    const results = await detector.detect([unit], createContext());
+    const shellResult = results.find(r => r.metadata?.patternId === 'python-shell-f-string');
+    expect(shellResult).toBeDefined();
+    expect(shellResult!.severity).toBe('error');
+  });
+
+  it('should detect Python os.system with .format()', async () => {
+    const unit = makeUnit("os.system('rm -rf {}'.format(user_dir))", 'python', 'app.py');
+    const results = await detector.detect([unit], createContext());
+    const shellResult = results.find(r => r.metadata?.patternId === 'python-shell-format-string');
+    expect(shellResult).toBeDefined();
+  });
+
+  it('should not flag spawn with argument array (safe pattern)', async () => {
+    const unit = makeUnit("spawn('ls', ['-la', dir]);");
+    const results = await detector.detect([unit], createContext());
+    const shellResults = results.filter(r =>
+      (r.metadata?.patternId as string)?.startsWith('shell-'),
+    );
+    expect(shellResults).toHaveLength(0);
+  });
+
+  // ── Sensitive Data in Error Responses ─────────────────────────
+
+  it('should detect stack trace in JSON response', async () => {
+    const unit = makeUnit('res.json({ error: err.message, stack: err.stack });');
+    const results = await detector.detect([unit], createContext());
+    const stackResult = results.find(r => r.metadata?.patternId === 'error-stack-in-response');
+    expect(stackResult).toBeDefined();
+    expect(stackResult!.severity).toBe('error');
+  });
+
+  it('should detect Python traceback in response', async () => {
+    const unit = makeUnit('return jsonify({"error": traceback.format_exc()})', 'python', 'app.py');
+    const results = await detector.detect([unit], createContext());
+    const tbResult = results.find(r => r.metadata?.patternId === 'python-traceback-in-response');
+    expect(tbResult).toBeDefined();
+  });
+
+  // ── Cloud/Service Key Patterns ────────────────────────────────
+
+  it('should detect Stripe test key pattern', async () => {
+    // Test detection of sk_test_ prefix + 20 alphanum chars (fake value)
+    const unit = makeUnit('const key = "sk_test_00000000000000000000";');
+    const results = await detector.detect([unit], createContext());
+    const stripeResult = results.find(r => r.metadata?.patternId === 'example-stripe-key');
+    expect(stripeResult).toBeDefined();
+    expect(stripeResult!.severity).toBe('error');
+  });
+
+  it('should detect GitHub PAT pattern', async () => {
+    // Test detection of ghp_ prefix + 36 alphanum chars (fake value)
+    const unit = makeUnit('const token = "ghp_000000000000000000000000000000000000";');
+    const results = await detector.detect([unit], createContext());
+    const ghResult = results.find(r => r.metadata?.patternId === 'example-github-pat');
+    expect(ghResult).toBeDefined();
+  });
+
+  it('should detect Slack token pattern', async () => {
+    // Test detection of xoxb- prefix (fake value)
+    const unit = makeUnit('const slackToken = "xoxb-0000000000-0000000000";');
+    const results = await detector.detect([unit], createContext());
+    const slackResult = results.find(r => r.metadata?.patternId === 'example-slack-token');
+    expect(slackResult).toBeDefined();
+  });
 });

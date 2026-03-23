@@ -350,6 +350,101 @@ const SECURITY_PATTERNS: SecurityPattern[] = [
     scanComments: true,
   },
 
+  // ── Shell Template Literal Injection ────────────────────────────
+  // AI commonly generates child_process calls with template strings
+  // or string concatenation, creating command injection vectors that
+  // bypass simple eval() detection.
+
+  {
+    id: 'shell-template-literal-injection',
+    pattern: /\b(?:execSync|exec|spawnSync|spawn)\s*\(\s*`[^`]*\$\{/,
+    severity: 'error',
+    confidence: 0.85,
+    message: 'Shell command with template literal interpolation detected. AI often generates child_process calls with unsanitized variables. Use spawn() with an argument array instead.',
+    languages: ['typescript', 'javascript'],
+  },
+  {
+    id: 'shell-string-concat-exec',
+    pattern: /\b(?:execSync|exec)\s*\(\s*(?:['"][^'"]*['"]\s*\+|\w+\s*\+\s*['"])/,
+    severity: 'error',
+    confidence: 0.8,
+    message: 'Shell command with string concatenation detected. This enables command injection. Use spawn() or execFile() with an explicit argument array.',
+    languages: ['typescript', 'javascript'],
+  },
+  {
+    id: 'python-shell-f-string',
+    pattern: /\b(?:os\.system|subprocess\.(?:call|run|Popen|check_output|check_call))\s*\(\s*f['"]/,
+    severity: 'error',
+    confidence: 0.85,
+    message: 'Shell command with f-string interpolation detected. AI often generates subprocess calls with unsanitized variables. Use subprocess.run() with a list of arguments instead.',
+    languages: ['python'],
+  },
+  {
+    id: 'python-shell-format-string',
+    pattern: /\b(?:os\.system|subprocess\.(?:call|run|Popen|check_output|check_call))\s*\(\s*['"][^'"]*['"]\.format\s*\(/,
+    severity: 'error',
+    confidence: 0.85,
+    message: 'Shell command with .format() string interpolation detected. Use subprocess.run() with a list of arguments to prevent command injection.',
+    languages: ['python'],
+  },
+
+  // ── Sensitive Data in Error Responses ──────────────────────────
+  // AI commonly generates error handlers that leak internal details
+  // (stack traces, database errors, file paths) to API consumers.
+
+  {
+    id: 'error-stack-in-response',
+    pattern: /\b(?:res\.(?:json|send|status\s*\([^)]*\)\.json|status\s*\([^)]*\)\.send))\s*\(\s*\{[^}]*(?:stack|stackTrace|trace)/i,
+    severity: 'error',
+    confidence: 0.85,
+    message: 'Stack trace leaked in API error response. AI commonly exposes err.stack to API consumers, revealing internal paths and code structure. Return a generic error message instead.',
+    languages: ['typescript', 'javascript'],
+  },
+  {
+    id: 'error-details-in-response',
+    pattern: /\bcatch\s*\([^)]*\)\s*\{[^}]*(?:res\.(?:json|send))\s*\(\s*(?:err|error|e)\b/,
+    severity: 'warning',
+    confidence: 0.65,
+    message: 'Raw error object sent in API response. AI often passes entire error objects to response handlers, potentially leaking internal details. Return only safe, user-facing error messages.',
+    languages: ['typescript', 'javascript'],
+  },
+  {
+    id: 'python-traceback-in-response',
+    pattern: /(?:(?:return|jsonify|Response).*?traceback\.(?:format_exc|print_exc)|traceback\.(?:format_exc|print_exc).*?(?:return|jsonify|Response))/i,
+    severity: 'error',
+    confidence: 0.8,
+    message: 'Python traceback leaked in API response. AI commonly sends traceback.format_exc() output to clients, exposing internal paths and code. Return a generic error message instead.',
+    languages: ['python'],
+  },
+
+  // ── Hardcoded Cloud/Service Keys ──────────────────────────────
+  // AI copies these from documentation and training data examples.
+
+  {
+    id: 'example-stripe-key',
+    pattern: /\bsk_(?:test|live)_[a-zA-Z0-9]{20,}/,
+    severity: 'error',
+    confidence: 0.9,
+    message: 'Possible Stripe API key detected. AI often copies example keys from Stripe documentation. Use environment variables or a secrets manager.',
+    languages: [],
+  },
+  {
+    id: 'example-github-pat',
+    pattern: /\bghp_[a-zA-Z0-9]{36}\b/,
+    severity: 'error',
+    confidence: 0.9,
+    message: 'Possible GitHub Personal Access Token detected. Verify this is not a real token and use environment variables.',
+    languages: [],
+  },
+  {
+    id: 'example-slack-token',
+    pattern: /\bxox[bpras]-[a-zA-Z0-9\-]{10,}/,
+    severity: 'error',
+    confidence: 0.85,
+    message: 'Possible Slack API token detected. AI commonly copies example tokens from Slack documentation. Use environment variables.',
+    languages: [],
+  },
+
   // ── Go-specific Security Patterns ──────────────────────────────
 
   {
