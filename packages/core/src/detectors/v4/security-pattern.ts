@@ -445,6 +445,113 @@ const SECURITY_PATTERNS: SecurityPattern[] = [
     languages: [],
   },
 
+  // ── Environment Variable Fallback with Hardcoded Secrets ──────
+  // AI models frequently generate code that loads secrets from env vars
+  // but falls back to a hardcoded default. This "works" in development
+  // but silently ships the default secret to production.
+
+  {
+    id: 'env-var-fallback-secret-js',
+    pattern: /process\.env\.(?:\w*(?:SECRET|KEY|TOKEN|PASSWORD|PASSWD|PWD|CREDENTIALS?|AUTH)\w*)\s*\|\|\s*['"][^'"]{4,}['"]/i,
+    severity: 'error',
+    confidence: 0.85,
+    message: 'Environment variable with hardcoded fallback secret detected. AI often generates `process.env.SECRET || "default"` which silently ships the default to production. Remove the fallback or throw an error when the env var is missing.',
+    languages: ['typescript', 'javascript'],
+    excludeContextPatterns: [/(?:test|spec|mock|fixture|example)/i],
+  },
+  {
+    id: 'env-var-fallback-secret-nullish-js',
+    pattern: /process\.env\.(?:\w*(?:SECRET|KEY|TOKEN|PASSWORD|PASSWD|PWD|CREDENTIALS?|AUTH)\w*)\s*\?\?\s*['"][^'"]{4,}['"]/i,
+    severity: 'error',
+    confidence: 0.85,
+    message: 'Environment variable with hardcoded fallback secret detected (nullish coalescing). AI often generates `process.env.SECRET ?? "default"` which silently ships the default to production. Throw an error when the env var is missing instead.',
+    languages: ['typescript', 'javascript'],
+    excludeContextPatterns: [/(?:test|spec|mock|fixture|example)/i],
+  },
+  {
+    id: 'python-env-var-fallback-secret',
+    pattern: /os\.(?:getenv|environ\.get)\s*\(\s*['"](?:\w*(?:SECRET|KEY|TOKEN|PASSWORD|PASSWD|CREDENTIALS?|AUTH)\w*)['"](?:\s*,\s*['"][^'"]{4,}['"])/i,
+    severity: 'error',
+    confidence: 0.85,
+    message: 'os.getenv() with hardcoded fallback secret detected. AI often generates `os.getenv("SECRET", "default")` which silently ships the default to production. Use os.environ["SECRET"] (which raises KeyError) or validate explicitly.',
+    languages: ['python'],
+    excludeContextPatterns: [/(?:test|spec|mock|fixture|example)/i],
+  },
+
+  // ── Insecure Cookie Configuration ──────────────────────────────
+  // AI commonly generates cookie handling without security flags.
+  // This is invisible to traditional linters because the code is
+  // syntactically valid — it just has insecure defaults.
+
+  {
+    id: 'cookie-missing-secure-flag',
+    pattern: /(?:res\.cookie|setCookie|set-cookie|cookie\s*[:=])\s*\([^)]*\)\s*(?!.*secure\s*:\s*true)/i,
+    severity: 'warning',
+    confidence: 0.5,
+    message: 'Cookie set without explicit secure flag. AI often omits security attributes on cookies. Set secure: true, httpOnly: true, and sameSite: "strict" or "lax".',
+    languages: ['typescript', 'javascript'],
+    excludeContextPatterns: [/secure\s*:\s*true/i, /httpOnly\s*:\s*true/i],
+  },
+  {
+    id: 'session-cookie-insecure',
+    pattern: /(?:session|cookie)\s*(?::\s*\{|=\s*\{)[^}]*(?:secure\s*:\s*false|httpOnly\s*:\s*false)/i,
+    severity: 'error',
+    confidence: 0.85,
+    message: 'Session/cookie configuration with security flags explicitly disabled. AI sometimes sets secure: false or httpOnly: false in session config. These must be true in production.',
+    languages: ['typescript', 'javascript'],
+  },
+
+  // ── Insecure Server Binding ────────────────────────────────────
+  // AI models default to binding on 0.0.0.0 or all interfaces,
+  // exposing services to the network without considering firewall rules.
+
+  {
+    id: 'server-bind-all-interfaces',
+    pattern: /\.listen\s*\(\s*\d+\s*,\s*['"]0\.0\.0\.0['"]/,
+    severity: 'info',
+    confidence: 0.5,
+    message: 'Server explicitly bound to 0.0.0.0 (all interfaces). AI defaults to binding on all interfaces. Consider binding to 127.0.0.1 for local-only services, or document why public binding is needed.',
+    languages: ['typescript', 'javascript'],
+  },
+  {
+    id: 'python-server-bind-all',
+    pattern: /\.(?:run|serve|listen)\s*\([^)]*host\s*=\s*['"]0\.0\.0\.0['"]/,
+    severity: 'info',
+    confidence: 0.5,
+    message: 'Server bound to 0.0.0.0 (all interfaces). AI defaults to binding on all interfaces. Consider binding to 127.0.0.1 for local-only services.',
+    languages: ['python'],
+  },
+
+  // ── Silent Error Swallowing ────────────────────────────────────
+  // AI commonly generates empty catch blocks or catch blocks that
+  // only log but don't handle or rethrow. This hides failures and
+  // makes debugging production issues nearly impossible.
+
+  {
+    id: 'empty-catch-block',
+    pattern: /\bcatch\s*\([^)]*\)\s*\{\s*\}/,
+    severity: 'warning',
+    confidence: 0.8,
+    message: 'Empty catch block swallows errors silently. AI often generates empty catch blocks as placeholders. At minimum, log the error or rethrow it.',
+    languages: ['typescript', 'javascript', 'java', 'kotlin'],
+  },
+  {
+    id: 'python-bare-except',
+    pattern: /\bexcept\s*:\s*$/m,
+    severity: 'warning',
+    confidence: 0.75,
+    message: 'Bare except clause catches all exceptions including SystemExit and KeyboardInterrupt. AI often generates `except:` instead of `except Exception:`. Use a specific exception type.',
+    languages: ['python'],
+  },
+  {
+    id: 'python-except-pass',
+    pattern: /\bexcept\b[^:]*:\s*pass\b/,
+    severity: 'warning',
+    confidence: 0.8,
+    message: 'except/pass silently swallows errors. AI commonly generates `except: pass` as a placeholder. At minimum, log the exception.',
+    languages: ['python'],
+  },
+
   // ── Go-specific Security Patterns ──────────────────────────────
 
   {
