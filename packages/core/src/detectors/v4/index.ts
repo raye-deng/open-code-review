@@ -13,6 +13,7 @@
  * - PythonLanguageDetector: Python-specific AI patterns (bare except, eval, mutable defaults)
  * - UnicodeInvisibleDetector: Invisible Unicode character detection (PUA, bidi, zero-width)
  * - IncompleteImplementationDetector: AI-generated skeleton/placeholder code detection
+ * - AsyncAntipatternDetector: Async/Promise anti-patterns common in AI code
  *
  * Traditional lint concerns (duplication, type safety) are excluded.
  *
@@ -41,6 +42,7 @@ export {
 } from './language-specific.js';
 export { UnicodeInvisibleDetector } from './unicode-invisible.js';
 export { IncompleteImplementationDetector } from './incomplete-implementation.js';
+export { AsyncAntipatternDetector } from './async-antipattern.js';
 
 // ─── Factory ───────────────────────────────────────────────────────
 
@@ -58,6 +60,7 @@ import {
 } from './language-specific.js';
 import { UnicodeInvisibleDetector } from './unicode-invisible.js';
 import { IncompleteImplementationDetector } from './incomplete-implementation.js';
+import { AsyncAntipatternDetector } from './async-antipattern.js';
 
 /**
  * Create all V4 detectors with default configuration.
@@ -77,5 +80,6 @@ export function createV4Detectors(): V4Detector[] {
     new PythonLanguageDetector(),
     new UnicodeInvisibleDetector(),
     new IncompleteImplementationDetector(),
+    new AsyncAntipatternDetector(),
   ];
 }
