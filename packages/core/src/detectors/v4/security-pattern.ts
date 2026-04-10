@@ -721,6 +721,54 @@ const SECURITY_PATTERNS: SecurityPattern[] = [
     excludeContextPatterns: [/zod|joi|yup|ajv|schema|validate|parseBody|safeParse|transform/i],
   },
 
+  // ── Overly Permissive Input Validation ─────────────────────────
+  // AI models often use trivial validation patterns that accept any input
+  // (e.g., z.string().min(1)) instead of meaningful constraints.
+  // These patterns "work" but provide no real security.
+
+  {
+    id: 'permissive-validation-zod-min-only',
+    pattern: /z\.(?:string\(\)\s*\.min\(1\)|number\(\)\s*\.min\(1\)|boolean\(\)\s*\.optional\(\)|any\(\)|unknown\(\))/,
+    severity: 'warning',
+    confidence: 0.7,
+    message: 'Overly permissive input validation detected. AI often generates validation like z.string().min(1) that accepts any non-empty string. Add meaningful constraints (max length, format regex, email/url validators, specific patterns).',
+    languages: ['typescript', 'javascript'],
+  },
+  {
+    id: 'permissive-validation-joi-min-only',
+    pattern: /Joi\.(?:string\(\)\s*\.min\(1\)|number\(\)\s*\.min\(1\)|any\(\)|optional\(\))/,
+    severity: 'warning',
+    confidence: 0.7,
+    message: 'Overly permissive input validation detected. AI often generates Joi.string().min(1) that accepts any non-empty string. Add meaningful constraints (max length, email(), pattern(), alphanum(), etc.).',
+    languages: ['typescript', 'javascript'],
+  },
+  {
+    id: 'permissive-validation-yup-min-only',
+    pattern: /yup\.(?:string\(\)\s*\.min\(1\)|number\(\)\s*\.min\(1\)|mixed\(\)|any\(\))/,
+    severity: 'warning',
+    confidence: 0.7,
+    message: 'Overly permissive input validation detected. AI often generates yup.string().min(1) that accepts any non-empty string. Add meaningful constraints (max(), email(), matches(), url(), etc.).',
+    languages: ['typescript', 'javascript'],
+  },
+  {
+    id: 'permissive-validation-no-check',
+    pattern: /(?:const|let|var)\s+\w+\s*[:=]\s*req\.(?:body|params|query)\.(?:\w+)/,
+    severity: 'warning',
+    confidence: 0.6,
+    message: 'Input used directly without validation. AI often copies request parameters directly to variables without any validation. Add schema validation or type checking before using user input.',
+    languages: ['typescript', 'javascript'],
+    excludeContextPatterns: [/validate|schema|zod|joi|yup|check|parse|transform/i],
+  },
+  {
+    id: 'permissive-validation-python-no-check',
+    pattern: /(?:\w+\s*=\s*request\.(?:json|form|args|data)\[\w+]|request\.(?:json|form|args|data)\[\w+])\b/,
+    severity: 'warning',
+    confidence: 0.6,
+    message: 'Input used directly without validation. AI often copies request parameters directly without any validation. Add schema validation (pydantic, marshmallow) or type checking before using user input.',
+    languages: ['python'],
+    excludeContextPatterns: [/validate|schema|pydantic|marshmallow|check|parse|transform/i],
+  },
+
   // ── Additional AI Security Anti-Patterns ────────────────────────
   // More patterns specifically targeting AI-generated code issues
 
