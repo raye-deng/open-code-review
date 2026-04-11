@@ -197,6 +197,12 @@ export interface AIConfig {
 
   /** Embedding similarity threshold for flagging blocks (default: 0.7) */
   similarityThreshold?: number;
+
+  /** Maximum files per group for cross-file analysis (default: 5) */
+  maxFilesPerGroup?: number;
+
+  /** Minimum files required for cross-file analysis group (default: 2) */
+  minGroupSize?: number;
 }
 
 // ─── Scan Stage Result ─────────────────────────────────────────────
@@ -204,7 +210,7 @@ export interface AIConfig {
 /** Result from a single scan stage */
 export interface ScanStageResult {
   /** Which stage produced these results */
-  stage: 'structural' | 'embedding' | 'llm';
+  stage: 'structural' | 'embedding' | 'llm' | 'cross-file';
   /** Issues detected in this stage */
   issues: DetectorResult[];
   /** Time taken in milliseconds */

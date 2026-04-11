@@ -31,6 +31,7 @@ import {
   getPatternText,
   getPatternsForLanguage,
 } from './patterns/index.js';
+import { CrossFileContextAnalyzer, type FileGroup } from './cross-file-context.js';
 
 // ─── LLM Response Parser ───────────────────────────────────────────
 
@@ -114,10 +115,15 @@ function normalizeCategory(category: string): DetectorResult['category'] {
 export class AIScanPipeline {
   private readonly maxLLMBlocks: number;
   private readonly similarityThreshold: number;
+  private readonly crossFileAnalyzer: CrossFileContextAnalyzer;
 
   constructor(private config: AIConfig) {
     this.maxLLMBlocks = config.maxLLMBlocks ?? 20;
     this.similarityThreshold = config.similarityThreshold ?? 0.7;
+    this.crossFileAnalyzer = new CrossFileContextAnalyzer({
+      maxFilesPerGroup: config.maxFilesPerGroup ?? 5,
+      minGroupSize: config.minGroupSize ?? 2,
+    });
   }
 
   /**
@@ -152,9 +158,16 @@ export class AIScanPipeline {
 
     // Stage 2: LLM deep scan (L3 only)
     if (this.config.sla === 'L3') {
+      // Single-file analysis for suspicious blocks
       const suspiciousBlocks = this.getSuspiciousBlocks(units, embeddingResults);
-      const llmResults = await this.runLLMStage(suspiciousBlocks);
-      stages.push(llmResults);
+      const singleFileResults = await this.runLLMStage(suspiciousBlocks);
+      stages.push(singleFileResults);
+
+      // Cross-file analysis for multi-file contradictions
+      const crossFileResults = await this.runCrossFileStage(units);
+      if (crossFileResults.issues.length > 0) {
+        stages.push(crossFileResults);
+      }
     }
 
     return this.buildResult(stages, totalStartTime);
@@ -460,6 +473,67 @@ Respond in JSON format:
 
 If no issues found, respond with: { "issues": [] }`;
   }
+
+  /**
+   * Stage 2b: Cross-file analysis for multi-file contradictions (L3 only)
+   */
+  private async runCrossFileStage(
+    units: CodeUnit[],
+  ): Promise<ScanStageResult> {
+    const startTime = Date.now();
+    let totalTokens = 0;
+    const issues: DetectorResult[] = [];
+
+    if (units.length === 0) {
+      return { stage: 'cross-file', issues: [], durationMs: 0, tokensUsed: 0 };
+    }
+
+    // Analyze file relationships and create groups
+    const relationships = this.crossFileAnalyzer.analyzeFileRelationships(units);
+    const fileGroups = this.crossFileAnalyzer.groupFilesForAnalysis(units, relationships);
+
+    // Create enhanced LLM provider for cross-file analysis
+    const llmProvider = await this.createLLMProvider();
+    if (!llmProvider) {
+      return { stage: 'cross-file', issues: [], durationMs: Date.now() - startTime, tokensUsed: 0 };
+    }
+
+    // Analyze each file group
+    for (const fileGroup of fileGroups) {
+      if (fileGroup.files.length === 1) continue; // Skip single-file groups
+
+      try {
+        // Build multi-file prompt
+        const prompt = this.crossFileAnalyzer.buildMultiFilePrompt(fileGroup);
+        const response = await llmProvider.complete(prompt, {
+          maxTokens: 4000, // Larger context for multi-file analysis
+          temperature: 0.1,
+          system: CROSS_FILE_SYSTEM_PROMPT,
+        });
+
+        if (response.usage) {
+          totalTokens += response.usage.total;
+        }
+
+        // Extract cross-file issues
+        const groupIssues = this.crossFileAnalyzer.extractCrossFileIssues(
+          response.content,
+          fileGroup
+        );
+        issues.push(...groupIssues);
+      } catch (error) {
+        console.warn('Cross-file analysis failed for group:', fileGroup.id, error);
+        continue; // Graceful degradation
+      }
+    }
+
+    return {
+      stage: 'cross-file',
+      issues,
+      durationMs: Date.now() - startTime,
+      tokensUsed: totalTokens,
+    };
+  }
 }
 
 // ─── Constants ─────────────────────────────────────────────────────
@@ -475,3 +549,19 @@ You analyze code and identify issues that are common in AI-generated code:
 Always respond with valid JSON matching the requested format.
 Be precise about line numbers.
 Only report issues you are confident about.`;
+
+const CROSS_FILE_SYSTEM_PROMPT = `You are a cross-file code analyzer specializing in detecting AI-generated contradictions across multiple files.
+
+Your focus is on issues that span across files and are often missed by single-file analysis:
+- Type definitions that are inconsistent across files
+- Enum values used with different casing or naming
+- Function signatures that don't match their usage
+- Data structures passed in incompatible formats
+- Import cycles or missing imports between related files
+- API contracts that are violated across module boundaries
+
+AI models frequently generate these types of contradictions because they process each file independently without understanding the full system context.
+
+Always respond with valid JSON matching the requested format.
+Pay special attention to issues that involve multiple files.
+Be confident about cross-file inconsistencies - these are clear indicators of AI-generated code.`;

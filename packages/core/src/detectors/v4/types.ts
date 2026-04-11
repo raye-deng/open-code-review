@@ -44,10 +44,11 @@ export interface DetectorResult {
  * V4 detector categories aligned with V3 scoring dimensions.
  */
 export type DetectorCategory =
-  | 'ai-faithfulness'    // Hallucinated imports/APIs
-  | 'code-freshness'     // Stale/deprecated APIs
-  | 'context-coherence'  // Logic breaks from context window
-  | 'implementation';    // Over-engineering, security, incomplete
+  | 'ai-faithfulness'           // Hallucinated imports/APIs
+  | 'code-freshness'            // Stale/deprecated APIs
+  | 'context-coherence'         // Logic breaks from context window
+  | 'implementation'            // Over-engineering, security, incomplete
+  | 'cross-file-contradiction'; // Multi-file type/enum/signature mismatches
 
 // ─── Detector Context ──────────────────────────────────────────────
 

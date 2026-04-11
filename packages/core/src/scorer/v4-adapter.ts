@@ -22,6 +22,7 @@ const CATEGORY_MAP: Record<DetectorCategory, AIDefectCategory> = {
   'code-freshness': AIDefectCategory.STALE_KNOWLEDGE,
   'context-coherence': AIDefectCategory.CONTEXT_LOSS,
   'implementation': AIDefectCategory.OVER_ENGINEERING,
+  'cross-file-contradiction': AIDefectCategory.CONTEXT_LOSS, // Cross-file issues are context coherence problems
 };
 
 /**
@@ -171,6 +172,7 @@ export function countByCategory(results: DetectorResult[]): Record<DetectorCateg
     'code-freshness': 0,
     'context-coherence': 0,
     'implementation': 0,
+    'cross-file-contradiction': 0,
   };
 
   for (const result of results) {
