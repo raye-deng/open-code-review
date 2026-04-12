@@ -44,6 +44,7 @@ export { UnicodeInvisibleDetector } from './unicode-invisible.js';
 export { IncompleteImplementationDetector } from './incomplete-implementation.js';
 export { AsyncAntipatternDetector } from './async-antipattern.js';
 export { TestAntiPatternDetector } from './test-antipattern.js';
+export { AIOverEngineeringScoreDetector } from './ai-over-engineering-score.js';
 
 // ─── Factory ───────────────────────────────────────────────────────
 
@@ -63,6 +64,7 @@ import { UnicodeInvisibleDetector } from './unicode-invisible.js';
 import { IncompleteImplementationDetector } from './incomplete-implementation.js';
 import { AsyncAntipatternDetector } from './async-antipattern.js';
 import { TestAntiPatternDetector } from './test-antipattern.js';
+import { AIOverEngineeringScoreDetector } from './ai-over-engineering-score.js';
 
 /**
  * Create all V4 detectors with default configuration.
@@ -84,5 +86,6 @@ export function createV4Detectors(): V4Detector[] {
     new IncompleteImplementationDetector(),
     new AsyncAntipatternDetector(),
     new TestAntiPatternDetector(),
+    new AIOverEngineeringScoreDetector(),
   ];
 }
