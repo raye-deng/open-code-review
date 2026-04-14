@@ -9,7 +9,8 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
-    "clean": "pnpm -r exec rm -rf dist node_modules"
+    "clean": "pnpm -r exec rm -rf dist node_modules",
+    "update-deprecations": "npx tsx packages/core/src/data/changelog-extractor.ts"
   },
   "devDependencies": {
     "typescript": "^5.4.0",
