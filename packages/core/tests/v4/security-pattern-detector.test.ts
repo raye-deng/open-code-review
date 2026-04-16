@@ -839,4 +839,90 @@ except:
     const pyResult = results.find(r => r.metadata?.patternId === 'python-minimal-validation');
     expect(pyResult).toBeUndefined();
   });
+
+  // ── Custom Cryptographic Algorithms ────────────────────────────
+
+  it('should detect custom XOR encryption', async () => {
+    const unit = makeUnit('function xorEncrypt(data, key) { return data.split("").map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length))).join(""); }');
+    const results = await detector.detect([unit], createContext());
+    const xorResult = results.find(r => r.metadata?.patternId === 'custom-xor-cipher');
+    expect(xorResult).toBeDefined();
+    expect(xorResult!.severity).toBe('error');
+    expect(xorResult!.message).toContain('XOR');
+  });
+
+  it('should detect Caesar cipher implementation', async () => {
+    const unit = makeUnit('function caesarCipher(text, shift) { return text.split("").map(c => String.fromCharCode((c.charCodeAt(0) - 65 + shift) % 26 + 65)).join(""); }');
+    const results = await detector.detect([unit], createContext());
+    const caesarResult = results.find(r => r.metadata?.patternId === 'custom-caesar-cipher');
+    expect(caesarResult).toBeDefined();
+    expect(caesarResult!.confidence).toBe(0.9);
+    expect(caesarResult!.message).toContain('Caesar');
+  });
+
+  it('should detect custom RC4 implementation', async () => {
+    const unit = makeUnit('function rc4Encrypt(key, data) { /* custom RC4 implementation */ }');
+    const results = await detector.detect([unit], createContext());
+    const rc4Result = results.find(r => r.metadata?.patternId === 'custom-rc4-implementation');
+    expect(rc4Result).toBeDefined();
+    expect(rc4Result!.confidence).toBe(0.95);
+    expect(rc4Result!.message).toContain('RC4');
+  });
+
+  it('should detect custom DES implementation', async () => {
+    const unit = makeUnit('function desEncrypt(block, key) { /* custom DES implementation */ }');
+    const results = await detector.detect([unit], createContext());
+    const desResult = results.find(r => r.metadata?.patternId === 'custom-des-implementation');
+    expect(desResult).toBeDefined();
+    expect(desResult!.confidence).toBe(0.95);
+    expect(desResult!.message).toContain('DES');
+  });
+
+  it('should detect custom hash function', async () => {
+    const unit = makeUnit('function simpleHash(str) { let hash = 0; for (let i = 0; i < str.length; i++) { hash = (hash << 5) - hash + str.charCodeAt(i); } return hash; }');
+    const results = await detector.detect([unit], createContext());
+    const hashResult = results.find(r => r.metadata?.patternId === 'custom-hash-function');
+    expect(hashResult).toBeDefined();
+    expect(hashResult!.message).toContain('hash');
+  });
+
+  it('should detect simple math used as encryption', async () => {
+    const unit = makeUnit('function encrypt(text) { return text.split("").map(c => String.fromCharCode(c.charCodeAt(0) + 1)).join(""); }');
+    const results = await detector.detect([unit], createContext());
+    const mathResult = results.find(r => r.metadata?.patternId === 'simple-math-encryption');
+    expect(mathResult).toBeDefined();
+    expect(mathResult!.message).toContain('mathematical operations');
+  });
+
+  it('should not flag when using crypto library', async () => {
+    const unit = makeUnit('import { createCipher } from "crypto"; function encrypt(text) { const cipher = createCipher("aes-256-gcm", key); return cipher.update(text, "utf8", "hex"); }');
+    const results = await detector.detect([unit], createContext());
+    const mathResult = results.find(r => r.metadata?.patternId === 'simple-math-encryption');
+    expect(mathResult).toBeUndefined();
+  });
+
+  it('should detect Base64 used as encryption', async () => {
+    const unit = makeUnit('function encryptData(data) { return Buffer.from(data).toString("base64"); // secure encryption }');
+    const results = await detector.detect([unit], createContext());
+    const b64Result = results.find(r => r.metadata?.patternId === 'base64-as-encryption');
+    expect(b64Result).toBeDefined();
+    expect(b64Result!.severity).toBe('error');
+    expect(b64Result!.message).toContain('Base64');
+  });
+
+  it('should detect custom substitution cipher', async () => {
+    const unit = makeUnit('function substitutionCipher(text) { const map = { "a": "z", "b": "y" }; return text.split("").map(c => map[c] || c).join(""); }');
+    const results = await detector.detect([unit], createContext());
+    const subResult = results.find(r => r.metadata?.patternId === 'custom-substitution-cipher');
+    expect(subResult).toBeDefined();
+    expect(subResult!.message).toContain('substitution');
+  });
+
+  it('should detect reversible obfuscation as security', async () => {
+    const unit = makeUnit('function securePassword(pwd) { return pwd.split("").reverse().join(""); // encrypted password }');
+    const results = await detector.detect([unit], createContext());
+    const obfResult = results.find(r => r.metadata?.patternId === 'reversible-obfuscation');
+    expect(obfResult).toBeDefined();
+    expect(obfResult!.message).toContain('obfuscation');
+  });
 });

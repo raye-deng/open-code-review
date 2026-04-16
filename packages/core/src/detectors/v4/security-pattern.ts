@@ -789,6 +789,87 @@ const SECURITY_PATTERNS: SecurityPattern[] = [
     message: 'AI-generated import of security-sensitive module without proper implementation context. AI often imports crypto, child_process, or fs modules without proper usage patterns.',
     languages: ['typescript', 'javascript'],
   },
+
+  // ── Custom Cryptographic Algorithms ────────────────────────────
+  // AI sometimes generates homemade cryptographic implementations
+  // instead of using standard, well-vetted libraries. These are
+  // often insecure and vulnerable to attacks.
+
+  {
+    id: 'custom-xor-cipher',
+    pattern: /(?:xor|XOR)\s*(?:encrypt|decrypt|cipher|encode|decode)/i,
+    severity: 'error',
+    confidence: 0.85,
+    message: 'Custom XOR-based encryption detected. XOR cipher is trivially breakable and provides no real security. Use standard encryption libraries (crypto-js, node:crypto, cryptography.io).',
+    languages: [],
+  },
+  {
+    id: 'custom-caesar-cipher',
+    pattern: /(?:caesar|rot13|shift)\s*(?:cipher|encrypt|decrypt|encode|decode)/i,
+    severity: 'error',
+    confidence: 0.9,
+    message: 'Custom Caesar cipher or ROT13 implementation detected. These are substitution ciphers that can be broken instantly. Use standard encryption libraries.',
+    languages: [],
+  },
+  {
+    id: 'custom-rc4-implementation',
+    pattern: /(?:rc4|RC4)\s*(?:encrypt|decrypt|cipher|key)/i,
+    severity: 'error',
+    confidence: 0.95,
+    message: 'Custom RC4 implementation detected. RC4 is broken and should not be used for any security purpose. Use AES-256-GCM or ChaCha20-Poly1305 instead.',
+    languages: [],
+  },
+  {
+    id: 'custom-des-implementation',
+    pattern: /(?:des|DES|data.?encryption.?standard)\s*(?:encrypt|decrypt|cipher|key|block)/i,
+    severity: 'error',
+    confidence: 0.95,
+    message: 'Custom DES implementation detected. DES is broken due to 56-bit key size. Use AES-256 or stronger algorithms.',
+    languages: [],
+  },
+  {
+    id: 'custom-hash-function',
+    pattern: /(?:custom|simple|basic|homemade|own)\s*(?:hash|checksum|digest|hashing)/i,
+    severity: 'warning',
+    confidence: 0.7,
+    message: 'Custom hash function detected. Homemade hash functions are vulnerable to collisions and preimage attacks. Use standard cryptographic hashes (SHA-256, BLAKE3).',
+    languages: [],
+    excludeContextPatterns: [/std|crypto|hashlib|hashing|cryptography/i],
+  },
+  {
+    id: 'simple-math-encryption',
+    pattern: /(?:encrypt|cipher|encode).*?(?:\^|\+|\-|\*|\%|\s*\d+\s*\+)/i,
+    severity: 'warning',
+    confidence: 0.65,
+    message: 'Encryption using simple mathematical operations detected. This provides no real security. Use standard encryption libraries with proven algorithms.',
+    languages: [],
+    excludeContextPatterns: [/crypto|cipher|crypto-js|node:crypto|cryptography|pycryptodome/i],
+  },
+  {
+    id: 'base64-as-encryption',
+    pattern: /(?:base64|btoa|atob|Buffer\.(?:from|toString)\(.*?['"]base64['"]).*?(?:encrypt|secure|protect|obfuscate)/i,
+    severity: 'error',
+    confidence: 0.9,
+    message: 'Base64 used as encryption. Base64 is encoding, not encryption. It provides zero security. Use proper encryption (AES, ChaCha20) if data needs protection.',
+    languages: [],
+  },
+  {
+    id: 'custom-substitution-cipher',
+    pattern: /(?:substitution|replace|map).*?(?:cipher|encrypt|decode)/i,
+    severity: 'warning',
+    confidence: 0.6,
+    message: 'Custom substitution cipher detected. Substitution ciphers are easily broken using frequency analysis. Use standard encryption libraries.',
+    languages: [],
+    excludeContextPatterns: [/crypto|cipher|cryptography|pycryptodome/i],
+  },
+  {
+    id: 'reversible-obfuscation',
+    pattern: /(?:obfuscat|scramble|hide|mask).*?(?:encrypt|secure|protect|secret)/i,
+    severity: 'warning',
+    confidence: 0.7,
+    message: 'Code obfuscation or data masking used as encryption. Obfuscation is not encryption and provides no security against determined attackers. Use proper cryptographic methods.',
+    languages: [],
+  },
 ];
 
 // ─── Detector ──────────────────────────────────────────────────────
